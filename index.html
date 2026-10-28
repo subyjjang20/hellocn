@@ -23,7 +23,7 @@
 </head>
 <body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
 
-    <!-- 앱 초기 로딩 오버레이 (무한 멈춤 방지 안전장치 적용) -->
+    <!-- 앱 초기 로딩 오버레이 -->
     <div id="initial-loader" class="fixed inset-0 bg-slate-900 z-[999] flex flex-col items-center justify-center text-white transition-opacity duration-200">
         <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-500 mb-5"></i>
         <h2 class="text-xl font-bold tracking-tight">헬로CN 닥스 시스템 연결 중...</h2>
@@ -158,14 +158,26 @@
         </div>
     </div>
 
-    <!-- 3. 열 구조 편집 모달 -->
+    <!-- 3. 열 구조 및 헤더 줄수 설정 모달 -->
     <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-        <div class="bg-white w-[650px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+        <div class="bg-white w-[680px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열(항목) 구조 및 순서 설정</h3>
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열(항목) 구조 및 헤더 설정</h3>
                 <button onclick="closeColumnManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+            <div class="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
+                <!-- 헤더 줄수 설정 옵션 -->
+                <div class="bg-slate-100 p-3 rounded-lg border border-slate-300 flex items-center justify-between">
+                    <div>
+                        <span class="text-xs font-bold text-slate-800">엑셀 붙여넣기 시 헤더(항목) 줄수 설정</span>
+                        <p class="text-[11px] text-slate-500">엑셀 상단에 제목 행이 1줄인지 2줄인지 선택하세요.</p>
+                    </div>
+                    <select id="header-rows-select" class="border border-slate-300 rounded px-3 py-1.5 text-xs font-bold text-blue-600 bg-white outline-none">
+                        <option value="1">1줄 헤더</option>
+                        <option value="2">2줄 헤더 (상단 합치기 구조 대응)</option>
+                    </select>
+                </div>
+
                 <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-xs text-indigo-900">
                     열의 순서(▲▼)를 변경하거나, 제목 수정 및 드롭다운 방식을 지정할 수 있습니다.
                 </div>
@@ -200,7 +212,7 @@
                     <div class="grid grid-cols-3 gap-2">
                         <div class="flex items-center col-span-1">
                             <input type="text" id="new-user-id" placeholder="아이디(영문)" class="border border-slate-300 rounded-l px-2 py-1.5 text-xs w-full outline-none focus:border-blue-500">
-                            <span class="bg-slate-100 border border-l-0 border-slate-300 px-1 py-1.5 text-[9px] text-slate-500 rounded-r">@...</span>
+                            <span class="bg-slate-100 border border-l-0 border-slate-300 px-1.5 py-1.5 text-[9px] text-slate-500 rounded-r">@...</span>
                         </div>
                         <input type="text" id="new-user-name" placeholder="성명 (예: 홍길동)" class="border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-500">
                         <select id="new-user-role" class="border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-500">
@@ -223,7 +235,7 @@
         </div>
     </div>
 
-    <!-- 1. 메인 비즈니스 로직 (모듈보다 먼저 선언하여 함수 미정의 에러 원천 차단) -->
+    <!-- 1. 메인 비즈니스 로직 -->
     <script>
         async function hashPassword(str) {
             const msgBuffer = new TextEncoder().encode(str);
@@ -236,6 +248,7 @@
 
         let defaultSheetsData = {
             "월별실적취합": {
+                headerRows: 1, // 헤더 줄수 기본 1줄
                 columns: [
                     { name: "구분", type: "select", options: "본사직영, 지사운영, 협력사" },
                     { name: "부서/지역", type: "text", options: "" },
@@ -260,9 +273,8 @@
         let activeSheet = "월별실적취합";
         let selectedCell = { r: 0, c: 0 };
         let isRemoteUpdating = false;
-        let isManualLoggingIn = false; // 수동 로그인 중 리스너 간섭 방지 플래그
+        let isManualLoggingIn = false;
 
-        // 마스터 계정은 배열에 무조건 존재하도록 보장
         function ensureMasterAdmins() {
             const masters = [
                 { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
@@ -286,7 +298,6 @@
             return role === "최고관리자" || role === "서추" || role === "영추";
         }
 
-        // 로딩 화면 즉시 제거 함수
         function hideInitialLoader() {
             const loader = document.getElementById('initial-loader');
             if (loader && !loader.classList.contains('hidden')) {
@@ -295,7 +306,6 @@
             }
         }
 
-        // 안전장치: 어떤 네트워크 장애가 나더라도 2.5초 뒤에는 무조건 로딩 화면을 걷어냄
         setTimeout(() => {
             const loader = document.getElementById('initial-loader');
             if (loader && !loader.classList.contains('hidden')) {
@@ -311,14 +321,12 @@
         let unsubAccounts = null;
         let unsubSheets = null;
 
-        // 실시간 DB 동기화 리스너
         function startDatabaseSync() {
             const { db, doc, onSnapshot } = window.fb;
             
             if (unsubAccounts) unsubAccounts();
             if (unsubSheets) unsubSheets();
 
-            // 1. 계정 동기화
             unsubAccounts = onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
                 if (snap.exists()) {
                     accountsData = snap.data().accounts || [];
@@ -333,7 +341,6 @@
                 setSyncStatus(false);
             });
 
-            // 2. 시트 동기화 (JSON 문자열 파싱으로 Nested Array 에러 원천 차단)
             unsubSheets = onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
                 if (snap.exists()) {
                     isRemoteUpdating = true;
@@ -345,6 +352,11 @@
                             sheetsData = dbData.data;
                         }
 
+                        // 각 시트별 데이터 무결성 검증 (headerRows 등 기본값 보장)
+                        Object.keys(sheetsData).forEach(sName => {
+                            if (!sheetsData[sName].headerRows) sheetsData[sName].headerRows = 1;
+                        });
+
                         if (!sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
                         renderSheetTabs();
                         renderGrid();
@@ -355,7 +367,6 @@
                         isRemoteUpdating = false; 
                     }
                 } else {
-                    // DB에 sheets/mainDoc 문서가 없으면 즉시 초기 데이터로 생성!
                     saveSheetsToFirebase();
                 }
             }, (err) => {
@@ -378,7 +389,6 @@
             }
         }
 
-        // 시트 데이터 저장 (단일 문자열 payload로 압축 저장하여 Nested Array 에러 완벽 해결)
         async function saveSheetsToFirebase() {
             if (isRemoteUpdating) return;
             try {
@@ -392,6 +402,7 @@
             } catch (e) {
                 console.error("시트 저장 실패:", e);
                 setSyncStatus(false);
+                alert("시트 내용을 DB에 저장하지 못했습니다.\n(에러: " + e.message + ")");
             }
         }
 
@@ -407,7 +418,6 @@
             }
         }
 
-        // 팝업 없이 로그인 화면으로 초기화하는 내부 함수
         async function forceResetToLogin() {
             try {
                 if (window.fb && window.fb.auth) {
@@ -427,7 +437,6 @@
             loginModal.classList.add('flex');
         }
 
-        // 앱 초기화 (새로고침 시 멈춤 및 깜빡임 완벽 해결)
         window.initApp = function() {
             ensureMasterAdmins();
             renderSheetTabs();
@@ -437,14 +446,12 @@
             const loginModal = document.getElementById('login-modal');
 
             onAuthStateChanged(auth, async (fbUser) => {
-                // 사용자가 로그인 버튼을 직접 눌러 처리 중일 때는 간섭하지 않음
                 if (isManualLoggingIn) return;
 
                 const savedUserId = localStorage.getItem("hellocn_auth_userid");
 
                 if (fbUser && savedUserId) {
                     try {
-                        // setTimeout 대신 getDoc으로 직접 데이터를 확실하게 기다려서 받아옴
                         const accSnap = await getDoc(doc(db, "config", "accountsDoc"));
                         if (accSnap.exists()) {
                             accountsData = accSnap.data().accounts || [];
@@ -467,7 +474,6 @@
                         await forceResetToLogin();
                     }
                 } else {
-                    // 로그인 안 된 상태면 즉시 로딩창 걷어내고 로그인 모달 표시
                     hideInitialLoader();
                     loginModal.classList.remove('hidden');
                     loginModal.classList.add('flex');
@@ -475,7 +481,6 @@
             });
         };
 
-        // 하이브리드 로그인 처리
         async function handleLoginSubmit(e) {
             e.preventDefault();
             isManualLoggingIn = true;
@@ -495,14 +500,12 @@
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc, setDoc } = window.fb;
 
             try {
-                // 1. Firebase 인증 세션 획득
                 try {
                     await signInWithEmailAndPassword(auth, fbEmail, fbGatewayPw);
                 } catch (authErr) {
                     await createUserWithEmailAndPassword(auth, fbEmail, fbGatewayPw);
                 }
                 
-                // 2. 계정 DB 로드
                 const docSnap = await getDoc(doc(db, "config", "accountsDoc"));
                 if (docSnap.exists()) {
                     accountsData = docSnap.data().accounts || [];
@@ -519,7 +522,6 @@
                     return;
                 }
 
-                // 3. 비밀번호 검증
                 if (userId === "suby20" || userId === "abcd9420") {
                     if (inputPw !== "wpswkd20") {
                         alert("비밀번호가 일치하지 않습니다.");
@@ -542,7 +544,6 @@
                     }
                 }
 
-                // 4. 로그인 성공 처리 및 DB 동기화 시작
                 currentAccount = user;
                 localStorage.setItem("hellocn_auth_userid", user.userId);
                 
@@ -732,17 +733,14 @@
                                 selectedCell = { r: rIdx, c: cIdx };
                                 document.getElementById('selected-cell-indicator').innerText = `선택 셀: ${String.fromCharCode(65 + cIdx)}${rIdx + 1}`;
                             };
-                            // 값 수정 시 메모리 즉시 반영
                             input.oninput = (e) => {
                                 sheetsData[activeSheet].rows[rIdx][cIdx] = e.target.value;
                             };
-                            // 엔터키를 치면 포커스를 해제하여 즉시 저장(onchange/onblur) 실행
                             input.onkeydown = (e) => {
                                 if (e.key === 'Enter') {
                                     e.target.blur();
                                 }
                             };
-                            // 다른 셀을 누르거나 엔터 칠 때 DB에 즉시 저장
                             input.onchange = (e) => {
                                 sheetsData[activeSheet].rows[rIdx][cIdx] = e.target.value;
                                 saveSheetsToFirebase();
@@ -756,45 +754,87 @@
             });
         }
 
-        // 클립보드 복사/붙여넣기 (Ctrl + V)
+        // 🌟 엑셀 붙여넣기 시 헤더 자동 확장 및 항목 자동 추가 기능 완벽 구현
         document.addEventListener('paste', function(e) {
             if (!currentAccount || selectedCell.r === undefined || selectedCell.c === undefined) return;
             let clipboardData = (e.clipboardData || window.clipboardData).getData('text');
             if (!clipboardData) return;
 
-            let rows = clipboardData.split(/\r\n|\n|\r/);
-            if (rows.length > 1 && rows[rows.length - 1] === '') rows.pop();
+            let rawRows = clipboardData.split(/\r\n|\n|\r/);
+            if (rawRows.length > 1 && rawRows[rawRows.length - 1] === '') rawRows.pop();
+            if (rawRows.length === 0) return;
 
-            if (rows.length > 1 || rows[0].includes('\t')) {
-                e.preventDefault();
+            let parsedMatrix = rawRows.map(r => r.split('\t').map(v => v.trim()));
+
+            // 최고관리자이고 클립보드에 헤더나 데이터가 복수 열로 들어온 경우
+            if (isPrivilegedRole(currentAccount.role)) {
                 let sheet = sheetsData[activeSheet];
-                let startR = selectedCell.r;
-                let startC = selectedCell.c;
+                let headerRowsCount = sheet.headerRows || 1;
 
-                rows.forEach((rowStr, rOffset) => {
-                    let targetR = startR + rOffset;
-                    let cells = rowStr.split('\t');
-
-                    if (targetR >= sheet.rows.length) {
-                        sheet.rows.push(new Array(sheet.columns.length).fill(""));
+                // 만약 붙여넣은 엑셀의 열 폭이 현재 시트의 열 개수보다 넓다면, 자동으로 항목(열) 확장!
+                let maxCols = Math.max(...parsedMatrix.map(row => row.length));
+                if (maxCols > sheet.columns.length) {
+                    for (let c = sheet.columns.length; c < maxCols; c++) {
+                        sheet.columns.push({ name: `신규항목${c+1}`, type: "text", options: "" });
                     }
-
-                    if (!isPrivilegedRole(currentAccount.role)) {
-                        const rowRegion = sheet.rows[targetR][1] || '';
-                        if (!rowRegion.includes(currentAccount.role)) return;
-                    }
-
-                    cells.forEach((val, cOffset) => {
-                        let targetC = startC + cOffset;
-                        if (targetC < sheet.columns.length) {
-                            sheet.rows[targetR][targetC] = val.trim();
-                        }
+                    // 모든 기존 행들도 늘어난 열 칸수만큼 빈값 확장
+                    sheet.rows.forEach(r => {
+                        while(r.length < sheet.columns.length) r.push("");
                     });
-                });
+                }
 
-                saveSheetsToFirebase();
-                renderGrid();
+                // 만약 사용자가 상단 헤더(항목명)까지 통째로 복사해서 붙여넣은 경우 처리
+                if (rawRows.length > headerRowsCount && selectedCell.r === 0 && selectedCell.c === 0) {
+                    if (headerRowsCount === 1) {
+                        let headerCells = parsedMatrix[0];
+                        headerCells.forEach((hName, hIdx) => {
+                            if (hName && hIdx < sheet.columns.length) {
+                                sheet.columns[hIdx].name = hName;
+                            }
+                        });
+                        parsedMatrix = parsedMatrix.slice(1); // 실제 데이터만 남김
+                    } else if (headerRowsCount === 2 && parsedMatrix.length >= 2) {
+                        // 2줄 헤더인 경우 합치거나 두 번째 줄 이름을 우선 적용
+                        let h1 = parsedMatrix[0];
+                        let h2 = parsedMatrix[1];
+                        h2.forEach((hName, hIdx) => {
+                            let finalName = hName || h1[hIdx];
+                            if (finalName && hIdx < sheet.columns.length) {
+                                sheet.columns[hIdx].name = finalName;
+                            }
+                        });
+                        parsedMatrix = parsedMatrix.slice(2);
+                    }
+                }
             }
+
+            // 스프레드시트 셀에 데이터 반영
+            let sheet = sheetsData[activeSheet];
+            let startR = selectedCell.r;
+            let startC = selectedCell.c;
+
+            parsedMatrix.forEach((cells, rOffset) => {
+                let targetR = startR + rOffset;
+                if (targetR >= sheet.rows.length) {
+                    sheet.rows.push(new Array(sheet.columns.length).fill(""));
+                }
+
+                if (!isPrivilegedRole(currentAccount.role)) {
+                    let rowRegion = sheet.rows[targetR][1] || '';
+                    if (!rowRegion.includes(currentAccount.role)) return;
+                }
+
+                cells.forEach((val, cOffset) => {
+                    let targetC = startC + cOffset;
+                    if (targetC < sheet.columns.length) {
+                        sheet.rows[targetR][targetC] = val;
+                    }
+                });
+            });
+
+            saveSheetsToFirebase();
+            renderGrid();
+            e.preventDefault();
         });
 
         function addNewRow() {
@@ -815,6 +855,7 @@
             let sheetName = prompt("새 시트 이름을 입력하세요:", "시트" + (Object.keys(sheetsData).length + 1));
             if (sheetName && !sheetsData[sheetName]) {
                 sheetsData[sheetName] = {
+                    headerRows: 1,
                     columns: [
                         { name: "항목1", type: "text", options: "" },
                         { name: "부서/지역", type: "text", options: "" },
@@ -827,9 +868,11 @@
             }
         }
 
-        // 열 구조 편집
+        // 열 구조 편집 모달 열기
         function openColumnManager() {
             if (!currentAccount || !isPrivilegedRole(currentAccount.role)) return;
+            let sheet = sheetsData[activeSheet];
+            document.getElementById('header-rows-select').value = sheet.headerRows || 1;
             document.getElementById('column-modal').classList.remove('hidden');
             document.getElementById('column-modal').classList.add('flex');
             renderColumnEditList();
@@ -892,6 +935,8 @@
 
         function syncCurrentColumnInputs() {
             let sheet = sheetsData[activeSheet];
+            sheet.headerRows = parseInt(document.getElementById('header-rows-select').value) || 1;
+
             sheet.columns.forEach((col, idx) => {
                 let nameInput = document.getElementById(`col-name-${idx}`);
                 let typeInput = document.getElementById(`col-type-${idx}`);
@@ -906,28 +951,38 @@
 
         function addColumnField() {
             syncCurrentColumnInputs();
-            sheetsData[activeSheet].columns.push({ name: "신규항목", type: "text", options: "" });
-            sheetsData[activeSheet].rows.forEach(row => row.push(""));
+            let sheet = sheetsData[activeSheet];
+            sheet.columns.push({ name: "신규항목", type: "text", options: "" });
+            // 기존 모든 행에도 새 칸 추가
+            sheet.rows.forEach(row => row.push(""));
             renderColumnEditList();
         }
 
         function removeColumnField(idx) {
             syncCurrentColumnInputs();
-            if (sheetsData[activeSheet].columns.length <= 1) {
+            let sheet = sheetsData[activeSheet];
+            if (sheet.columns.length <= 1) {
                 alert('최소 1개의 열은 유지해야 합니다.');
                 return;
             }
-            sheetsData[activeSheet].columns.splice(idx, 1);
-            sheetsData[activeSheet].rows.forEach(row => row.splice(idx, 1));
+            sheet.columns.splice(idx, 1);
+            sheet.rows.forEach(row => row.splice(idx, 1));
             renderColumnEditList();
         }
 
         async function saveColumnChanges() {
             syncCurrentColumnInputs();
+            let sheet = sheetsData[activeSheet];
+            // 행 데이터 길이와 컬럼 길이 완전 일치 동기화 검증
+            sheet.rows.forEach(row => {
+                while(row.length < sheet.columns.length) row.push("");
+                if(row.length > sheet.columns.length) row.length = sheet.columns.length;
+            });
+
             await saveSheetsToFirebase();
             closeColumnManager();
             renderGrid();
-            alert("열 구조가 안전하게 서버에 반영되었습니다!");
+            alert("열 구조와 헤더 설정이 안전하게 서버에 반영되었습니다!");
         }
 
         // 계정/권한 관리 모달
@@ -1037,7 +1092,7 @@
         }
     </script>
 
-    <!-- 2. Firebase SDK 모듈 (비즈니스 로직 함수들이 모두 준비된 후 실행됨) -->
+    <!-- 2. Firebase SDK 모듈 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
