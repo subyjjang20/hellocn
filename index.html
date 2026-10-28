@@ -193,7 +193,7 @@
                     <div class="grid grid-cols-3 gap-2">
                         <div class="flex items-center col-span-1">
                             <input type="text" id="new-user-id" placeholder="아이디(영문)" class="border border-slate-300 rounded-l px-2 py-1.5 text-xs w-full outline-none focus:border-blue-500">
-                            <span class="bg-slate-100 border border-l-0 border-slate-300 px-1 py-1.5 text-[9px] text-slate-500 rounded-r">@...</span>
+                            <span class="bg-slate-100 border border-l-0 border-slate-300 px-1.5 py-1.5 text-[9px] text-slate-500 rounded-r">@...</span>
                         </div>
                         <input type="text" id="new-user-name" placeholder="성명 (예: 홍길동)" class="border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-500">
                         <select id="new-user-role" class="border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-500">
@@ -313,7 +313,7 @@
 
             const { db, doc, onSnapshot, setDoc } = window.fb;
 
-            // 계정 DB 실시간 연동
+            // 계정 DB 실시간 동기화
             onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
                 if (snap.exists()) {
                     let remoteAccounts = snap.data().accounts;
@@ -330,7 +330,7 @@
                 setSyncStatus(false);
             });
 
-            // 시트 문서 DB 실시간 연동
+            // 시트 문서 DB 실시간 동기화
             onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
                 if (snap.exists()) {
                     const remote = snap.data().data;
@@ -390,7 +390,7 @@
             }
         }
 
-        // 로그인 처리 (Firebase Auth 이메일 연동으로 DB 권한 완벽 통과)
+        // 로그인 처리 (Firebase Auth 자동 생성 및 로그인 연동으로 보안과 접속 동시 보장)
         async function handleLoginSubmit(e) {
             e.preventDefault();
             let userId = document.getElementById('login-id').value.trim().toLowerCase();
@@ -429,7 +429,7 @@
                 }
             }
 
-            // Firebase Auth 로그인 수행 (계정 없으면 자동 생성하여 request.auth != null 만족)
+            // Firebase Auth 연동 (계정 없으면 자동 생성 후 로그인 처리하여 보안 규칙 통과)
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
             try {
                 await signInWithEmailAndPassword(auth, email, pw);
@@ -437,7 +437,7 @@
                 try {
                     await createUserWithEmailAndPassword(auth, email, pw);
                 } catch (createErr) {
-                    console.warn("Auth auto-create warning:", createErr);
+                    console.warn("Auth auto-create notice:", createErr);
                 }
             }
 
