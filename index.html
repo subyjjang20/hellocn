@@ -219,7 +219,7 @@
     <!-- Firebase SDK 모듈 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -236,8 +236,10 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut };
+        // 익명 인증으로 즉시 접속 통과 보장 (이메일/비밀번호 설정 불필요)
+        signInAnonymously(auth).catch(err => console.warn("Auth warning:", err));
 
+        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot };
         window.initApp();
     </script>
 
@@ -313,6 +315,7 @@
 
             const { db, doc, onSnapshot, setDoc } = window.fb;
 
+            // 계정 DB 동기화
             onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
                 if (snap.exists()) {
                     let remoteAccounts = snap.data().accounts;
@@ -325,6 +328,7 @@
                 ensureMasterAdmins();
             }, (err) => console.error("Accounts sync error:", err));
 
+            // 시트 데이터 DB 동기화
             onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
                 if (snap.exists()) {
                     const remote = snap.data().data;
@@ -384,17 +388,16 @@
             }
         }
 
-        // 로그인 처리 (Firebase Auth 자동 생성 및 예외 처리 완벽 적용)
+        // 로그인 처리 (이메일 인증 대기 없이 0.1초 만에 즉시 통과)
         async function handleLoginSubmit(e) {
             e.preventDefault();
             let userId = document.getElementById('login-id').value.trim().toLowerCase();
             userId = userId.replace('@helloconnectn.com', '');
-            const email = userId + "@helloconnectn.com";
             const pw = document.getElementById('login-pw').value.trim();
 
             ensureMasterAdmins();
 
-            const user = accountsData.find(a => a.userId === userId || a.email === email);
+            const user = accountsData.find(a => a.userId === userId);
             if (!user) {
                 alert("등록되지 않은 아이디입니다. 최고관리자에게 문의하세요.");
                 return;
@@ -420,18 +423,6 @@
                 if (isInitialMatch) {
                     user.isInitialPw = true;
                     user.passwordHash = INITIAL_HASH_1470;
-                }
-            }
-
-            // Firebase Auth 연동 (계정 없으면 자동 생성 후 로그인 처리)
-            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
-            try {
-                await signInWithEmailAndPassword(auth, email, pw);
-            } catch (authErr) {
-                try {
-                    await createUserWithEmailAndPassword(auth, email, pw);
-                } catch (createErr) {
-                    console.warn("Auth auto-create notice:", createErr);
                 }
             }
 
@@ -476,8 +467,6 @@
 
         async function handleLogout() {
             if (confirm("로그아웃 하시겠습니까?")) {
-                const { auth, signOut } = window.fb;
-                await signOut(auth).catch(e => {});
                 localStorage.removeItem("hellocn_auth_userid");
                 currentAccount = null;
                 document.getElementById('login-modal').classList.remove('hidden');
@@ -828,7 +817,7 @@
                     <div>
                         <div class="flex items-center space-x-2">
                             <span class="text-xs font-bold text-slate-800">${acc.name}</span>
-                            <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">${acc.userId}@helloconnectn.com</span>
+                            <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">${acc.userId}</span>
                             <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-medium">${acc.role}</span>
                             ${isMaster ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">마스터</span>' : (acc.isInitialPw ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">초기PW</span>' : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded">설정됨</span>')}
                         </div>
@@ -869,17 +858,15 @@
                 alert("아이디와 성명을 모두 입력해 주세요.");
                 return;
             }
-            const email = userId + "@helloconnectn.com";
 
-            if (accountsData.some(a => a.userId === userId || a.email === email)) {
-                alert("이미 존재하는 아이디 또는 이메일입니다.");
+            if (accountsData.some(a => a.userId === userId)) {
+                alert("이미 존재하는 아이디입니다.");
                 return;
             }
 
             accountsData.push({
                 userId: userId,
                 name: name,
-                email: email,
                 role: role,
                 passwordHash: INITIAL_HASH_1470,
                 isInitialPw: true
