@@ -219,7 +219,7 @@
     <!-- Firebase SDK 모듈 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -236,7 +236,6 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // 익명 인증으로 즉시 접속 통과 보장 (이메일/비밀번호 설정 불필요)
         signInAnonymously(auth).catch(err => console.warn("Auth warning:", err));
 
         window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot };
@@ -274,14 +273,17 @@
             }
         };
 
-        let sheetsData = JSON.parse(JSON.stringify(defaultSheetsData));
+        // 로컬스토리지 백업 데이터 연동 (DB 연동 실패 시에도 즉시 로그인 및 작동 보장)
+        let savedLocalSheets = localStorage.getItem("hellocn_local_sheets");
+        let sheetsData = savedLocalSheets ? JSON.parse(savedLocalSheets) : JSON.parse(JSON.stringify(defaultSheetsData));
 
         const MASTER_ADMINS = [
             { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
             { userId: "choiyw", name: "최영우", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
         ];
 
-        let accountsData = [
+        let savedLocalAccounts = localStorage.getItem("hellocn_local_accounts");
+        let accountsData = savedLocalAccounts ? JSON.parse(savedLocalAccounts) : [
             ...MASTER_ADMINS,
             { userId: "minsu", name: "김민수", role: "수도권", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
             { userId: "younghee", name: "박영희", role: "동부", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
@@ -304,6 +306,7 @@
                     accountsData[idx].isInitialPw = false;
                 }
             });
+            localStorage.setItem("hellocn_local_accounts", JSON.stringify(accountsData));
         }
 
         function isPrivilegedRole(role) {
@@ -312,42 +315,61 @@
 
         window.initApp = function() {
             ensureMasterAdmins();
+            renderSheetTabs();
+            renderGrid();
 
-            const { db, doc, onSnapshot, setDoc } = window.fb;
-
-            // 계정 DB 동기화
-            onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
-                if (snap.exists()) {
-                    let remoteAccounts = snap.data().accounts;
-                    if (Array.isArray(remoteAccounts) && remoteAccounts.length > 0) {
-                        accountsData = remoteAccounts;
-                    }
-                } else {
-                    saveAccountsToFirebase();
+            const savedUser = localStorage.getItem("hellocn_auth_userid");
+            if (savedUser) {
+                const found = accountsData.find(a => a.userId === savedUser);
+                if (found) {
+                    currentAccount = found;
+                    document.getElementById('login-modal').classList.add('hidden');
+                    updateUserInterface();
                 }
-                ensureMasterAdmins();
-            }, (err) => console.error("Accounts sync error:", err));
+            }
 
-            // 시트 데이터 DB 동기화
-            onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
-                if (snap.exists()) {
-                    const remote = snap.data().data;
-                    if (remote && Object.keys(remote).length > 0) {
-                        isRemoteUpdating = true;
-                        sheetsData = remote;
-                        if (!sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
-                        renderSheetTabs();
-                        renderGrid();
-                        isRemoteUpdating = false;
-                        setSyncStatus(true);
+            try {
+                const { db, doc, onSnapshot, setDoc } = window.fb;
+
+                onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
+                    if (snap.exists()) {
+                        let remoteAccounts = snap.data().accounts;
+                        if (Array.isArray(remoteAccounts) && remoteAccounts.length > 0) {
+                            accountsData = remoteAccounts;
+                            ensureMasterAdmins();
+                        }
+                    } else {
+                        saveAccountsToFirebase();
                     }
-                } else {
-                    saveSheetsToFirebase();
-                }
-            }, (err) => {
-                console.error("Sheets sync error:", err);
+                    setSyncStatus(true);
+                }, (err) => {
+                    console.warn("Accounts sync fallback:", err);
+                    setSyncStatus(false);
+                });
+
+                onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
+                    if (snap.exists()) {
+                        const remote = snap.data().data;
+                        if (remote && Object.keys(remote).length > 0) {
+                            isRemoteUpdating = true;
+                            sheetsData = remote;
+                            if (!sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
+                            localStorage.setItem("hellocn_local_sheets", JSON.stringify(sheetsData));
+                            renderSheetTabs();
+                            renderGrid();
+                            isRemoteUpdating = false;
+                            setSyncStatus(true);
+                        }
+                    } else {
+                        saveSheetsToFirebase();
+                    }
+                }, (err) => {
+                    console.warn("Sheets sync fallback:", err);
+                    setSyncStatus(false);
+                });
+            } catch (e) {
                 setSyncStatus(false);
-            });
+            }
         };
 
         function setSyncStatus(isOk) {
@@ -358,37 +380,36 @@
                 text.innerText = "실시간 연결됨";
                 document.getElementById('sync-status').className = "bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 mr-2";
             } else {
-                dot.className = "w-2 h-2 rounded-full bg-red-400";
-                text.innerText = "연결 오류";
-                document.getElementById('sync-status').className = "bg-red-500/20 text-red-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 mr-2";
+                dot.className = "w-2 h-2 rounded-full bg-amber-400";
+                text.innerText = "로컬 모드";
+                document.getElementById('sync-status').className = "bg-amber-500/20 text-amber-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 mr-2";
             }
         }
 
         async function saveSheetsToFirebase() {
             if (isRemoteUpdating) return;
+            localStorage.setItem("hellocn_local_sheets", JSON.stringify(sheetsData));
             try {
                 const { db, doc, setDoc } = window.fb;
                 const cleanData = JSON.parse(JSON.stringify(sheetsData));
                 await setDoc(doc(db, "sheets", "mainDoc"), { data: cleanData });
                 setSyncStatus(true);
             } catch (e) {
-                console.error("시트 DB 저장 실패:", e);
                 setSyncStatus(false);
             }
         }
 
         async function saveAccountsToFirebase() {
+            ensureMasterAdmins();
+            localStorage.setItem("hellocn_local_accounts", JSON.stringify(accountsData));
             try {
-                ensureMasterAdmins();
                 const { db, doc, setDoc } = window.fb;
                 const cleanAccounts = JSON.parse(JSON.stringify(accountsData));
                 await setDoc(doc(db, "config", "accountsDoc"), { accounts: cleanAccounts });
-            } catch (e) {
-                console.error("계정 DB 저장 실패:", e);
-            }
+            } catch (e) {}
         }
 
-        // 로그인 처리 (이메일 인증 대기 없이 0.1초 만에 즉시 통과)
+        // 로그인 처리 (즉시 통과 및 세션 유지)
         async function handleLoginSubmit(e) {
             e.preventDefault();
             let userId = document.getElementById('login-id').value.trim().toLowerCase();
