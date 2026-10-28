@@ -287,7 +287,7 @@
         let selectedCell = { r: 0, c: 0 };
         let isRemoteUpdating = false;
 
-        // 마스터 계정은 배열에 무조건 존재 (최영우 아이디 abcd9420)
+        // 마스터 계정은 배열에 무조건 존재 
         function ensureMasterAdmins() {
             const masters = [
                 { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
@@ -321,6 +321,7 @@
             if (unsubAccounts) unsubAccounts();
             if (unsubSheets) unsubSheets();
 
+            // 1. 계정 동기화
             unsubAccounts = onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
                 if (snap.exists()) {
                     accountsData = snap.data().accounts || [];
@@ -332,11 +333,19 @@
                 setSyncStatus(false);
             });
 
+            // 2. 시트 동기화 (파이어베이스 배열 중첩 에러 회피를 위해 JSON 파싱 적용)
             unsubSheets = onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
                 if (snap.exists()) {
                     isRemoteUpdating = true;
                     try {
-                        sheetsData = snap.data().data;
+                        const dbData = snap.data();
+                        // 문자열로 압축된 payload가 있으면 풀어서 사용, 없으면 구형 데이터 호환
+                        if (dbData.payload) {
+                            sheetsData = JSON.parse(dbData.payload);
+                        } else if (dbData.data) {
+                            sheetsData = dbData.data;
+                        }
+
                         if (!sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
                         renderSheetTabs();
                         renderGrid();
@@ -344,7 +353,6 @@
                     } catch(e) {
                         console.error("화면 렌더링 에러:", e);
                     } finally {
-                        // 렌더링 중 에러가 나도 잠금(Lock)을 확실히 풀어줌 (저장 먹통 방지)
                         isRemoteUpdating = false; 
                     }
                 } else {
@@ -370,17 +378,17 @@
             }
         }
 
-        // 🌟 시트 데이터 저장 로직 (실패 시 원인 경고창 띄움)
+        // 🌟 시트 데이터 저장 로직 (배열 중첩 에러 원천 차단 방식 적용)
         async function saveSheetsToFirebase() {
             if (isRemoteUpdating) return;
             try {
                 const { db, doc, setDoc } = window.fb;
-                const cleanData = JSON.parse(JSON.stringify(sheetsData)); // undefined 제거용 직렬화
-                await setDoc(doc(db, "sheets", "mainDoc"), { data: cleanData });
+                // 파이어베이스의 Nested Array 에러를 회피하기 위해 데이터를 단일 텍스트(JSON)로 묶어서 전송
+                const jsonPayload = JSON.stringify(sheetsData);
+                await setDoc(doc(db, "sheets", "mainDoc"), { payload: jsonPayload });
             } catch (e) {
                 console.error("🔥 시트 저장 실패:", e);
-                // 규칙 문제로 저장이 막히면 사용자에게 즉시 알려줌
-                alert("시트 내용을 DB에 저장하지 못했습니다.\n(파이어베이스 Firestore 규칙을 확인해주세요! 에러: " + e.message + ")");
+                alert("시트 내용을 DB에 저장하지 못했습니다.\n(에러: " + e.message + ")");
             }
         }
 
@@ -880,131 +888,3 @@
             sheetsData[activeSheet].rows.forEach(row => row.push(""));
             renderColumnEditList();
         }
-
-        function removeColumnField(idx) {
-            syncCurrentColumnInputs();
-            if (sheetsData[activeSheet].columns.length <= 1) {
-                alert('최소 1개의 열은 유지해야 합니다.');
-                return;
-            }
-            sheetsData[activeSheet].columns.splice(idx, 1);
-            sheetsData[activeSheet].rows.forEach(row => row.splice(idx, 1));
-            renderColumnEditList();
-        }
-
-        async function saveColumnChanges() {
-            syncCurrentColumnInputs();
-            await saveSheetsToFirebase(); // 컬럼 저장 시 DB 저장
-            closeColumnManager();
-            renderGrid();
-            alert("열 구조가 안전하게 서버에 반영되었습니다!");
-        }
-
-        // 계정/권한 관리 모달
-        function openAccountManager() {
-            if (!currentAccount || !isPrivilegedRole(currentAccount.role)) return;
-            document.getElementById('account-modal').classList.remove('hidden');
-            document.getElementById('account-modal').classList.add('flex');
-            renderAdminAccountList();
-        }
-
-        function closeAccountManager() {
-            document.getElementById('account-modal').classList.add('hidden');
-            document.getElementById('account-modal').classList.remove('flex');
-        }
-
-        function renderAdminAccountList() {
-            const container = document.getElementById('admin-account-list');
-            container.innerHTML = '';
-
-            accountsData.forEach((acc, idx) => {
-                const isMaster = (acc.userId === "suby20" || acc.userId === "abcd9420");
-                const div = document.createElement('div');
-                div.className = "flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50";
-                div.innerHTML = `
-                    <div>
-                        <div class="flex items-center space-x-2">
-                            <span class="text-xs font-bold text-slate-800">${acc.name}</span>
-                            <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">${acc.userId}</span>
-                            <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-medium">${acc.role}</span>
-                            ${isMaster ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">마스터</span>' : (acc.isInitialPw ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">초기PW</span>' : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded">설정됨</span>')}
-                        </div>
-                    </div>
-                    <div class="flex items-center space-x-1.5">
-                        ${!isMaster ? `
-                            <button onclick="adminResetPassword('${acc.userId}')" class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[11px] font-semibold transition">
-                                PW 초기화
-                            </button>
-                            <button onclick="adminDeleteAccount(${idx})" class="text-red-500 hover:text-red-700 p-1"><i class="fa-solid fa-trash"></i></button>
-                        ` : '<span class="text-[11px] text-slate-400 font-medium">관리 대상 아님</span>'}
-                    </div>
-                `;
-                container.appendChild(div);
-            });
-        }
-
-        async function adminResetPassword(userId) {
-            if (confirm(`해당 계정의 비밀번호를 초기 상태(1470)로 리셋하시겠습니까?`)) {
-                const target = accountsData.find(a => a.userId === userId);
-                if (target) {
-                    target.passwordHash = INITIAL_HASH_1470;
-                    target.isInitialPw = true;
-                    await saveAccountsToFirebase();
-                    renderAdminAccountList();
-                    alert("비밀번호가 1470으로 초기화되었습니다.");
-                }
-            }
-        }
-
-        async function adminCreateAccount() {
-            let userId = document.getElementById('new-user-id').value.trim().toLowerCase();
-            userId = userId.replace('@helloconnectn.com', '');
-            const name = document.getElementById('new-user-name').value.trim();
-            const role = document.getElementById('new-user-role').value;
-
-            if (!userId || !name) {
-                alert("아이디와 성명을 모두 입력해 주세요.");
-                return;
-            }
-
-            if (accountsData.some(a => a.userId === userId)) {
-                alert("이미 존재하는 아이디입니다.");
-                return;
-            }
-
-            accountsData.push({
-                userId: userId,
-                name: name,
-                role: role,
-                passwordHash: INITIAL_HASH_1470,
-                isInitialPw: true
-            });
-
-            await saveAccountsToFirebase();
-            document.getElementById('new-user-id').value = '';
-            document.getElementById('new-user-name').value = '';
-            renderAdminAccountList();
-            alert(`새 계정(${name} / ${userId})이 성공적으로 등록되었습니다.`);
-        }
-
-        async function adminDeleteAccount(idx) {
-            if (confirm("정말 이 계정을 삭제하시겠습니까?")) {
-                accountsData.splice(idx, 1);
-                await saveAccountsToFirebase();
-                renderAdminAccountList();
-            }
-        }
-
-        function exportExcel() {
-            let wb = XLSX.utils.book_new();
-            Object.keys(sheetsData).forEach(sheetName => {
-                let sheet = sheetsData[sheetName];
-                let headers = sheet.columns.map(c => c.name);
-                let ws = XLSX.utils.aoa_to_sheet([headers, ...sheet.rows]);
-                XLSX.utils.book_append_sheet(wb, ws, sheetName);
-            });
-            XLSX.writeFile(wb, "헬로CN_닥스_데이터.xlsx");
-        }
-    </script>
-</body>
-</html>
