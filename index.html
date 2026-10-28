@@ -3,38 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HSS 실시간 동시입력 스프레드시트 시스템</title>
+    <title>헬로CN 닥스</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome 아이콘 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- SheetJS (엑셀 입출력용) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <!-- Firebase SDK (v10 모듈러) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        // ==========================================
-        // 🛠️ [본인의 Firebase 설정값으로 수정하세요]
-        // ==========================================
-        const firebaseConfig = {
-  apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
-  authDomain: "hellocn-128ba.firebaseapp.com",
-  projectId: "hellocn-128ba",
-  storageBucket: "hellocn-128ba.firebasestorage.app",
-  messagingSenderId: "306539866159",
-  appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
-  measurementId: "G-ETFMQX75CB"
-};
-
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        window.firebaseDb = { db, doc, setDoc, getDoc, onSnapshot };
-        window.initFirebaseSync();
-    </script>
 
     <style>
         body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
@@ -53,27 +28,35 @@
         <div class="flex items-center space-x-3">
             <div class="bg-blue-600 text-white p-2 rounded-lg font-bold"><i class="fa-solid fa-table"></i></div>
             <div>
-                <h1 class="text-base font-bold tracking-tight">HSS 실시간 통합 스프레드시트</h1>
-                <p class="text-xs text-slate-400">열 구조 커스텀 및 드롭다운 입력 지원</p>
+                <h1 class="text-base font-bold tracking-tight">헬로CN 닥스</h1>
+                <p class="text-xs text-slate-400">보안 인증 및 권한 통제 시스템</p>
             </div>
         </div>
 
-        <div class="flex items-center space-x-3">
-            <div id="sync-status" class="bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>실시간 동기화 중</span>
+        <div class="flex items-center space-x-2">
+            <div id="sync-status" class="bg-slate-700 text-slate-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 mr-2">
+                <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+                <span id="sync-text">인증 대기중</span>
             </div>
-            <button onclick="openColumnManager()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 shadow">
+
+            <!-- 관리자 전용 메뉴 -->
+            <button id="admin-col-btn" onclick="openColumnManager()" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition items-center space-x-1.5 shadow">
                 <i class="fa-solid fa-sliders"></i>
-                <span>열(항목) 구조 편집</span>
+                <span>항목(열)편집</span>
             </button>
-            <button onclick="openAccountManager()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5">
+            <button id="admin-acc-btn" onclick="openAccountManager()" class="hidden bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition items-center space-x-1.5">
                 <i class="fa-solid fa-users-gear text-blue-400"></i>
                 <span>계정/권한 관리</span>
             </button>
+
+            <!-- 사용자 정보 및 로그아웃 -->
             <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-                <span id="current-user-badge" class="text-xs font-semibold text-slate-200">👤 심현섭 (관리자)</span>
+                <span id="current-user-badge" class="text-xs font-semibold text-slate-200">로그인 필요</span>
             </div>
+            <button id="logout-btn" onclick="handleLogout()" class="hidden bg-red-600/80 hover:bg-red-600 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold transition" title="로그아웃">
+                <i class="fa-solid fa-right-from-bracket"></i>
+            </button>
+
             <button onclick="exportExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1 shadow">
                 <i class="fa-solid fa-file-excel"></i>
                 <span>엑셀 저장</span>
@@ -89,9 +72,9 @@
                 <span class="text-slate-300">|</span>
                 <span>활성 시트: <strong id="active-sheet-name" class="text-blue-600">월별실적취합</strong></span>
                 <span class="text-slate-300">|</span>
-                <span id="edit-permission-status" class="text-emerald-600 font-semibold"><i class="fa-solid fa-lock-open mr-1"></i> 전체 편집 권한</span>
+                <span id="edit-permission-status" class="text-slate-500 font-semibold"><i class="fa-solid fa-lock mr-1"></i> 로그인 대기중</span>
             </div>
-            <button onclick="addNewRow()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-semibold transition flex items-center space-x-1">
+            <button id="add-row-btn" onclick="addNewRow()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-semibold transition flex items-center space-x-1">
                 <i class="fa-solid fa-plus"></i>
                 <span>새 행 추가</span>
             </button>
@@ -106,27 +89,78 @@
 
         <div class="bg-slate-100 border-t border-slate-200 px-3 py-2 flex items-center justify-between">
             <div id="sheet-tabs" class="flex items-center space-x-1 overflow-x-auto"></div>
-            <button onclick="addNewSheet()" class="bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-1 rounded text-xs font-semibold transition flex items-center space-x-1">
+            <button id="add-sheet-btn" onclick="addNewSheet()" class="bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-1 rounded text-xs font-semibold transition flex items-center space-x-1">
                 <i class="fa-solid fa-plus text-blue-600"></i>
                 <span>새 시트 추가</span>
             </button>
         </div>
     </div>
 
-    <!-- 열(항목) 구조 편집 모달 -->
+    <!-- 1. 로그인 모달 -->
+    <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="bg-white w-[380px] rounded-2xl shadow-2xl p-6 border border-slate-100">
+            <div class="text-center mb-6">
+                <div class="inline-flex bg-blue-100 text-blue-600 p-3 rounded-full mb-2">
+                    <i class="fa-solid fa-shield-halved text-2xl"></i>
+                </div>
+                <h2 class="text-lg font-bold text-slate-800">헬로CN 닥스 로그인</h2>
+                <p class="text-xs text-slate-500 mt-1">등록된 이름과 비밀번호를 입력하세요</p>
+                <p class="text-[11px] text-amber-600 font-medium mt-1">초기 비밀번호: 1470</p>
+            </div>
+            <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">사용자 이름</label>
+                    <input type="text" id="login-name" required placeholder="예: 심현섭" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
+                    <input type="password" id="login-pw" required placeholder="비밀번호 입력" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                </div>
+                <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md flex items-center justify-center space-x-2">
+                    <span>로그인</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. 비밀번호 변경 모달 (최초 로그인 시) -->
+    <div id="pw-change-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
+        <div class="bg-white w-[380px] rounded-2xl shadow-2xl p-6">
+            <div class="text-center mb-4">
+                <div class="inline-flex bg-amber-100 text-amber-600 p-3 rounded-full mb-2">
+                    <i class="fa-solid fa-key text-xl"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-800">새 비밀번호 설정</h3>
+                <p class="text-xs text-slate-500 mt-1">초기 비밀번호(1470)를 사용할 수 없습니다.<br>새 비밀번호를 설정해 주세요.</p>
+            </div>
+            <form onsubmit="handlePasswordChangeSubmit(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">새 비밀번호</label>
+                    <input type="password" id="new-pw-input" required placeholder="새 비밀번호 입력" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">새 비밀번호 확인</label>
+                    <input type="password" id="new-pw-confirm" required placeholder="한 번 더 입력" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                </div>
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-sm transition mt-2">
+                    비밀번호 저장 및 시작
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. 열 구조 편집 모달 (관리자 전용) -->
     <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[600px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열(항목) 구조 및 입력 방식 설정</h3>
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열(항목) 구조 및 입력 방식 설정 (관리자)</h3>
                 <button onclick="closeColumnManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
                 <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-xs text-indigo-900">
                     각 열의 제목을 수정하거나, 입력 방식을 <b>'자유 입력'</b> 또는 <b>'선택 목록(드롭다운)'</b>으로 지정할 수 있습니다.
                 </div>
-                <div id="column-edit-list" class="space-y-3">
-                    <!-- 동적 생성 -->
-                </div>
+                <div id="column-edit-list" class="space-y-3"></div>
                 <button onclick="addColumnField()" class="w-full bg-slate-100 hover:bg-slate-200 border border-dashed border-slate-400 text-slate-700 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center space-x-1">
                     <i class="fa-solid fa-plus text-blue-600"></i>
                     <span>+ 새 열 추가하기</span>
@@ -139,29 +173,77 @@
         </div>
     </div>
 
-    <!-- 계정 관리 모달 -->
+    <!-- 4. 계정/권한 관리 모달 (관리자 전용) -->
     <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-        <div class="bg-white w-[450px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+        <div class="bg-white w-[560px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-                <h3 class="font-bold text-sm">계정 및 센터별 권한 관리</h3>
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-users-gear mr-2 text-blue-400"></i>계정 등록 및 비밀번호 초기화 (관리자)</h3>
                 <button onclick="closeAccountManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            <div class="p-5 space-y-3 max-h-[60vh] overflow-y-auto" id="account-list-container"></div>
+            <div class="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
+                <div>
+                    <h4 class="text-xs font-bold text-slate-700 mb-2">등록된 사내 계정 목록</h4>
+                    <div id="admin-account-list" class="space-y-2"></div>
+                </div>
+
+                <div class="border-t pt-4">
+                    <h4 class="text-xs font-bold text-slate-700 mb-2">새 계정 등록 (초기 비밀번호: 1470)</h4>
+                    <div class="grid grid-cols-2 gap-2">
+                        <input type="text" id="new-user-name" placeholder="이름 (예: 홍길동)" class="border border-slate-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500">
+                        <select id="new-user-role" class="border border-slate-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500">
+                            <option value="관리자">전체 관리자</option>
+                            <option value="수도권사업실행팀">수도권사업실행팀</option>
+                            <option value="동부사업실행팀">동부사업실행팀</option>
+                            <option value="남부사업실행팀">남부사업실행팀</option>
+                            <option value="영업추진팀">영업추진팀</option>
+                            <option value="서비스추진팀">서비스추진팀</option>
+                        </select>
+                    </div>
+                    <button onclick="adminCreateAccount()" class="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded text-xs font-semibold transition">
+                        신규 계정 추가
+                    </button>
+                </div>
+            </div>
             <div class="bg-slate-50 px-5 py-3 border-t flex justify-end">
-                <button onclick="closeAccountManager()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-1.5 rounded text-xs font-semibold">확인</button>
+                <button onclick="closeAccountManager()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-1.5 rounded text-xs font-semibold">닫기</button>
             </div>
         </div>
     </div>
 
-    <script>
-        let accounts = [
-            { id: 'admin', name: '심현섭', role: '관리자', badge: '👤 심현섭 (관리자)' },
-            { id: 'haeundae', name: '김민수', role: '해운대센터', badge: '🏢 해운대센터 담당자' },
-            { id: 'bupyeong', name: '박영희', role: '부평센터', badge: '🏢 부평센터 담당자' }
-        ];
-        let currentAccount = accounts[0];
+    <!-- Firebase 모듈러 연동 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        // 시트 데이터 구조 (columns에 name, type, options 정의)
+        const firebaseConfig = {
+            apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
+            authDomain: "hellocn-128ba.firebaseapp.com",
+            projectId: "hellocn-128ba",
+            storageBucket: "hellocn-128ba.firebasestorage.app",
+            messagingSenderId: "306539866159",
+            appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
+            measurementId: "G-ETFMQX75CB"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.fb = { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut, doc, setDoc, getDoc, onSnapshot };
+    </script>
+
+    <!-- 애플리케이션 비즈니스 로직 -->
+    <script>
+        // 한국어 이름을 고유한 가상 이메일 문자열로 변환 (해시 기반)
+        async function nameToVirtualEmail(name) {
+            const buffer = new TextEncoder().encode(name);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+            const hash = Array.from(new Uint8Array(hashBuffer)).slice(0, 8).map(b => b.toString(16).padStart(2, '0')).join('');
+            return `user_${hash}@hellocn.com`;
+        }
+
+        // 초기 기본 시트 데이터
         let sheetsData = {
             "월별실적취합": {
                 columns: [
@@ -182,43 +264,194 @@
             }
         };
 
+        // 기본 등록 사용자 목록
+        let accountsData = [
+            { name: "심현섭", role: "관리자", isInitialPw: true },
+            { name: "김민수", role: "해운대센터", isInitialPw: true },
+            { name: "박영희", role: "부평센터", isInitialPw: true }
+        ];
+
+        let currentAccount = null;
         let activeSheet = "월별실적취합";
+        let selectedCell = { r: 0, c: 0 };
         let isRemoteUpdating = false;
 
-        window.initFirebaseSync = function() {
-            const { db, doc, onSnapshot } = window.firebaseDb;
-            onSnapshot(doc(db, "sheets", "mainDoc"), (docSnap) => {
-                if (docSnap.exists()) {
-                    const remoteData = docSnap.data().data;
-                    if (remoteData) {
-                        isRemoteUpdating = true;
-                        sheetsData = remoteData;
-                        if (!sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
-                        renderSheetTabs();
-                        renderGrid();
-                        isRemoteUpdating = false;
+        // 로그인 처리 (가상 아이디 백그라운드 자동 인증)
+        async function handleLoginSubmit(e) {
+            e.preventDefault();
+            const btn = document.getElementById('login-submit-btn');
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> 인증 중...`;
+            btn.disabled = true;
+
+            const name = document.getElementById('login-name').value.trim();
+            const pw = document.getElementById('login-pw').value;
+            const virtualEmail = await nameToVirtualEmail(name);
+
+            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
+
+            try {
+                // 1. 기존 가상 계정으로 로그인 시도
+                await signInWithEmailAndPassword(auth, virtualEmail, pw);
+            } catch (err) {
+                // 계정이 아직 Firebase Auth에 없는 신규 유저라면 자동 계정 생성 (초기비번 1470일 때만)
+                if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
+                    if (pw === "1470") {
+                        try {
+                            await createUserWithEmailAndPassword(auth, virtualEmail, "14701470"); // Firebase 기본 6자리 이상 충족
+                        } catch (cErr) {
+                            alert("로그인 실패: 비밀번호를 확인해 주세요.");
+                            btn.innerHTML = "로그인";
+                            btn.disabled = false;
+                            return;
+                        }
+                    } else {
+                        alert("비밀번호가 일치하지 않거나 등록되지 않은 계정입니다.");
+                        btn.innerHTML = "로그인";
+                        btn.disabled = false;
+                        return;
                     }
                 } else {
-                    saveDataToFirebase();
+                    alert("인증 오류: " + err.message);
+                    btn.innerHTML = "로그인";
+                    btn.disabled = false;
+                    return;
                 }
-            });
+            }
+
+            // 인증 성공 후 Firestore 동기화 개시
+            await startFirestoreSync(name);
+
+            btn.innerHTML = "로그인";
+            btn.disabled = false;
         }
 
-        async function saveDataToFirebase() {
-            if (isRemoteUpdating) return;
+        async function startFirestoreSync(userName) {
+            const { db, doc, onSnapshot, getDoc, setDoc } = window.fb;
+
+            // 계정 목록 문서 구독
+            onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
+                if (snap.exists()) {
+                    accountsData = snap.data().accounts || accountsData;
+                } else {
+                    setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
+                }
+
+                let found = accountsData.find(a => a.name === userName);
+                if (!found) {
+                    // 기본 계정 목록에 없는 경우 일반 권한 부여
+                    found = { name: userName, role: "해운대센터", isInitialPw: true };
+                    accountsData.push(found);
+                    setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
+                }
+                currentAccount = found;
+                updateUserInterface();
+
+                // 초기 비밀번호 상태라면 변경 창 노출
+                if (currentAccount.isInitialPw) {
+                    document.getElementById('pw-change-modal').classList.remove('hidden');
+                    document.getElementById('pw-change-modal').classList.add('flex');
+                }
+            });
+
+            // 스프레드시트 데이터 구독
+            onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
+                if (snap.exists()) {
+                    isRemoteUpdating = true;
+                    sheetsData = snap.data().data || sheetsData;
+                    if (!sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
+                    renderSheetTabs();
+                    renderGrid();
+                    isRemoteUpdating = false;
+                } else {
+                    setDoc(doc(db, "sheets", "mainDoc"), { data: sheetsData });
+                }
+            });
+
+            document.getElementById('login-modal').classList.add('hidden');
+            document.getElementById('sync-status').className = "bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 mr-2";
+            document.getElementById('sync-text').innerText = "보안 동기화 가동중";
+        }
+
+        async function saveSheetsToFirebase() {
+            if (isRemoteUpdating || !currentAccount) return;
             try {
-                const { db, doc, setDoc } = window.firebaseDb;
+                const { db, doc, setDoc } = window.fb;
                 await setDoc(doc(db, "sheets", "mainDoc"), { data: sheetsData });
             } catch (e) {
                 console.error("DB 저장 실패:", e);
             }
         }
 
-        window.onload = function() {
-            renderSheetTabs();
+        async function saveAccountsToFirebase() {
+            try {
+                const { db, doc, setDoc } = window.fb;
+                await setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
+            } catch (e) {
+                console.error("계정 저장 실패:", e);
+            }
+        }
+
+        // 비밀번호 변경
+        async function handlePasswordChangeSubmit(e) {
+            e.preventDefault();
+            const p1 = document.getElementById('new-pw-input').value;
+            const p2 = document.getElementById('new-pw-confirm').value;
+
+            if (p1 !== p2) {
+                alert("비밀번호가 일치하지 않습니다.");
+                return;
+            }
+            if (p1 === "1470") {
+                alert("1470 외의 새 비밀번호를 입력해 주세요.");
+                return;
+            }
+
+            try {
+                const { auth, updatePassword } = window.fb;
+                await updatePassword(auth.currentUser, p1);
+
+                currentAccount.isInitialPw = false;
+                const idx = accountsData.findIndex(a => a.name === currentAccount.name);
+                if (idx !== -1) accountsData[idx] = currentAccount;
+                await saveAccountsToFirebase();
+
+                document.getElementById('pw-change-modal').classList.add('hidden');
+                document.getElementById('pw-change-modal').classList.remove('flex');
+                alert("비밀번호가 안전하게 변경되었습니다!");
+            } catch (err) {
+                alert("비밀번호 변경 실패 (6자 이상 입력해 주세요): " + err.message);
+            }
+        }
+
+        function handleLogout() {
+            if (confirm("로그아웃 하시겠습니까?")) {
+                const { auth, signOut } = window.fb;
+                signOut(auth);
+                location.reload();
+            }
+        }
+
+        function updateUserInterface() {
+            if (!currentAccount) return;
+
+            document.getElementById('current-user-badge').innerText = `👤 ${currentAccount.name} (${currentAccount.role})`;
+            document.getElementById('logout-btn').classList.remove('hidden');
+
+            if (currentAccount.role === '관리자') {
+                document.getElementById('admin-col-btn').classList.remove('hidden');
+                document.getElementById('admin-col-btn').classList.add('flex');
+                document.getElementById('admin-acc-btn').classList.remove('hidden');
+                document.getElementById('admin-acc-btn').classList.add('flex');
+                document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-shield-halved text-blue-500 mr-1"></i> 관리자 (전체 편집 권한)`;
+                document.getElementById('edit-permission-status').className = "text-blue-600 font-semibold";
+            } else {
+                document.getElementById('admin-col-btn').classList.add('hidden');
+                document.getElementById('admin-acc-btn').classList.add('hidden');
+                document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-user-check text-amber-500 mr-1"></i> ${currentAccount.role} 담당 편집 권한`;
+                document.getElementById('edit-permission-status').className = "text-amber-600 font-semibold";
+            }
             renderGrid();
-            updateAccountUI();
-        };
+        }
 
         function renderSheetTabs() {
             const container = document.getElementById('sheet-tabs');
@@ -248,7 +481,6 @@
             thead.innerHTML = '';
             tbody.innerHTML = '';
 
-            // 헤더 생성
             let headerRow = document.createElement('tr');
             let thCorner = document.createElement('th');
             thCorner.className = 'grid-header p-2 w-12';
@@ -263,7 +495,6 @@
             });
             thead.appendChild(headerRow);
 
-            // 데이터 행 생성
             sheet.rows.forEach((row, rIdx) => {
                 let tr = document.createElement('tr');
                 let tdNum = document.createElement('td');
@@ -272,7 +503,9 @@
                 tr.appendChild(tdNum);
 
                 let isLocked = false;
-                if (currentAccount.role !== '관리자') {
+                if (!currentAccount) {
+                    isLocked = true;
+                } else if (currentAccount.role !== '관리자') {
                     const rowCenter = row[1] || '';
                     if (!rowCenter.includes(currentAccount.role)) isLocked = true;
                 }
@@ -286,7 +519,6 @@
                         td.innerHTML = `<div class="px-2 py-1.5 text-xs text-slate-400 truncate flex items-center justify-between"><span>${val}</span><i class="fa-solid fa-lock text-[10px] text-slate-300"></i></div>`;
                     } else {
                         if (col.type === 'select') {
-                            // 드롭다운 선택형 입력
                             let select = document.createElement('select');
                             select.className = 'cell-select';
                             let opts = col.options ? col.options.split(',').map(o => o.trim()) : [];
@@ -306,21 +538,21 @@
 
                             select.onchange = (e) => {
                                 sheetsData[activeSheet].rows[rIdx][cIdx] = e.target.value;
-                                saveDataToFirebase();
+                                saveSheetsToFirebase();
                             };
                             td.appendChild(select);
                         } else {
-                            // 자유 입력형
                             let input = document.createElement('input');
                             input.type = 'text';
                             input.className = 'cell-input';
                             input.value = val;
                             input.onfocus = () => {
+                                selectedCell = { r: rIdx, c: cIdx };
                                 document.getElementById('selected-cell-indicator').innerText = `선택 셀: ${String.fromCharCode(65 + cIdx)}${rIdx + 1}`;
                             };
                             input.oninput = (e) => {
                                 sheetsData[activeSheet].rows[rIdx][cIdx] = e.target.value;
-                                saveDataToFirebase();
+                                saveSheetsToFirebase();
                             };
                             td.appendChild(input);
                         }
@@ -331,38 +563,80 @@
             });
         }
 
-        // 새 행 추가
+        // 엑셀 클립보드 붙여넣기 (Ctrl + V)
+        document.addEventListener('paste', function(e) {
+            if (!currentAccount || selectedCell.r === undefined || selectedCell.c === undefined) return;
+            let clipboardData = (e.clipboardData || window.clipboardData).getData('text');
+            if (!clipboardData) return;
+
+            let rows = clipboardData.split(/\r\n|\n|\r/);
+            if (rows.length > 1 && rows[rows.length - 1] === '') rows.pop();
+
+            if (rows.length > 1 || rows[0].includes('\t')) {
+                e.preventDefault();
+                let sheet = sheetsData[activeSheet];
+                let startR = selectedCell.r;
+                let startC = selectedCell.c;
+
+                rows.forEach((rowStr, rOffset) => {
+                    let targetR = startR + rOffset;
+                    let cells = rowStr.split('\t');
+
+                    if (targetR >= sheet.rows.length) {
+                        sheet.rows.push(new Array(sheet.columns.length).fill(""));
+                    }
+
+                    if (currentAccount.role !== '관리자') {
+                        const rowCenter = sheet.rows[targetR][1] || '';
+                        if (!rowCenter.includes(currentAccount.role)) return;
+                    }
+
+                    cells.forEach((val, cOffset) => {
+                        let targetC = startC + cOffset;
+                        if (targetC < sheet.columns.length) {
+                            sheet.rows[targetR][targetC] = val.trim();
+                        }
+                    });
+                });
+
+                saveSheetsToFirebase();
+                renderGrid();
+            }
+        });
+
         function addNewRow() {
+            if (!currentAccount) return;
             let sheet = sheetsData[activeSheet];
             let newRow = new Array(sheet.columns.length).fill("");
+            if (currentAccount.role !== '관리자') newRow[1] = currentAccount.role;
             sheet.rows.push(newRow);
-            saveDataToFirebase();
+            saveSheetsToFirebase();
             renderGrid();
         }
 
-        // 새 시트 추가
         function addNewSheet() {
+            if (!currentAccount || currentAccount.role !== '관리자') {
+                alert("새 시트 추가는 관리자만 가능합니다.");
+                return;
+            }
             let sheetName = prompt("새 시트 이름을 입력하세요:", "시트" + (Object.keys(sheetsData).length + 1));
             if (sheetName && !sheetsData[sheetName]) {
                 sheetsData[sheetName] = {
                     columns: [
                         { name: "항목1", type: "text", options: "" },
-                        { name: "항목2", type: "text", options: "" },
+                        { name: "센터명", type: "text", options: "" },
                         { name: "상태", type: "select", options: "대기, 진행중, 완료" }
                     ],
-                    rows: [["데이터1", "데이터2", "진행중"]]
+                    rows: [["데이터1", "해운대센터", "진행중"]]
                 };
-                saveDataToFirebase();
+                saveSheetsToFirebase();
                 switchSheet(sheetName);
             }
         }
 
-        // 열(항목) 구조 편집 모달 열기
+        // 열 구조 편집 모달
         function openColumnManager() {
-            if (currentAccount.role !== '관리자') {
-                alert('열 구조 편집은 관리자 계정만 가능합니다.');
-                return;
-            }
+            if (!currentAccount || currentAccount.role !== '관리자') return;
             document.getElementById('column-modal').classList.remove('hidden');
             document.getElementById('column-modal').classList.add('flex');
             renderColumnEditList();
@@ -398,11 +672,8 @@
         function toggleOptionsInput(idx) {
             let typeVal = document.getElementById(`col-type-${idx}`).value;
             let optInput = document.getElementById(`col-opts-${idx}`);
-            if (typeVal === 'select') {
-                optInput.classList.remove('hidden');
-            } else {
-                optInput.classList.add('hidden');
-            }
+            if (typeVal === 'select') optInput.classList.remove('hidden');
+            else optInput.classList.add('hidden');
         }
 
         function addColumnField() {
@@ -416,7 +687,6 @@
                 return;
             }
             sheetsData[activeSheet].columns.splice(idx, 1);
-            // 행 데이터에서도 해당 열 데이터 제거
             sheetsData[activeSheet].rows.forEach(row => row.splice(idx, 1));
             renderColumnEditList();
         }
@@ -424,12 +694,10 @@
         function saveColumnChanges() {
             let sheet = sheetsData[activeSheet];
             let newColumns = [];
-            
             sheet.columns.forEach((col, idx) => {
                 let nameInput = document.getElementById(`col-name-${idx}`);
                 let typeInput = document.getElementById(`col-type-${idx}`);
                 let optsInput = document.getElementById(`col-opts-${idx}`);
-                
                 if (nameInput) {
                     newColumns.push({
                         name: nameInput.value.trim() || `항목${idx+1}`,
@@ -438,30 +706,19 @@
                     });
                 }
             });
-
             sheet.columns = newColumns;
-            saveDataToFirebase();
+            saveSheetsToFirebase();
             closeColumnManager();
             renderGrid();
-            alert("열 구조가 성공적으로 업데이트되었습니다!");
+            alert("열 구조가 성공적으로 저장되었습니다!");
         }
 
-        // 계정 관리 모달
+        // 계정/권한 관리 모달
         function openAccountManager() {
+            if (!currentAccount || currentAccount.role !== '관리자') return;
             document.getElementById('account-modal').classList.remove('hidden');
             document.getElementById('account-modal').classList.add('flex');
-            const container = document.getElementById('account-list-container');
-            container.innerHTML = '';
-            accounts.forEach(acc => {
-                const isSelected = acc.id === currentAccount.id;
-                const div = document.createElement('div');
-                div.className = `flex items-center justify-between p-3 rounded-lg border ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`;
-                div.innerHTML = `
-                    <div><p class="text-xs font-bold text-slate-800">${acc.name} (${acc.role})</p></div>
-                    <button onclick="switchAccount('${acc.id}')" class="px-3 py-1 rounded text-xs font-semibold ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}">${isSelected ? '현재 접속중' : '전환하기'}</button>
-                `;
-                container.appendChild(div);
-            });
+            renderAdminAccountList();
         }
 
         function closeAccountManager() {
@@ -469,11 +726,75 @@
             document.getElementById('account-modal').classList.remove('flex');
         }
 
-        function switchAccount(accId) {
-            currentAccount = accounts.find(a => a.id === accId);
-            document.getElementById('current-user-badge').innerText = currentAccount.badge;
-            closeAccountManager();
-            renderGrid();
+        function renderAdminAccountList() {
+            const container = document.getElementById('admin-account-list');
+            container.innerHTML = '';
+
+            accountsData.forEach((acc, idx) => {
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50";
+                div.innerHTML = `
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold text-slate-800">${acc.name}</span>
+                            <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-medium">${acc.role}</span>
+                            ${acc.isInitialPw ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">초기PW(1470)</span>' : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded">비밀번호설정됨</span>'}
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <button onclick="adminResetPassword('${acc.name}')" class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[11px] font-semibold transition">
+                            PW 1470 초기화
+                        </button>
+                        ${acc.name !== '심현섭' ? `<button onclick="adminDeleteAccount(${idx})" class="text-red-500 hover:text-red-700 p-1"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        async function adminResetPassword(name) {
+            if (confirm(`${name} 님의 비밀번호 상태를 초기값(1470)으로 되돌리시겠습니까?`)) {
+                const target = accountsData.find(a => a.name === name);
+                if (target) {
+                    target.isInitialPw = true;
+                    await saveAccountsToFirebase();
+                    renderAdminAccountList();
+                    alert(`${name} 님의 비밀번호가 1470 상태로 초기화되었습니다.`);
+                }
+            }
+        }
+
+        async function adminCreateAccount() {
+            const name = document.getElementById('new-user-name').value.trim();
+            const role = document.getElementById('new-user-role').value;
+
+            if (!name) {
+                alert("사용자 이름을 입력해 주세요.");
+                return;
+            }
+            if (accountsData.some(a => a.name === name)) {
+                alert("이미 존재하는 이름입니다.");
+                return;
+            }
+
+            accountsData.push({
+                name: name,
+                role: role,
+                isInitialPw: true
+            });
+
+            await saveAccountsToFirebase();
+            document.getElementById('new-user-name').value = '';
+            renderAdminAccountList();
+            alert(`신규 계정(${name})이 추가되었습니다. 해당 사용자는 이름과 1470으로 즉시 로그인할 수 있습니다.`);
+        }
+
+        async function adminDeleteAccount(idx) {
+            if (confirm("해당 계정을 삭제하시겠습니까?")) {
+                accountsData.splice(idx, 1);
+                await saveAccountsToFirebase();
+                renderAdminAccountList();
+            }
         }
 
         function exportExcel() {
@@ -484,7 +805,7 @@
                 let ws = XLSX.utils.aoa_to_sheet([headers, ...sheet.rows]);
                 XLSX.utils.book_append_sheet(wb, ws, sheetName);
             });
-            XLSX.writeFile(wb, "HSS_실시간취합시스템.xlsx");
+            XLSX.writeFile(wb, "HSS_취합시스템.xlsx");
         }
     </script>
 </body>
