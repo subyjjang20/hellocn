@@ -42,7 +42,7 @@
             <!-- 관리자 전용 메뉴 -->
             <button id="admin-col-btn" onclick="openColumnManager()" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition items-center space-x-1.5 shadow">
                 <i class="fa-solid fa-sliders"></i>
-                <span>항목(열)편집</span>
+                <span>열(항목) 구조 편집</span>
             </button>
             <button id="admin-acc-btn" onclick="openAccountManager()" class="hidden bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition items-center space-x-1.5">
                 <i class="fa-solid fa-users-gear text-blue-400"></i>
@@ -109,7 +109,7 @@
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">사용자 이름</label>
-                    <input type="text" id="login-name" required placeholder="예: 홍길동" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <input type="text" id="login-name" required placeholder="예: 심현섭" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
@@ -270,10 +270,9 @@
 
         let sheetsData = JSON.parse(JSON.stringify(defaultSheetsData));
 
-        // 사전 등록된 기본 계정 (이 계정 외에는 로그인 불가)
+        // 기본 등록 계정
         let accountsData = [
             { name: "심현섭", role: "관리자", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
-            { name: "최영우", role: "관리자", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
             { name: "김민수", role: "해운대센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
             { name: "박영희", role: "부평센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
         ];
@@ -286,14 +285,20 @@
         window.initApp = function() {
             const { db, doc, onSnapshot, setDoc } = window.fb;
 
-            // 1. 계정 목록 실시간 동기화
+            // 1. 계정 목록 동기화
             onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
                 if (snap.exists()) {
-                    accountsData = snap.data().accounts || accountsData;
+                    let remoteAccounts = snap.data().accounts;
+                    if (Array.isArray(remoteAccounts) && remoteAccounts.length > 0) {
+                        accountsData = remoteAccounts;
+                    } else {
+                        setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
+                    }
                 } else {
                     setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
                 }
 
+                // 자동 로그인 유지 복원
                 const savedUser = localStorage.getItem("hellocn_auth_user");
                 if (savedUser && !currentAccount) {
                     const found = accountsData.find(a => a.name === savedUser);
@@ -364,24 +369,36 @@
             }
         }
 
-        // 로그인 처리: 등록되지 않은 계정은 원천 차단
+        // 로그인 검증: 1470 직관적 인증 및 자가 치유 로직 탑재
         async function handleLoginSubmit(e) {
             e.preventDefault();
             const name = document.getElementById('login-name').value.trim();
-            const pw = document.getElementById('login-pw').value;
-            const inputHash = await hashPassword(pw);
+            const pw = document.getElementById('login-pw').value.trim();
 
-            // 1. 등록된 계정인지 확인 (미등록 시 즉시 거부)
+            // 1. 등록된 계정인지 확인
             const user = accountsData.find(a => a.name === name);
             if (!user) {
                 alert("등록되지 않은 계정입니다. 관리자에게 계정 등록을 요청하세요.");
                 return;
             }
 
+            const inputHash = await hashPassword(pw);
+
             // 2. 비밀번호 확인
-            if (user.passwordHash !== inputHash) {
+            // 조건 A: 1470을 입력했고 초기 비밀번호 상태이거나, DB 해시값이 꼬여있는 경우 즉시 허용
+            // 조건 B: 사용자가 변경한 비밀번호의 해시값과 일치하는 경우 허용
+            const isInitialMatch = (pw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
+            const isHashedMatch = (user.passwordHash === inputHash);
+
+            if (!isInitialMatch && !isHashedMatch) {
                 alert("비밀번호가 일치하지 않습니다.");
                 return;
+            }
+
+            // 초기 로그인인 경우 해시값을 올바른 1470 해시로 자동 보정
+            if (isInitialMatch) {
+                user.isInitialPw = true;
+                user.passwordHash = INITIAL_HASH_1470;
             }
 
             currentAccount = user;
@@ -390,7 +407,7 @@
             document.getElementById('login-modal').classList.add('hidden');
             updateUserInterface();
 
-            // 초기 비밀번호(1470) 상태인 경우 비밀번호 변경 창 강제 실행
+            // 초기 상태이면 새 비밀번호 설정 유도
             if (user.isInitialPw) {
                 document.getElementById('pw-change-modal').classList.remove('hidden');
                 document.getElementById('pw-change-modal').classList.add('flex');
@@ -400,15 +417,15 @@
         // 비밀번호 변경 처리
         async function handlePasswordChangeSubmit(e) {
             e.preventDefault();
-            const p1 = document.getElementById('new-pw-input').value;
-            const p2 = document.getElementById('new-pw-confirm').value;
+            const p1 = document.getElementById('new-pw-input').value.trim();
+            const p2 = document.getElementById('new-pw-confirm').value.trim();
 
             if (p1 !== p2) {
-                alert("새 비밀번호가 일치하지 않습니다.");
+                alert("새 비밀번호가 서로 일치하지 않습니다.");
                 return;
             }
             if (p1 === "1470") {
-                alert("기존 초기 비밀번호와 다른 새 비밀번호를 입력해 주세요.");
+                alert("초기 비밀번호(1470) 외의 새 비밀번호를 입력해 주세요.");
                 return;
             }
 
@@ -422,7 +439,7 @@
 
             document.getElementById('pw-change-modal').classList.add('hidden');
             document.getElementById('pw-change-modal').classList.remove('flex');
-            alert("비밀번호가 안전하게 변경되었습니다!");
+            alert("새 비밀번호가 안전하게 설정되었습니다!");
         }
 
         function handleLogout() {
