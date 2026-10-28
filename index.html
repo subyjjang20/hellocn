@@ -4,14 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>헬로CN 닥스</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 아이콘 -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (엑셀 입출력용) -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
     <style>
         body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
         
-        /* 인쇄(PDF) 최적화: 인쇄 시 UI 숨김 및 표 전체 폭 확장 */
+        /* 인쇄(PDF) 최적화 */
         @media print {
             header, #sheet-tabs-container, #stats-bar, #add-row-btn, .no-print { display: none !important; }
             body { background: white; }
@@ -33,28 +36,26 @@
         .grid-cell { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 0; position: relative; background: #ffffff; }
         .grid-cell.locked { background-color: #f8fafc; color: #94a3b8; background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, #f1f5f9 10px, #f1f5f9 20px); }
         
-        /* 셀 메모(코멘트) 마커 */
+        /* 셀 메모 마커 */
         .memo-marker { position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 8px 8px 0; border-color: transparent #ef4444 transparent transparent; cursor: help; z-index: 5; }
-        
-        /* 필터 팝업 모달 */
-        .filter-dropdown { position: absolute; top: 100%; left: 0; background: white; border: 1px solid #cbd5e1; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 4px; padding: 8px; z-index: 50; width: 160px; text-align: left; }
     </style>
 </head>
 <body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
 
+    <!-- 초기 로딩 오버레이 -->
     <div id="initial-loader" class="fixed inset-0 bg-slate-900 z-[999] flex flex-col items-center justify-center text-white transition-opacity duration-200">
         <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-500 mb-5"></i>
         <h2 class="text-xl font-bold tracking-tight">헬로CN 닥스 시스템 연결 중...</h2>
         <p class="text-slate-400 mt-2 text-sm">데이터베이스 인증 및 동기화를 진행하고 있습니다.</p>
     </div>
 
-    <!-- 헤더 영역 -->
+    <!-- 상단 네비게이션바 -->
     <header class="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shadow-md z-20">
         <div class="flex items-center space-x-3">
             <div class="bg-blue-600 text-white p-2 rounded-lg font-bold"><i class="fa-solid fa-table"></i></div>
             <div>
                 <h1 class="text-base font-bold tracking-tight">헬로CN 닥스</h1>
-                <p class="text-[11px] text-slate-400">실시간 실적 취합 및 권한 통제 보드</p>
+                <p class="text-[11px] text-slate-400">실시간 데이터 동기화 & 권한 통제 시스템</p>
             </div>
         </div>
 
@@ -66,12 +67,10 @@
 
             <!-- 관리자 메뉴 -->
             <button id="admin-col-btn" onclick="openColumnManager()" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition items-center space-x-1.5 shadow">
-                <i class="fa-solid fa-sliders"></i>
-                <span>열(항목) 설정</span>
+                <i class="fa-solid fa-sliders"></i><span>열(항목) 설정</span>
             </button>
             <button id="admin-acc-btn" onclick="openAccountManager()" class="hidden bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium transition items-center space-x-1.5">
-                <i class="fa-solid fa-users-gear text-blue-400"></i>
-                <span>계정 관리</span>
+                <i class="fa-solid fa-users-gear text-blue-400"></i><span>계정 관리</span>
             </button>
 
             <!-- 사용자 정보 -->
@@ -90,9 +89,8 @@
         </div>
     </header>
 
-    <!-- 메인 스프레드시트 영역 -->
+    <!-- 메인 작업 영역 -->
     <div class="flex-1 flex flex-col overflow-hidden bg-white m-3 rounded-xl shadow-sm border border-slate-200 relative">
-        <!-- 툴바 -->
         <div class="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
             <div class="flex items-center space-x-3">
                 <span class="font-bold text-slate-700 bg-white px-2 py-1 rounded border shadow-sm" id="selected-cell-indicator">A1</span>
@@ -111,7 +109,6 @@
             </div>
         </div>
 
-        <!-- 표 본문 -->
         <div id="grid-container" class="flex-1 overflow-auto relative bg-slate-50 pb-8">
             <table id="spreadsheet-table" class="border-collapse w-full select-none table-fixed">
                 <thead id="grid-thead" class="bg-slate-100"></thead>
@@ -119,7 +116,7 @@
             </table>
         </div>
 
-        <!-- 하단 실시간 통계 바 (SUM, AVG) -->
+        <!-- 하단 통계 바 -->
         <div id="stats-bar" class="absolute bottom-11 left-0 right-0 bg-blue-50/90 backdrop-blur border-t border-blue-200 px-4 py-1.5 flex items-center text-xs font-semibold text-blue-800 space-x-6 z-10 hidden shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
             <div class="flex items-center"><i class="fa-solid fa-calculator mr-2 text-blue-500"></i><span id="stat-sum">합계: 0</span></div>
             <div class="flex items-center"><i class="fa-solid fa-chart-pie mr-2 text-blue-500"></i><span id="stat-avg">평균: 0</span></div>
@@ -135,8 +132,7 @@
         </div>
     </div>
 
-    <!-- 로그인/비밀번호/계정관리 모달 (생략/유지) -->
-    <!-- (이전 코드와 동일하게 로그인 모달 등 필수 모달 코드는 여기에 위치함. 길이 한도상 뼈대 유지) -->
+    <!-- 로그인 모달 -->
     <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50">
         <div class="bg-white w-[420px] rounded-2xl shadow-2xl p-6 border border-slate-100">
             <div class="text-center mb-6">
@@ -144,38 +140,66 @@
                     <i class="fa-solid fa-shield-halved text-2xl"></i>
                 </div>
                 <h2 class="text-lg font-bold text-slate-800">헬로CN 닥스</h2>
-                <p class="text-xs text-slate-500 mt-1">영문 아이디와 비밀번호를 입력해 주세요.</p>
+                <p class="text-xs text-slate-500 mt-1">아이디와 비밀번호를 입력해 주세요.</p>
             </div>
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">아이디</label>
                     <div class="flex items-center">
-                        <input type="text" id="login-id" required class="w-full border rounded-l px-3 py-2 text-sm outline-none">
-                        <span class="bg-slate-100 border border-l-0 px-2 py-2 text-xs text-slate-500 rounded-r">@helloconnectn.com</span>
+                        <input type="text" id="login-id" required class="w-full border rounded-l px-3 py-2 text-sm outline-none focus:border-blue-500">
+                        <span class="bg-slate-100 border border-l-0 border-slate-300 px-2 py-2 text-xs text-slate-500 rounded-r font-medium">@helloconnectn.com</span>
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
-                    <input type="password" id="login-pw" required class="w-full border rounded px-3 py-2 text-sm outline-none">
+                    <input type="password" id="login-pw" required class="w-full border border-slate-300 rounded px-3 py-2 text-sm outline-none focus:border-blue-500">
                 </div>
-                <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm transition">로그인</button>
+                <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md">로그인</button>
             </form>
         </div>
     </div>
     
+    <!-- 비밀번호 강제 변경 모달 -->
     <div id="pw-change-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
-        <!-- 초기 비밀번호 모달 (동일) -->
+        <div class="bg-white w-[380px] rounded-2xl shadow-2xl p-6">
+            <div class="text-center mb-4">
+                <div class="inline-flex bg-amber-100 text-amber-600 p-3 rounded-full mb-2">
+                    <i class="fa-solid fa-key text-xl"></i>
+                </div>
+                <h3 class="text-base font-bold text-slate-800">새 비밀번호 설정</h3>
+                <p class="text-xs text-slate-500 mt-1">초기 비밀번호를 변경해야 사용할 수 있습니다.</p>
+            </div>
+            <form onsubmit="handlePasswordChangeSubmit(event)" class="space-y-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">새 비밀번호</label>
+                    <input type="password" id="new-pw-input" required class="w-full border rounded px-3 py-2 text-sm outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">새 비밀번호 확인</label>
+                    <input type="password" id="new-pw-confirm" required class="w-full border rounded px-3 py-2 text-sm outline-none">
+                </div>
+                <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-lg text-sm transition mt-2">저장 및 시작</button>
+            </form>
+        </div>
     </div>
     
-    <!-- 열 구조 편집 모달 (유효성 검사 타입 추가) -->
+    <!-- 열 구조 편집 모달 -->
     <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[100]">
         <div class="bg-white w-[750px] rounded-xl shadow-2xl flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-                <h3 class="font-bold text-sm">열(항목) 구조 설정 및 데이터 제한</h3>
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열 구조 및 항목 설정</h3>
                 <button onclick="closeColumnManager()" class="hover:text-red-400"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="p-5 max-h-[60vh] overflow-y-auto">
-                <div class="bg-blue-50 text-blue-800 text-xs p-3 rounded mb-4">항목 유형을 '숫자'나 '날짜'로 제한하여 오입력을 방지할 수 있습니다.</div>
+                <div class="bg-slate-100 p-3 rounded-lg border flex items-center justify-between mb-4">
+                    <div>
+                        <span class="text-xs font-bold text-slate-800">엑셀 붙여넣기 시 헤더(항목) 줄수 설정</span>
+                    </div>
+                    <select id="header-rows-select" class="border rounded px-3 py-1 text-xs font-bold outline-none">
+                        <option value="1">1줄 헤더</option>
+                        <option value="2">2줄 헤더</option>
+                    </select>
+                </div>
                 <div id="column-edit-list" class="space-y-2"></div>
                 <button onclick="addColumnField()" class="mt-3 w-full border border-dashed border-slate-400 py-2 text-xs font-bold text-slate-600 rounded bg-slate-50 hover:bg-slate-100">+ 항목 추가</button>
             </div>
@@ -186,32 +210,43 @@
         </div>
     </div>
 
-    <!-- 계정 관리 모달 (동일) -->
-    <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-        <!-- 내용 동일 -->
+    <!-- 🌟 계정 관리 모달 (비밀번호 변경 기능 추가됨) -->
+    <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-[100]">
+        <div class="bg-white w-[650px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-users-gear mr-2 text-blue-400"></i>계정 등록 및 관리</h3>
+                <button onclick="closeAccountManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
+                <div>
+                    <h4 class="text-xs font-bold text-slate-700 mb-2">등록된 계정 목록</h4>
+                    <div id="admin-account-list" class="space-y-2"></div>
+                </div>
+
+                <div class="border-t pt-4">
+                    <h4 class="text-xs font-bold text-slate-700 mb-2">새 계정 등록 (초기 PW: 1470)</h4>
+                    <div class="grid grid-cols-3 gap-2">
+                        <div class="flex items-center col-span-1">
+                            <input type="text" id="new-user-id" placeholder="아이디" class="border rounded-l px-2 py-1.5 text-xs w-full outline-none">
+                            <span class="bg-slate-100 border border-l-0 px-1 py-1.5 text-[10px] text-slate-500 rounded-r">@...</span>
+                        </div>
+                        <input type="text" id="new-user-name" placeholder="성명" class="border rounded px-2 py-1.5 text-xs outline-none">
+                        <select id="new-user-role" class="border rounded px-2 py-1.5 text-xs outline-none">
+                            <option value="최고관리자">최고관리자</option>
+                            <option value="서추">서추 (마스터)</option>
+                            <option value="영추">영추 (마스터)</option>
+                            <option value="수도권">수도권 담당자</option>
+                            <option value="동부">동부 담당자</option>
+                            <option value="남부">남부 담당자</option>
+                        </select>
+                    </div>
+                    <button onclick="adminCreateAccount()" class="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded text-xs font-semibold transition">신규 계정 추가</button>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
-            authDomain: "hellocn-128ba.firebaseapp.com",
-            projectId: "hellocn-128ba",
-            storageBucket: "hellocn-128ba.firebasestorage.app",
-            messagingSenderId: "306539866159",
-            appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
-            measurementId: "G-ETFMQX75CB"
-        };
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
-        window.initApp();
-    </script>
-
+    <!-- 스크립트 로직 -->
     <script>
         async function hashPassword(str) {
             const msgBuffer = new TextEncoder().encode(str);
@@ -220,17 +255,18 @@
         }
 
         const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; 
-        
+        const INITIAL_HASH_1470 = "ea817cbb346df91ee939ceaa6644f83cfecaa7e06a35043bf7e24a87cbb9797d"; 
+
         let sheetsData = {};
         let accountsData = [];
         let currentAccount = null;
         let activeSheet = null;
         let selectedCell = { r: 0, c: 0 };
         let isRemoteUpdating = false;
-        
-        // 🌟 개인용 필터 상태 객체 (DB 저장 안 됨, 화면 렌더링용)
+        let isManualLoggingIn = false;
         let localFilters = {}; 
 
+        // 🌟 버그 수정: 최고관리자 계정의 비밀번호 강제 덮어쓰기 방지
         function ensureMasterAdmins() {
             const masters = [
                 { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
@@ -238,8 +274,13 @@
             ];
             masters.forEach(m => {
                 let idx = accountsData.findIndex(a => a.userId === m.userId);
-                if(idx === -1) accountsData.unshift(m);
-                else { accountsData[idx].name = m.name; accountsData[idx].role = m.role; accountsData[idx].passwordHash = m.passwordHash; }
+                if(idx === -1) {
+                    accountsData.unshift(m);
+                } else {
+                    accountsData[idx].name = m.name;
+                    accountsData[idx].role = m.role;
+                    // 중요: 기존에 사용자가 변경한 비밀번호(passwordHash)가 있다면 절대 덮어쓰지 않음
+                }
             });
         }
 
@@ -252,6 +293,17 @@
                 setTimeout(() => loader.classList.add('hidden'), 200);
             }
         }
+
+        setTimeout(() => {
+            const loader = document.getElementById('initial-loader');
+            if (loader && !loader.classList.contains('hidden')) {
+                hideInitialLoader();
+                if (!currentAccount) {
+                    const loginModal = document.getElementById('login-modal');
+                    loginModal.classList.remove('hidden'); loginModal.classList.add('flex');
+                }
+            }
+        }, 2500);
 
         let unsubAccounts = null, unsubSheets = null;
 
@@ -274,28 +326,24 @@
                         if (data.payload) sheetsData = JSON.parse(data.payload);
                         else sheetsData = data.data;
 
-                        // 무결성 검증 (메모 객체 포함)
                         Object.keys(sheetsData).forEach(s => {
                             if(!sheetsData[s].memos) sheetsData[s].memos = {};
+                            if(!sheetsData[s].headerRows) sheetsData[s].headerRows = 1;
                         });
 
                         if (!activeSheet || !sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0] || null;
                         
-                        // 🌟 권한 기반 초기 필터 셋팅 (수도권이면 수도권만 보이게)
                         if (currentAccount && !isPrivilegedRole(currentAccount.role) && Object.keys(localFilters).length === 0) {
                             let sheet = sheetsData[activeSheet];
                             if(sheet) {
-                                // '부서/지역' 열을 찾아 자동 필터링 (보통 인덱스 1)
                                 let regionColIdx = sheet.columns.findIndex(c => c.name.includes("지역") || c.name.includes("부서"));
                                 if(regionColIdx !== -1) localFilters[regionColIdx] = currentAccount.role;
                             }
                         }
-
-                        renderSheetTabs();
-                        renderGrid();
+                        renderSheetTabs(); renderGrid();
                     } catch(e) { console.error(e); } finally { isRemoteUpdating = false; }
                 } else {
-                    sheetsData = { "기본시트": { columns: [{name:"항목1", type:"text", options:""}], rows: [[""]], memos: {} } };
+                    sheetsData = { "월별실적취합": { headerRows: 1, columns: [{name:"항목1", type:"text", options:""}], rows: [[""]], memos: {} } };
                     saveSheetsToFirebase();
                 }
             });
@@ -310,24 +358,36 @@
             if (isRemoteUpdating) return;
             try {
                 await window.fb.setDoc(window.fb.doc(window.fb.db, "sheets", "mainDoc"), { payload: JSON.stringify(sheetsData), timestamp: Date.now() });
-            } catch (e) { alert("저장 실패: " + e.message); }
+            } catch (e) { alert("시트 저장 실패: " + e.message); }
+        }
+
+        async function saveAccountsToFirebase() {
+            try {
+                ensureMasterAdmins();
+                const cleanAccounts = JSON.parse(JSON.stringify(accountsData));
+                await window.fb.setDoc(window.fb.doc(window.fb.db, "config", "accountsDoc"), { accounts: cleanAccounts });
+            } catch (e) { console.error("계정 저장 실패:", e); }
         }
 
         window.initApp = function() {
             ensureMasterAdmins();
             const { auth, db, doc, getDoc, onAuthStateChanged } = window.fb;
             onAuthStateChanged(auth, async (fbUser) => {
+                if (isManualLoggingIn) return;
                 const savedId = localStorage.getItem("hellocn_auth_userid");
                 if (fbUser && savedId) {
-                    let snap = await getDoc(doc(db, "config", "accountsDoc"));
-                    if(snap.exists()) accountsData = snap.data().accounts || [];
-                    ensureMasterAdmins();
-                    currentAccount = accountsData.find(a => a.userId === savedId);
-                    if(currentAccount) {
-                        updateUserInterface();
-                        startDatabaseSync();
-                        hideInitialLoader();
-                    } else { localStorage.removeItem("hellocn_auth_userid"); hideInitialLoader(); document.getElementById('login-modal').classList.remove('hidden'); document.getElementById('login-modal').classList.add('flex'); }
+                    try {
+                        let snap = await getDoc(doc(db, "config", "accountsDoc"));
+                        if(snap.exists()) accountsData = snap.data().accounts || [];
+                        ensureMasterAdmins();
+                        currentAccount = accountsData.find(a => a.userId === savedId);
+                        if(currentAccount) {
+                            updateUserInterface(); startDatabaseSync(); hideInitialLoader();
+                        } else { throw new Error("No Account"); }
+                    } catch(e) {
+                        localStorage.removeItem("hellocn_auth_userid"); hideInitialLoader(); 
+                        document.getElementById('login-modal').classList.remove('hidden'); document.getElementById('login-modal').classList.add('flex');
+                    }
                 } else {
                     hideInitialLoader();
                     document.getElementById('login-modal').classList.remove('hidden'); document.getElementById('login-modal').classList.add('flex');
@@ -335,18 +395,116 @@
             });
         };
 
-        // (로그인 함수 생략 처리 - 기존 로직 유지)
+        // 🌟 버그 수정: 이메일 충돌 회피 및 최고관리자 비밀번호 하드코딩 제거
         async function handleLoginSubmit(e) {
             e.preventDefault();
-            let id = document.getElementById('login-id').value.trim();
-            // ... (기존 하이브리드 로그인 로직 완벽 동일하게 적용)
-            // 지면 한계상 중략하지만 이전 제공된 마스터 로그인 통과 로직이 위치함
-            location.reload(); // 임시 새로고침 시 세션 복구 의존
+            isManualLoggingIn = true;
+            
+            const btn = document.getElementById('login-submit-btn');
+            const originalBtnHtml = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>로그인 처리중...</span>`;
+            btn.disabled = true;
+
+            let userId = document.getElementById('login-id').value.trim().toLowerCase();
+            userId = userId.replace('@helloconnectn.com', '');
+            const inputPw = document.getElementById('login-pw').value.trim();
+
+            const fbEmail = userId + "@helloconnectn.com";
+            const fbGatewayPw = "HelloCN_Sys_1004!" + userId; 
+            
+            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, db, getDoc, doc, setDoc } = window.fb;
+
+            try {
+                // 1. 파이어베이스 인증 (이메일 충돌 시 익명 로그인으로 우회하여 DB 접근권한 획득)
+                try {
+                    await signInWithEmailAndPassword(auth, fbEmail, fbGatewayPw);
+                } catch (authErr) {
+                    try {
+                        await createUserWithEmailAndPassword(auth, fbEmail, fbGatewayPw);
+                    } catch (createErr) {
+                        await signInAnonymously(auth);
+                    }
+                }
+                
+                // 2. 계정 DB 로드
+                const docSnap = await getDoc(doc(db, "config", "accountsDoc"));
+                if (docSnap.exists()) {
+                    accountsData = docSnap.data().accounts || [];
+                } else {
+                    ensureMasterAdmins();
+                    await setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
+                }
+                ensureMasterAdmins(); 
+
+                const user = accountsData.find(a => a.userId === userId);
+                if (!user) {
+                    alert("등록되지 않은 아이디입니다. 최고관리자에게 문의하세요.");
+                    await window.fb.signOut(auth);
+                    return;
+                }
+
+                // 3. 비밀번호 검증 (최고관리자 포함하여 통합 해시 검증)
+                const inputHash = await hashPassword(inputPw);
+                const isInitialMatch = (inputPw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
+                const isHashedMatch = (user.passwordHash === inputHash);
+
+                if (!isInitialMatch && !isHashedMatch) {
+                    alert("비밀번호가 일치하지 않습니다.");
+                    await window.fb.signOut(auth);
+                    return;
+                }
+
+                if (isInitialMatch) {
+                    user.isInitialPw = true;
+                    user.passwordHash = INITIAL_HASH_1470;
+                }
+
+                currentAccount = user;
+                localStorage.setItem("hellocn_auth_userid", user.userId);
+                
+                const loginModal = document.getElementById('login-modal');
+                loginModal.classList.remove('flex'); loginModal.classList.add('hidden');
+                hideInitialLoader();
+                
+                updateUserInterface();
+                startDatabaseSync(); 
+
+                if (user.isInitialPw) {
+                    document.getElementById('pw-change-modal').classList.remove('hidden'); document.getElementById('pw-change-modal').classList.add('flex');
+                }
+
+            } catch (fatalErr) {
+                console.error("로그인 에러:", fatalErr);
+                alert("서버 연결에 실패했습니다: " + fatalErr.message);
+            } finally {
+                isManualLoggingIn = false; btn.innerHTML = originalBtnHtml; btn.disabled = false;
+            }
+        }
+
+        async function handlePasswordChangeSubmit(e) {
+            e.preventDefault();
+            const p1 = document.getElementById('new-pw-input').value.trim();
+            const p2 = document.getElementById('new-pw-confirm').value.trim();
+
+            if (p1 !== p2) return alert("새 비밀번호가 서로 일치하지 않습니다.");
+            if (p1 === "1470") return alert("초기 비밀번호(1470) 외의 새 비밀번호를 입력해 주세요.");
+
+            currentAccount.passwordHash = await hashPassword(p1);
+            currentAccount.isInitialPw = false;
+
+            const idx = accountsData.findIndex(a => a.userId === currentAccount.userId);
+            if (idx !== -1) accountsData[idx] = currentAccount;
+            await saveAccountsToFirebase();
+
+            document.getElementById('pw-change-modal').classList.add('hidden'); document.getElementById('pw-change-modal').classList.remove('flex');
+            alert("비밀번호가 안전하게 설정되었습니다!");
         }
 
         function handleLogout() {
-            localStorage.removeItem("hellocn_auth_userid");
-            window.fb.signOut(window.fb.auth).then(()=>location.reload());
+            if(confirm("로그아웃 하시겠습니까?")) {
+                localStorage.removeItem("hellocn_auth_userid");
+                window.fb.signOut(window.fb.auth).then(()=>location.reload());
+            }
         }
 
         function updateUserInterface() {
@@ -366,13 +524,12 @@
             let html = "";
             Object.keys(sheetsData).forEach(s => {
                 let active = s === activeSheet ? "bg-white text-blue-600 border-t border-x shadow-sm" : "bg-slate-200 text-slate-600 hover:bg-slate-300";
-                html += `<button onclick="activeSheet='${s}'; renderGrid();" class="px-4 py-1.5 text-xs font-bold rounded-t-lg ${active}">${s}</button>`;
+                html += `<button onclick="activeSheet='${s}'; renderGrid();" class="px-4 py-1.5 text-xs font-bold rounded-t-lg border-b-0 ${active}">${s}</button>`;
             });
             document.getElementById('sheet-tabs').innerHTML = html;
             document.getElementById('active-sheet-name').innerText = activeSheet;
         }
 
-        // 🌟 렌더링 로직 (Sticky Header, 필터, 유효성 검사, 통계 바, 메모 모두 결합)
         function renderGrid() {
             if(!activeSheet || !sheetsData[activeSheet]) return;
             const sheet = sheetsData[activeSheet];
@@ -380,38 +537,30 @@
             const tbody = document.getElementById('grid-tbody');
             thead.innerHTML = ''; tbody.innerHTML = '';
             
-            let statSums = {}; // 컬럼별 합산용
-
-            // 1. 헤더 생성 (필터 드롭다운 내장)
+            let statSums = {}; 
             let trH = document.createElement('tr');
             trH.innerHTML = `<th class="grid-header w-12 p-2">#</th>`;
             sheet.columns.forEach((col, cIdx) => {
                 let th = document.createElement('th');
                 th.className = 'grid-header p-2 min-w-[140px]';
                 
-                // 해당 열에 존재하는 고유 값들 추출 (필터 리스트용)
                 let uniqueValues = [...new Set(sheet.rows.map(r => r[cIdx]))].filter(v => v).sort();
-                let filterHtml = `<select class="absolute right-1 top-1.5 w-4 h-4 bg-transparent outline-none text-slate-400 opacity-60 hover:opacity-100 cursor-pointer text-[10px]" onchange="applyFilter(${cIdx}, this.value)" title="필터">
+                let filterHtml = `<select class="absolute right-1 top-1.5 w-4 h-4 bg-transparent outline-none text-slate-400 opacity-60 hover:opacity-100 cursor-pointer text-[10px] no-print" onchange="applyFilter(${cIdx}, this.value)" title="필터">
                     <option value="">(모두)</option>
                     ${uniqueValues.map(v => `<option value="${v}" ${localFilters[cIdx]===v?'selected':''}>${v}</option>`).join('')}
                 </select>`;
 
                 let activeFilterStyle = localFilters[cIdx] ? 'color: #2563eb; font-weight: 900; background: #eff6ff; border-radius: 4px; padding: 2px;' : '';
-                
                 th.innerHTML = `<div style="position:relative; padding-right:15px;"><span style="${activeFilterStyle}">${col.name}</span> ${col.type==='number'?'<i class="fa-solid fa-hashtag text-[9px] text-slate-300 ml-1"></i>':''} ${filterHtml}</div>`;
                 trH.appendChild(th);
             });
             thead.appendChild(trH);
 
-            // 2. 본문(행) 생성 및 필터 적용
             let visibleCount = 0;
             sheet.rows.forEach((row, rIdx) => {
-                // 필터 조건 검사
                 let isVisible = true;
-                for(let cIdx in localFilters) {
-                    if(localFilters[cIdx] && row[cIdx] !== localFilters[cIdx]) { isVisible = false; break; }
-                }
-                if(!isVisible) return; // 필터링 제외 (내 화면에서 숨김)
+                for(let cIdx in localFilters) { if(localFilters[cIdx] && row[cIdx] !== localFilters[cIdx]) { isVisible = false; break; } }
+                if(!isVisible) return; 
                 visibleCount++;
 
                 let tr = document.createElement('tr');
@@ -425,23 +574,16 @@
                     let val = row[cIdx] !== undefined ? row[cIdx] : '';
                     let memoTxt = sheet.memos && sheet.memos[`${rIdx}-${cIdx}`] ? sheet.memos[`${rIdx}-${cIdx}`] : '';
 
-                    // 🌟 통계 산출 (숫자열인 경우)
                     if(col.type === 'number' && val && !isNaN(val.replace(/,/g,''))) {
                         if(!statSums[cIdx]) statSums[cIdx] = 0;
                         statSums[cIdx] += Number(val.replace(/,/g,''));
                     }
 
-                    if(memoTxt) {
-                        td.innerHTML += `<div class="memo-marker" title="메모: ${memoTxt}" onclick="alert('메모 내용:\\n${memoTxt}')"></div>`;
-                    }
+                    if(memoTxt) td.innerHTML += `<div class="memo-marker no-print" title="메모: ${memoTxt}" onclick="alert('메모 내용:\\n${memoTxt}')"></div>`;
 
                     if (isLocked) {
-                        let inner = document.createElement('div');
-                        inner.className = "px-2 py-1.5 text-xs text-slate-400 truncate flex justify-between";
-                        inner.innerHTML = `<span>${val}</span><i class="fa-solid fa-lock text-[9px] text-slate-300 mt-1"></i>`;
-                        td.appendChild(inner);
+                        td.innerHTML += `<div class="px-2 py-1.5 text-xs text-slate-400 truncate flex justify-between"><span>${val}</span><i class="fa-solid fa-lock text-[9px] text-slate-300 mt-1"></i></div>`;
                     } else {
-                        // 유효성 검사에 따른 입력 필드 (select, date, number, text)
                         if (col.type === 'select') {
                             let sel = document.createElement('select');
                             sel.className = 'cell-select';
@@ -459,8 +601,6 @@
                             if(col.type === 'number') inp.style.textAlign = 'right';
 
                             inp.onfocus = () => { selectedCell = { r: rIdx, c: cIdx }; document.getElementById('selected-cell-indicator').innerText = String.fromCharCode(65+cIdx)+(rIdx+1); };
-                            
-                            // 메모 추가 이벤트 (Shift + Click)
                             inp.onclick = (e) => {
                                 if(e.shiftKey) {
                                     let txt = prompt("이 셀에 남길 메모를 입력하세요:", memoTxt);
@@ -472,8 +612,6 @@
                                     }
                                 }
                             };
-
-                            // 숫자 유효성 검사 (입력 제한)
                             inp.oninput = (e) => {
                                 if(col.type === 'number') e.target.value = e.target.value.replace(/[^0-9,-]/g, '');
                                 sheet.rows[rIdx][cIdx] = e.target.value;
@@ -488,38 +626,23 @@
                 tbody.appendChild(tr);
             });
 
-            // 3. 실시간 요약 통계 바 갱신
-            updateStatsBar(statSums, visibleCount);
-        }
-
-        // 통계 바 처리
-        function updateStatsBar(sums, cnt) {
             const bar = document.getElementById('stats-bar');
-            let sumKeys = Object.keys(sums);
-            if(sumKeys.length > 0 && cnt > 0) {
-                let totalSum = sumKeys.reduce((acc, k) => acc + sums[k], 0);
-                document.getElementById('stat-sum').innerText = `숫자 합계: ${totalSum.toLocaleString()}`;
-                document.getElementById('stat-avg').innerText = `평균: ${Math.round(totalSum/cnt).toLocaleString()}`;
-                document.getElementById('stat-cnt').innerText = `표시 행: ${cnt}건`;
+            let sumKeys = Object.keys(statSums);
+            if(sumKeys.length > 0 && visibleCount > 0) {
+                let totalSum = sumKeys.reduce((acc, k) => acc + statSums[k], 0);
+                document.getElementById('stat-sum').innerText = `합계: ${totalSum.toLocaleString()}`;
+                document.getElementById('stat-avg').innerText = `평균: ${Math.round(totalSum/visibleCount).toLocaleString()}`;
+                document.getElementById('stat-cnt').innerText = `표시 행: ${visibleCount}건`;
                 bar.classList.remove('hidden');
-            } else {
-                bar.classList.add('hidden');
-            }
+            } else { bar.classList.add('hidden'); }
         }
 
-        function applyFilter(cIdx, val) {
-            localFilters[cIdx] = val;
-            renderGrid();
-        }
+        function applyFilter(cIdx, val) { localFilters[cIdx] = val; renderGrid(); }
+        function clearAllFilters() { localFilters = {}; renderGrid(); }
 
-        function clearAllFilters() {
-            localFilters = {};
-            renderGrid();
-        }
-
-        // 클립보드 매칭 로직 (엑셀 붙여넣기 고도화 유지)
+        // 클립보드 매칭
         document.addEventListener('paste', function(e) {
-            if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return; // 입력칸 안에서만
+            if(e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') return; 
             if (!currentAccount || selectedCell.r === undefined) return;
             
             let clipboardData = (e.clipboardData || window.clipboardData).getData('text');
@@ -528,11 +651,10 @@
             if (rawRows.length > 1 && rawRows[rawRows.length - 1] === '') rawRows.pop();
             
             if (rawRows.length > 1 || rawRows[0].includes('\t')) {
-                e.preventDefault(); // 기본 붙여넣기 방지 후 셀 단위 쪼개기 실행
+                e.preventDefault(); 
                 let sheet = sheetsData[activeSheet];
                 let parsedMatrix = rawRows.map(r => r.split('\t'));
                 
-                // 최고관리자: 복사한 열이 현재 시트보다 넓으면 자동 열 확장
                 if(isPrivilegedRole(currentAccount.role)) {
                     let maxC = Math.max(...parsedMatrix.map(r=>r.length));
                     while(sheet.columns.length < maxC) {
@@ -544,9 +666,7 @@
                 parsedMatrix.forEach((cells, ro) => {
                     let tR = selectedCell.r + ro;
                     if(tR >= sheet.rows.length) sheet.rows.push(new Array(sheet.columns.length).fill(""));
-                    
-                    if(!isPrivilegedRole(currentAccount.role) && sheet.rows[tR][1] && !sheet.rows[tR][1].includes(currentAccount.role)) return; // 잠긴행 패스
-                    
+                    if(!isPrivilegedRole(currentAccount.role) && sheet.rows[tR][1] && !sheet.rows[tR][1].includes(currentAccount.role)) return; 
                     cells.forEach((val, co) => {
                         let tC = selectedCell.c + co;
                         if(tC < sheet.columns.length) sheet.rows[tR][tC] = val.trim();
@@ -556,11 +676,28 @@
             }
         });
 
-        // 🌟 유효성 검사 타입이 추가된 항목 관리자
+        // 항목(열) 추가 및 시트 추가 기능
+        function addNewRow() {
+            let s = sheetsData[activeSheet];
+            let nr = new Array(s.columns.length).fill("");
+            if(!isPrivilegedRole(currentAccount.role)) nr[1] = currentAccount.role;
+            s.rows.push(nr); saveSheetsToFirebase(); renderGrid();
+        }
+
+        function addNewSheet() {
+            if(!isPrivilegedRole(currentAccount.role)) return alert("최고관리자 권한 보유자만 가능합니다.");
+            let sheetName = prompt("새 시트 이름을 입력하세요:", "시트" + (Object.keys(sheetsData).length + 1));
+            if (sheetName && !sheetsData[sheetName]) {
+                sheetsData[sheetName] = { headerRows: 1, columns: [{ name: "항목1", type: "text", options: "" }], rows: [["데이터1"]], memos: {} };
+                saveSheetsToFirebase(); activeSheet = sheetName; renderGrid();
+            }
+        }
+
         function openColumnManager() {
             if(!isPrivilegedRole(currentAccount.role)) return;
             document.getElementById('column-modal').classList.remove('hidden'); document.getElementById('column-modal').classList.add('flex');
             let sheet = sheetsData[activeSheet];
+            document.getElementById('header-rows-select').value = sheet.headerRows || 1;
             let html = "";
             sheet.columns.forEach((c, i) => {
                 html += `
@@ -579,6 +716,7 @@
             });
             document.getElementById('column-edit-list').innerHTML = html;
         }
+
         function closeColumnManager() { document.getElementById('column-modal').classList.add('hidden'); document.getElementById('column-modal').classList.remove('flex'); }
         
         function addColumnField() {
@@ -594,6 +732,7 @@
         }
         function saveColumnChanges() {
             let sheet = sheetsData[activeSheet];
+            sheet.headerRows = parseInt(document.getElementById('header-rows-select').value) || 1;
             sheet.columns.forEach((c, i) => {
                 c.name = document.getElementById(`cm-name-${i}`).value;
                 c.type = document.getElementById(`cm-type-${i}`).value;
@@ -602,12 +741,119 @@
             saveSheetsToFirebase(); closeColumnManager(); renderGrid();
         }
 
-        function addNewRow() {
-            let s = sheetsData[activeSheet];
-            let nr = new Array(s.columns.length).fill("");
-            if(!isPrivilegedRole(currentAccount.role)) nr[1] = currentAccount.role;
-            s.rows.push(nr); saveSheetsToFirebase(); renderGrid();
+        // 🌟 계정 관리 모달 (비밀번호 변경 기능 업그레이드)
+        function openAccountManager() {
+            if (!isPrivilegedRole(currentAccount.role)) return;
+            document.getElementById('account-modal').classList.remove('hidden'); document.getElementById('account-modal').classList.add('flex');
+            renderAdminAccountList();
         }
+        function closeAccountManager() { document.getElementById('account-modal').classList.add('hidden'); document.getElementById('account-modal').classList.remove('flex'); }
+
+        function renderAdminAccountList() {
+            const container = document.getElementById('admin-account-list');
+            container.innerHTML = '';
+            accountsData.forEach((acc, idx) => {
+                const isMaster = (acc.userId === "suby20" || acc.userId === "abcd9420");
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50";
+                
+                // 최고관리자도 비밀번호 변경 가능하게 통일
+                div.innerHTML = `
+                    <div>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs font-bold text-slate-800">${acc.name}</span>
+                            <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">${acc.userId}</span>
+                            <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-medium">${acc.role}</span>
+                            ${isMaster ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">마스터</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-1.5">
+                        <button onclick="adminChangePassword('${acc.userId}')" class="bg-indigo-500 hover:bg-indigo-600 text-white px-2 py-1 rounded text-[11px] font-semibold transition">PW 변경</button>
+                        ${!isMaster ? `<button onclick="adminResetPassword('${acc.userId}')" class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[11px] font-semibold transition">1470 리셋</button><button onclick="adminDeleteAccount(${idx})" class="text-red-500 hover:text-red-700 p-1"><i class="fa-solid fa-trash"></i></button>` : ''}
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // 🌟 계정 비밀번호 직접 변경 기능
+        async function adminChangePassword(userId) {
+            let newPw = prompt(`[${userId}] 계정의 새 비밀번호를 입력하세요:`);
+            if (newPw !== null && newPw.trim() !== '') {
+                newPw = newPw.trim();
+                const target = accountsData.find(a => a.userId === userId);
+                if (target) {
+                    target.passwordHash = await hashPassword(newPw);
+                    target.isInitialPw = false;
+                    await saveAccountsToFirebase();
+                    renderAdminAccountList();
+                    alert("비밀번호가 성공적으로 변경되었습니다.");
+                }
+            }
+        }
+
+        async function adminResetPassword(userId) {
+            if (confirm(`비밀번호를 1470으로 초기화하시겠습니까?`)) {
+                const target = accountsData.find(a => a.userId === userId);
+                if (target) { target.passwordHash = INITIAL_HASH_1470; target.isInitialPw = true; await saveAccountsToFirebase(); renderAdminAccountList(); }
+            }
+        }
+
+        async function adminCreateAccount() {
+            let userId = document.getElementById('new-user-id').value.trim().toLowerCase();
+            userId = userId.replace('@helloconnectn.com', '');
+            const name = document.getElementById('new-user-name').value.trim();
+            const role = document.getElementById('new-user-role').value;
+
+            if (!userId || !name) return alert("아이디와 성명을 모두 입력해 주세요.");
+            if (accountsData.some(a => a.userId === userId)) return alert("이미 존재하는 아이디입니다.");
+
+            accountsData.push({ userId: userId, name: name, role: role, passwordHash: INITIAL_HASH_1470, isInitialPw: true });
+            await saveAccountsToFirebase();
+            document.getElementById('new-user-id').value = ''; document.getElementById('new-user-name').value = '';
+            renderAdminAccountList();
+        }
+
+        async function adminDeleteAccount(idx) {
+            if (confirm("이 계정을 삭제하시겠습니까?")) {
+                accountsData.splice(idx, 1);
+                await saveAccountsToFirebase(); renderAdminAccountList();
+            }
+        }
+
+        function exportExcel() {
+            let wb = XLSX.utils.book_new();
+            Object.keys(sheetsData).forEach(sheetName => {
+                let sheet = sheetsData[sheetName];
+                let headers = sheet.columns.map(c => c.name);
+                let ws = XLSX.utils.aoa_to_sheet([headers, ...sheet.rows]);
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            });
+            XLSX.writeFile(wb, "헬로CN_닥스_데이터.xlsx");
+        }
+    </script>
+
+    <!-- 파이어베이스 로드 -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
+            authDomain: "hellocn-128ba.firebaseapp.com",
+            projectId: "hellocn-128ba",
+            storageBucket: "hellocn-128ba.firebasestorage.app",
+            messagingSenderId: "306539866159",
+            appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
+            measurementId: "G-ETFMQX75CB"
+        };
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        
+        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInAnonymously, signOut, onAuthStateChanged };
+        window.initApp();
     </script>
 </body>
 </html>
