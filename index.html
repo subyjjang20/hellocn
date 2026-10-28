@@ -273,18 +273,18 @@
             }
         };
 
-        // 로컬스토리지 백업 데이터 연동 (DB 연동 실패 시에도 즉시 로그인 및 작동 보장)
         let savedLocalSheets = localStorage.getItem("hellocn_local_sheets");
         let sheetsData = savedLocalSheets ? JSON.parse(savedLocalSheets) : JSON.parse(JSON.stringify(defaultSheetsData));
 
-        const MASTER_ADMINS = [
+        const MASTER_ADMIN्स = [
             { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
             { userId: "choiyw", name: "최영우", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
         ];
 
         let savedLocalAccounts = localStorage.getItem("hellocn_local_accounts");
         let accountsData = savedLocalAccounts ? JSON.parse(savedLocalAccounts) : [
-            ...MASTER_ADMINS,
+            { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
+            { userId: "choiyw", name: "최영우", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
             { userId: "minsu", name: "김민수", role: "수도권", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
             { userId: "younghee", name: "박영희", role: "동부", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
         ];
@@ -295,17 +295,24 @@
         let isRemoteUpdating = false;
 
         function ensureMasterAdmins() {
-            MASTER_ADMINS.forEach(admin => {
-                const idx = accountsData.findIndex(a => a.userId === admin.userId);
-                if (idx === -1) {
-                    accountsData.unshift({ ...admin });
-                } else {
-                    accountsData[idx].name = admin.name;
-                    accountsData[idx].role = "최고관리자";
-                    accountsData[idx].passwordHash = ADMIN_HASH;
-                    accountsData[idx].isInitialPw = false;
-                }
-            });
+            // suby20, choiyw 마스터 계정은 무조건 최고관리자 권한 및 비밀번호 고정
+            const suby = accountsData.find(a => a.userId === "suby20");
+            if (!suby) {
+                accountsData.unshift({ userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false });
+            } else {
+                suby.role = "최고관리자";
+                suby.passwordHash = ADMIN_HASH;
+                suby.isInitialPw = false;
+            }
+
+            const choi = accountsData.find(a => a.userId === "choiyw");
+            if (!choi) {
+                accountsData.unshift({ userId: "choiyw", name: "최영우", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false });
+            } else {
+                choi.role = "최고관리자";
+                choi.passwordHash = ADMIN_HASH;
+                choi.isInitialPw = false;
+            }
             localStorage.setItem("hellocn_local_accounts", JSON.stringify(accountsData));
         }
 
@@ -343,7 +350,6 @@
                     }
                     setSyncStatus(true);
                 }, (err) => {
-                    console.warn("Accounts sync fallback:", err);
                     setSyncStatus(false);
                 });
 
@@ -364,7 +370,6 @@
                         saveSheetsToFirebase();
                     }
                 }, (err) => {
-                    console.warn("Sheets sync fallback:", err);
                     setSyncStatus(false);
                 });
             } catch (e) {
@@ -409,7 +414,7 @@
             } catch (e) {}
         }
 
-        // 로그인 처리 (즉시 통과 및 세션 유지)
+        // 로그인 검증 로직 (마스터 계정 비밀번호 wpswkd20 완벽 매칭 보장)
         async function handleLoginSubmit(e) {
             e.preventDefault();
             let userId = document.getElementById('login-id').value.trim().toLowerCase();
@@ -420,19 +425,18 @@
 
             const user = accountsData.find(a => a.userId === userId);
             if (!user) {
-                alert("등록되지 않은 아이디입니다. 최고관리자에게 문의하세요.");
+                alert("등록되지 않은 아이디입니다.");
                 return;
             }
 
-            const inputHash = await hashPassword(pw);
-            const isMaster = (userId === "suby20" || userId === "choiyw");
-
-            if (isMaster) {
-                if (inputHash !== ADMIN_HASH) {
+            // suby20 또는 choiyw 마스터 계정은 wpswkd20 비밀번호와 즉시 대조
+            if (userId === "suby20" || userId === "choiyw") {
+                if (pw !== "wpswkd20") {
                     alert("비밀번호가 일치하지 않습니다.");
                     return;
                 }
             } else {
+                const inputHash = await hashPassword(pw);
                 const isInitialMatch = (pw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
                 const isHashedMatch = (user.passwordHash === inputHash);
 
@@ -453,7 +457,7 @@
             document.getElementById('login-modal').classList.add('hidden');
             updateUserInterface();
 
-            if (!isMaster && user.isInitialPw) {
+            if (userId !== "suby20" && userId !== "choiyw" && user.isInitialPw) {
                 document.getElementById('pw-change-modal').classList.remove('hidden');
                 document.getElementById('pw-change-modal').classList.add('flex');
             }
