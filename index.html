@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HSS 실시간 동시입력 스프레드시트 시스템</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome 아이콘 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SheetJS (엑셀 입출력용) -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Firebase SDK (v10 모듈러) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        // ==========================================
+        // 🛠️ [본인의 Firebase 설정값으로 수정하세요]
+        // ==========================================
+        const firebaseConfig = {
+  apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
+  authDomain: "hellocn-128ba.firebaseapp.com",
+  projectId: "hellocn-128ba",
+  storageBucket: "hellocn-128ba.firebasestorage.app",
+  messagingSenderId: "306539866159",
+  appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
+  measurementId: "G-ETFMQX75CB"
+};
+
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        window.firebaseDb = { db, doc, setDoc, getDoc, onSnapshot };
+        window.initFirebaseSync();
+    </script>
+
+    <style>
+        body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; }
+        .cell-input { width: 100%; height: 100%; border: none; background: transparent; padding: 4px 6px; outline: none; font-size: 13px; }
+        .cell-input:focus { background: #eff6ff; box-shadow: inset 0 0 0 2px #3b82f6; }
+        .cell-select { width: 100%; height: 100%; border: none; background: transparent; padding: 2px 4px; outline: none; font-size: 13px; cursor: pointer; }
+        .grid-header { background-color: #f1f5f9; color: #475569; font-weight: 600; text-align: center; font-size: 12px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; user-select: none; }
+        .grid-cell { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 0; position: relative; background: #ffffff; }
+        .grid-cell.locked { background-color: #f8fafc; color: #94a3b8; background-image: repeating-linear-gradient(45deg, transparent, transparent 10px, #f1f5f9 10px, #f1f5f9 20px); }
+    </style>
+</head>
+<body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
+
+    <!-- 상단 네비게이션바 -->
+    <header class="bg-slate-900 text-white px-4 py-3 flex items-center justify-between shadow-md z-20">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 text-white p-2 rounded-lg font-bold"><i class="fa-solid fa-table"></i></div>
+            <div>
+                <h1 class="text-base font-bold tracking-tight">HSS 실시간 통합 스프레드시트</h1>
+                <p class="text-xs text-slate-400">열 구조 커스텀 및 드롭다운 입력 지원</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3">
+            <div id="sync-status" class="bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>실시간 동기화 중</span>
+            </div>
+            <button onclick="openColumnManager()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1.5 shadow">
+                <i class="fa-solid fa-sliders"></i>
+                <span>열(항목) 구조 편집</span>
+            </button>
+            <button onclick="openAccountManager()" class="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center space-x-1.5">
+                <i class="fa-solid fa-users-gear text-blue-400"></i>
+                <span>계정/권한 관리</span>
+            </button>
+            <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
+                <span id="current-user-badge" class="text-xs font-semibold text-slate-200">👤 심현섭 (관리자)</span>
+            </div>
+            <button onclick="exportExcel()" class="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center space-x-1 shadow">
+                <i class="fa-solid fa-file-excel"></i>
+                <span>엑셀 저장</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- 메인 스프레드시트 작업 영역 -->
+    <div class="flex-1 flex flex-col overflow-hidden bg-white m-3 rounded-xl shadow-sm border border-slate-200">
+        <div class="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center justify-between text-xs text-slate-600">
+            <div class="flex items-center space-x-4">
+                <span class="font-bold text-slate-700" id="selected-cell-indicator">선택 셀: A1</span>
+                <span class="text-slate-300">|</span>
+                <span>활성 시트: <strong id="active-sheet-name" class="text-blue-600">월별실적취합</strong></span>
+                <span class="text-slate-300">|</span>
+                <span id="edit-permission-status" class="text-emerald-600 font-semibold"><i class="fa-solid fa-lock-open mr-1"></i> 전체 편집 권한</span>
+            </div>
+            <button onclick="addNewRow()" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-xs font-semibold transition flex items-center space-x-1">
+                <i class="fa-solid fa-plus"></i>
+                <span>새 행 추가</span>
+            </button>
+        </div>
+
+        <div id="grid-container" class="flex-1 overflow-auto relative bg-slate-50">
+            <table id="spreadsheet-table" class="border-collapse w-full select-none">
+                <thead id="grid-thead"></thead>
+                <tbody id="grid-tbody"></tbody>
+            </table>
+        </div>
+
+        <div class="bg-slate-100 border-t border-slate-200 px-3 py-2 flex items-center justify-between">
+            <div id="sheet-tabs" class="flex items-center space-x-1 overflow-x-auto"></div>
+            <button onclick="addNewSheet()" class="bg-white hover:bg-slate-200 text-slate-700 border border-slate-300 px-3 py-1 rounded text-xs font-semibold transition flex items-center space-x-1">
+                <i class="fa-solid fa-plus text-blue-600"></i>
+                <span>새 시트 추가</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 열(항목) 구조 편집 모달 -->
+    <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white w-[600px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열(항목) 구조 및 입력 방식 설정</h3>
+                <button onclick="closeColumnManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+                <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-xs text-indigo-900">
+                    각 열의 제목을 수정하거나, 입력 방식을 <b>'자유 입력'</b> 또는 <b>'선택 목록(드롭다운)'</b>으로 지정할 수 있습니다.
+                </div>
+                <div id="column-edit-list" class="space-y-3">
+                    <!-- 동적 생성 -->
+                </div>
+                <button onclick="addColumnField()" class="w-full bg-slate-100 hover:bg-slate-200 border border-dashed border-slate-400 text-slate-700 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center space-x-1">
+                    <i class="fa-solid fa-plus text-blue-600"></i>
+                    <span>+ 새 열 추가하기</span>
+                </button>
+            </div>
+            <div class="bg-slate-50 px-5 py-3 border-t flex justify-end space-x-2">
+                <button onclick="closeColumnManager()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-1.5 rounded text-xs font-semibold">취소</button>
+                <button onclick="saveColumnChanges()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded text-xs font-semibold">저장 및 반영</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 계정 관리 모달 -->
+    <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white w-[450px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
+                <h3 class="font-bold text-sm">계정 및 센터별 권한 관리</h3>
+                <button onclick="closeAccountManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 space-y-3 max-h-[60vh] overflow-y-auto" id="account-list-container"></div>
+            <div class="bg-slate-50 px-5 py-3 border-t flex justify-end">
+                <button onclick="closeAccountManager()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-1.5 rounded text-xs font-semibold">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let accounts = [
+            { id: 'admin', name: '심현섭', role: '관리자', badge: '👤 심현섭 (관리자)' },
+            { id: 'haeundae', name: '김민수', role: '해운대센터', badge: '🏢 해운대센터 담당자' },
+            { id: 'bupyeong', name: '박영희', role: '부평센터', badge: '🏢 부평센터 담당자' }
+        ];
+        let currentAccount = accounts[0];
+
+        // 시트 데이터 구조 (columns에 name, type, options 정의)
+        let sheetsData = {
+            "월별실적취합": {
+                columns: [
+                    { name: "구분", type: "select", options: "본사직영, 지사운영, 협력사" },
+                    { name: "센터명", type: "text", options: "" },
+                    { name: "당월목표액(원)", type: "text", options: "" },
+                    { name: "당월실적액(원)", type: "text", options: "" },
+                    { name: "달성률(%)", type: "text", options: "" },
+                    { name: "유효고객수", type: "text", options: "" },
+                    { name: "주요추진사항", type: "text", options: "" },
+                    { name: "취합상태", type: "select", options: "대기, 진행중, 완료" }
+                ],
+                rows: [
+                    ["본사직영", "해운대센터", "50000000", "48000000", "96%", "320", "EV충전기 시범운영 완료", "완료"],
+                    ["본사직영", "부평센터", "45000000", "46000000", "102%", "290", "CCTV 솔루션 영업 확대", "진행중"],
+                    ["본사직영", "계양센터", "40000000", "39000000", "97%", "250", "법인 고객사 제안서 발송", "진행중"]
+                ]
+            }
+        };
+
+        let activeSheet = "월별실적취합";
+        let isRemoteUpdating = false;
+
+        window.initFirebaseSync = function() {
+            const { db, doc, onSnapshot } = window.firebaseDb;
+            onSnapshot(doc(db, "sheets", "mainDoc"), (docSnap) => {
+                if (docSnap.exists()) {
+                    const remoteData = docSnap.data().data;
+                    if (remoteData) {
+                        isRemoteUpdating = true;
+                        sheetsData = remoteData;
+                        if (!sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
+                        renderSheetTabs();
+                        renderGrid();
+                        isRemoteUpdating = false;
+                    }
+                } else {
+                    saveDataToFirebase();
+                }
+            });
+        }
+
+        async function saveDataToFirebase() {
+            if (isRemoteUpdating) return;
+            try {
+                const { db, doc, setDoc } = window.firebaseDb;
+                await setDoc(doc(db, "sheets", "mainDoc"), { data: sheetsData });
+            } catch (e) {
+                console.error("DB 저장 실패:", e);
+            }
+        }
+
+        window.onload = function() {
+            renderSheetTabs();
+            renderGrid();
+            updateAccountUI();
+        };
+
+        function renderSheetTabs() {
+            const container = document.getElementById('sheet-tabs');
+            container.innerHTML = '';
+            Object.keys(sheetsData).forEach(sheetName => {
+                const isActive = sheetName === activeSheet;
+                const btn = document.createElement('button');
+                btn.className = `px-4 py-1.5 rounded-t-lg text-xs font-semibold transition border-t border-x ${isActive ? 'bg-white text-blue-600 border-slate-300 shadow-sm' : 'bg-slate-200 text-slate-600 border-transparent hover:bg-slate-300'}`;
+                btn.innerHTML = `<i class="fa-solid fa-table-cells mr-1.5"></i>${sheetName}`;
+                btn.onclick = () => switchSheet(sheetName);
+                container.appendChild(btn);
+            });
+        }
+
+        function switchSheet(sheetName) {
+            activeSheet = sheetName;
+            document.getElementById('active-sheet-name').innerText = sheetName;
+            renderSheetTabs();
+            renderGrid();
+        }
+
+        function renderGrid() {
+            const sheet = sheetsData[activeSheet];
+            if (!sheet) return;
+            const thead = document.getElementById('grid-thead');
+            const tbody = document.getElementById('grid-tbody');
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+
+            // 헤더 생성
+            let headerRow = document.createElement('tr');
+            let thCorner = document.createElement('th');
+            thCorner.className = 'grid-header p-2 w-12';
+            thCorner.innerText = '#';
+            headerRow.appendChild(thCorner);
+
+            sheet.columns.forEach(col => {
+                let th = document.createElement('th');
+                th.className = 'grid-header p-2 min-w-[130px]';
+                th.innerHTML = `${col.name} ${col.type === 'select' ? '<i class="fa-solid fa-caret-down text-[10px] text-slate-400 ml-1"></i>' : ''}`;
+                headerRow.appendChild(th);
+            });
+            thead.appendChild(headerRow);
+
+            // 데이터 행 생성
+            sheet.rows.forEach((row, rIdx) => {
+                let tr = document.createElement('tr');
+                let tdNum = document.createElement('td');
+                tdNum.className = 'bg-slate-100 text-slate-500 text-center font-bold text-xs border-r border-b border-slate-300 w-12 select-none';
+                tdNum.innerText = rIdx + 1;
+                tr.appendChild(tdNum);
+
+                let isLocked = false;
+                if (currentAccount.role !== '관리자') {
+                    const rowCenter = row[1] || '';
+                    if (!rowCenter.includes(currentAccount.role)) isLocked = true;
+                }
+
+                sheet.columns.forEach((col, cIdx) => {
+                    let td = document.createElement('td');
+                    td.className = `grid-cell ${isLocked ? 'locked' : ''}`;
+                    let val = row[cIdx] !== undefined ? row[cIdx] : '';
+
+                    if (isLocked) {
+                        td.innerHTML = `<div class="px-2 py-1.5 text-xs text-slate-400 truncate flex items-center justify-between"><span>${val}</span><i class="fa-solid fa-lock text-[10px] text-slate-300"></i></div>`;
+                    } else {
+                        if (col.type === 'select') {
+                            // 드롭다운 선택형 입력
+                            let select = document.createElement('select');
+                            select.className = 'cell-select';
+                            let opts = col.options ? col.options.split(',').map(o => o.trim()) : [];
+                            
+                            let defaultOpt = document.createElement('option');
+                            defaultOpt.value = "";
+                            defaultOpt.innerText = "-- 선택 --";
+                            select.appendChild(defaultOpt);
+
+                            opts.forEach(optVal => {
+                                let opt = document.createElement('option');
+                                opt.value = optVal;
+                                opt.innerText = optVal;
+                                if (val === optVal) opt.selected = true;
+                                select.appendChild(opt);
+                            });
+
+                            select.onchange = (e) => {
+                                sheetsData[activeSheet].rows[rIdx][cIdx] = e.target.value;
+                                saveDataToFirebase();
+                            };
+                            td.appendChild(select);
+                        } else {
+                            // 자유 입력형
+                            let input = document.createElement('input');
+                            input.type = 'text';
+                            input.className = 'cell-input';
+                            input.value = val;
+                            input.onfocus = () => {
+                                document.getElementById('selected-cell-indicator').innerText = `선택 셀: ${String.fromCharCode(65 + cIdx)}${rIdx + 1}`;
+                            };
+                            input.oninput = (e) => {
+                                sheetsData[activeSheet].rows[rIdx][cIdx] = e.target.value;
+                                saveDataToFirebase();
+                            };
+                            td.appendChild(input);
+                        }
+                    }
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 새 행 추가
+        function addNewRow() {
+            let sheet = sheetsData[activeSheet];
+            let newRow = new Array(sheet.columns.length).fill("");
+            sheet.rows.push(newRow);
+            saveDataToFirebase();
+            renderGrid();
+        }
+
+        // 새 시트 추가
+        function addNewSheet() {
+            let sheetName = prompt("새 시트 이름을 입력하세요:", "시트" + (Object.keys(sheetsData).length + 1));
+            if (sheetName && !sheetsData[sheetName]) {
+                sheetsData[sheetName] = {
+                    columns: [
+                        { name: "항목1", type: "text", options: "" },
+                        { name: "항목2", type: "text", options: "" },
+                        { name: "상태", type: "select", options: "대기, 진행중, 완료" }
+                    ],
+                    rows: [["데이터1", "데이터2", "진행중"]]
+                };
+                saveDataToFirebase();
+                switchSheet(sheetName);
+            }
+        }
+
+        // 열(항목) 구조 편집 모달 열기
+        function openColumnManager() {
+            if (currentAccount.role !== '관리자') {
+                alert('열 구조 편집은 관리자 계정만 가능합니다.');
+                return;
+            }
+            document.getElementById('column-modal').classList.remove('hidden');
+            document.getElementById('column-modal').classList.add('flex');
+            renderColumnEditList();
+        }
+
+        function closeColumnManager() {
+            document.getElementById('column-modal').classList.add('hidden');
+            document.getElementById('column-modal').classList.remove('flex');
+        }
+
+        function renderColumnEditList() {
+            const container = document.getElementById('column-edit-list');
+            container.innerHTML = '';
+            let sheet = sheetsData[activeSheet];
+
+            sheet.columns.forEach((col, idx) => {
+                let div = document.createElement('div');
+                div.className = "flex items-center space-x-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200";
+                div.innerHTML = `
+                    <span class="text-xs font-bold text-slate-500 w-6">${idx + 1}</span>
+                    <input type="text" value="${col.name}" id="col-name-${idx}" placeholder="열 제목" class="border rounded px-2 py-1 text-xs w-1/3 outline-none focus:border-blue-500">
+                    <select id="col-type-${idx}" onchange="toggleOptionsInput(${idx})" class="border rounded px-2 py-1 text-xs w-1/4 outline-none focus:border-blue-500">
+                        <option value="text" ${col.type === 'text' ? 'selected' : ''}>자유 입력</option>
+                        <option value="select" ${col.type === 'select' ? 'selected' : ''}>선택 목록 (드롭다운)</option>
+                    </select>
+                    <input type="text" value="${col.options || ''}" id="col-opts-${idx}" placeholder="옵션 (쉼표로 구분: 승인,반려)" class="border rounded px-2 py-1 text-xs flex-1 outline-none focus:border-blue-500 ${col.type === 'select' ? '' : 'hidden'}">
+                    <button onclick="removeColumnField(${idx})" class="text-red-500 hover:text-red-700 px-2 py-1 text-xs"><i class="fa-solid fa-trash"></i></button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function toggleOptionsInput(idx) {
+            let typeVal = document.getElementById(`col-type-${idx}`).value;
+            let optInput = document.getElementById(`col-opts-${idx}`);
+            if (typeVal === 'select') {
+                optInput.classList.remove('hidden');
+            } else {
+                optInput.classList.add('hidden');
+            }
+        }
+
+        function addColumnField() {
+            sheetsData[activeSheet].columns.push({ name: "신규항목", type: "text", options: "" });
+            renderColumnEditList();
+        }
+
+        function removeColumnField(idx) {
+            if (sheetsData[activeSheet].columns.length <= 1) {
+                alert('최소 1개의 열은 유지해야 합니다.');
+                return;
+            }
+            sheetsData[activeSheet].columns.splice(idx, 1);
+            // 행 데이터에서도 해당 열 데이터 제거
+            sheetsData[activeSheet].rows.forEach(row => row.splice(idx, 1));
+            renderColumnEditList();
+        }
+
+        function saveColumnChanges() {
+            let sheet = sheetsData[activeSheet];
+            let newColumns = [];
+            
+            sheet.columns.forEach((col, idx) => {
+                let nameInput = document.getElementById(`col-name-${idx}`);
+                let typeInput = document.getElementById(`col-type-${idx}`);
+                let optsInput = document.getElementById(`col-opts-${idx}`);
+                
+                if (nameInput) {
+                    newColumns.push({
+                        name: nameInput.value.trim() || `항목${idx+1}`,
+                        type: typeInput.value,
+                        options: optsInput ? optsInput.value.trim() : ''
+                    });
+                }
+            });
+
+            sheet.columns = newColumns;
+            saveDataToFirebase();
+            closeColumnManager();
+            renderGrid();
+            alert("열 구조가 성공적으로 업데이트되었습니다!");
+        }
+
+        // 계정 관리 모달
+        function openAccountManager() {
+            document.getElementById('account-modal').classList.remove('hidden');
+            document.getElementById('account-modal').classList.add('flex');
+            const container = document.getElementById('account-list-container');
+            container.innerHTML = '';
+            accounts.forEach(acc => {
+                const isSelected = acc.id === currentAccount.id;
+                const div = document.createElement('div');
+                div.className = `flex items-center justify-between p-3 rounded-lg border ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`;
+                div.innerHTML = `
+                    <div><p class="text-xs font-bold text-slate-800">${acc.name} (${acc.role})</p></div>
+                    <button onclick="switchAccount('${acc.id}')" class="px-3 py-1 rounded text-xs font-semibold ${isSelected ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}">${isSelected ? '현재 접속중' : '전환하기'}</button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function closeAccountManager() {
+            document.getElementById('account-modal').classList.add('hidden');
+            document.getElementById('account-modal').classList.remove('flex');
+        }
+
+        function switchAccount(accId) {
+            currentAccount = accounts.find(a => a.id === accId);
+            document.getElementById('current-user-badge').innerText = currentAccount.badge;
+            closeAccountManager();
+            renderGrid();
+        }
+
+        function exportExcel() {
+            let wb = XLSX.utils.book_new();
+            Object.keys(sheetsData).forEach(sheetName => {
+                let sheet = sheetsData[sheetName];
+                let headers = sheet.columns.map(c => c.name);
+                let ws = XLSX.utils.aoa_to_sheet([headers, ...sheet.rows]);
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            });
+            XLSX.writeFile(wb, "HSS_실시간취합시스템.xlsx");
+        }
+    </script>
+</body>
+</html>
