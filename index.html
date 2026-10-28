@@ -29,7 +29,7 @@
             <div class="bg-blue-600 text-white p-2 rounded-lg font-bold"><i class="fa-solid fa-table"></i></div>
             <div>
                 <h1 class="text-base font-bold tracking-tight">헬로CN 닥스</h1>
-                <p class="text-xs text-slate-400">실시간 데이터 동기화</p>
+                <p class="text-xs text-slate-400">실시간 데이터 동기화 & 권한 통제 시스템</p>
             </div>
         </div>
 
@@ -110,7 +110,7 @@
                 <div id="login-error-box" class="hidden bg-red-50 border border-red-200 text-red-600 text-xs font-semibold px-3 py-2 rounded-lg text-center"></div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">사용자 이름</label>
-                    <input type="text" id="login-name" required placeholder="이름 입력" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <input type="text" id="login-name" required placeholder="예: 심현섭 또는 최영우" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
@@ -150,16 +150,16 @@
         </div>
     </div>
 
-    <!-- 3. 열 구조 편집 모달 (관리자 전용) -->
+    <!-- 3. 열 구조 편집 모달 (순서 변경 및 입력 상태 유지 기능 탑재) -->
     <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-        <div class="bg-white w-[600px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+        <div class="bg-white w-[640px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열(항목) 구조 및 입력 방식 설정 (관리자)</h3>
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열(항목) 구조 및 순서 설정 (관리자)</h3>
                 <button onclick="closeColumnManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
                 <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-xs text-indigo-900">
-                    각 열의 제목을 수정하거나, 입력 방식을 <b>'자유 입력'</b> 또는 <b>'선택 목록(드롭다운)'</b>으로 지정할 수 있습니다.
+                    각 열의 제목을 수정하거나, 순서 변경(▲/▼), 입력 방식 변경(자유입력/드롭다운)을 수행할 수 있습니다.
                 </div>
                 <div id="column-edit-list" class="space-y-3"></div>
                 <button onclick="addColumnField()" class="w-full bg-slate-100 hover:bg-slate-200 border border-dashed border-slate-400 text-slate-700 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center space-x-1">
@@ -193,12 +193,17 @@
                         <input type="text" id="new-user-name" placeholder="이름 (예: 홍길동)" class="border border-slate-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500">
                         <select id="new-user-role" class="border border-slate-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500">
                             <option value="관리자">전체 관리자</option>
-                            <option value="수도권">수도권</option>
-                            <option value="동부">동부</option>
-                            <option value="남부">남부</option>
-                            <option value="영추">영업추진팀</option>
-                            <option value="서추">서비스추진팀</option>
-                                                    </select>
+                            <option value="해운대센터">해운대센터 담당자</option>
+                            <option value="부평센터">부평센터 담당자</option>
+                            <option value="계양센터">계양센터 담당자</option>
+                            <option value="서부센터">서부센터 담당자</option>
+                            <option value="양산센터">양산센터 담당자</option>
+                            <option value="대구동구센터">대구동구센터 담당자</option>
+                            <option value="경주센터">경주센터 담당자</option>
+                            <option value="나라센터">나라센터 담당자</option>
+                            <option value="양천센터">양천센터 담당자</option>
+                            <option value="속초센터">속초센터 담당자</option>
+                        </select>
                     </div>
                     <button onclick="adminCreateAccount()" class="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded text-xs font-semibold transition">
                         신규 계정 추가
@@ -211,7 +216,7 @@
         </div>
     </div>
 
-    <!-- 5. 새 시트 추가 모달 (prompt 대체) -->
+    <!-- 5. 새 시트 추가 모달 -->
     <div id="sheet-add-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[360px] rounded-xl shadow-2xl p-5">
             <h3 class="font-bold text-sm text-slate-800 mb-3">새 시트 추가</h3>
@@ -266,19 +271,14 @@
             }, 2400);
         }
 
-        // SHA-256 해시 함수 (브라우저 내장 암호화)
         async function hashPassword(str) {
             const msgBuffer = new TextEncoder().encode(String(str));
             const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
             return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        // 관리자 키 코드 배열 (원문 문자열이 코드에 노출되지 않도록 아스키 코드로 보관 후 런타임에 해시 생성)
-        const _ak = () => String.fromCharCode(119, 112, 115, 119, 107, 100, 50, 48);
-        const _ik = () => String.fromCharCode(49, 52, 55, 48);
-
-        let ADMIN_HASH = "";
-        let INITIAL_HASH = "";
+        const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; // wpswkd20
+        const INITIAL_HASH_1470 = "ea817cbb346df91ee939ceaa6644f83cfecaa7e06a35043bf7e24a87cbb9797d"; // 1470
 
         let defaultSheetsData = {
             "월별실적취합": {
@@ -301,24 +301,28 @@
         };
 
         let sheetsData = JSON.parse(JSON.stringify(defaultSheetsData));
-        let accountsData = [];
+
+        const SUPER_ADMINS = [
+            { name: "심현섭", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
+            { name: "최영우", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
+        ];
+
+        let accountsData = [
+            ...SUPER_ADMINS,
+            { name: "김민수", role: "해운대센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
+            { name: "박영희", role: "부평센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
+        ];
+
         let currentAccount = null;
         let activeSheet = "월별실적취합";
         let selectedCell = { r: 0, c: 0 };
         let isRemoteUpdating = false;
 
-        // 관리자 2인(심현섭, 최영우) 계정 무결성 보장 함수
         function ensureSuperAdmins() {
-            const superNames = ["심현섭", "최영우"];
-            superNames.forEach(adminName => {
-                const idx = accountsData.findIndex(a => a && a.name === adminName);
+            SUPER_ADMINS.forEach(admin => {
+                const idx = accountsData.findIndex(a => a.name === admin.name);
                 if (idx === -1) {
-                    accountsData.unshift({
-                        name: adminName,
-                        role: "관리자",
-                        passwordHash: ADMIN_HASH,
-                        isInitialPw: false
-                    });
+                    accountsData.unshift({ ...admin });
                 } else {
                     accountsData[idx].role = "관리자";
                     accountsData[idx].passwordHash = ADMIN_HASH;
@@ -327,22 +331,11 @@
             });
         }
 
-        // 페이지 로드 시 즉시 실행되는 초기화 함수
         window.initApp = async function() {
-            // 1. 브라우저 자체 해시 엔진으로 정확한 해시값 생성
-            ADMIN_HASH = await hashPassword(_ak());
-            INITIAL_HASH = await hashPassword(_ik());
+            ensureSuperAdmins();
 
-            accountsData = [
-                { name: "심현섭", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
-                { name: "최영우", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
-                { name: "김민수", role: "해운대센터", passwordHash: INITIAL_HASH, isInitialPw: true },
-                { name: "박영희", role: "부평센터", passwordHash: INITIAL_HASH, isInitialPw: true }
-            ];
-
-            // 2. 새로고침 시 로그인 창이 깜빡이지 않도록 localStorage 세션을 즉시 확인해 복원
             try {
-                const savedSessionStr = localStorage.getItem("hellocn_session_v2");
+                const savedSessionStr = localStorage.getItem("hellocn_session_v3");
                 if (savedSessionStr) {
                     const parsed = JSON.parse(savedSessionStr);
                     if (parsed && parsed.name) {
@@ -353,10 +346,9 @@
                     }
                 }
             } catch (e) {
-                console.warn("세션 복원 오류:", e);
+                console.warn("세션 복원 경고:", e);
             }
 
-            // 로그인된 세션이 없을 때만 로그인 창 표시
             if (!currentAccount) {
                 document.getElementById('login-modal').classList.remove('hidden');
                 document.getElementById('login-modal').classList.add('flex');
@@ -365,15 +357,14 @@
             renderSheetTabs();
             renderGrid();
 
-            // 3. Firebase DB 실시간 연동 시작
             if (!window.fb) return;
             const { auth, db, doc, onSnapshot, signInAnonymously } = window.fb;
 
-            // Firestore 보안 규칙(request.auth != null)이 켜져 있을 때를 대비한 백그라운드 익명 인증 시도
+            // Firestore 보안 규칙 인증 우회용 익명 로그인 시도
             try {
                 await signInAnonymously(auth);
             } catch (authErr) {
-                // 익명 인증이 꺼져 있어도 공개 규칙이면 정상 작동하므로 무시
+                console.warn("익명 인증 알림:", authErr);
             }
 
             // 계정 목록 실시간 구독
@@ -386,17 +377,16 @@
                 }
                 ensureSuperAdmins();
 
-                // 현재 로그인된 사용자 최신 권한 정보 동기화
                 if (currentAccount) {
                     const latest = accountsData.find(a => a.name === currentAccount.name);
                     if (latest) {
                         currentAccount = latest;
-                        localStorage.setItem("hellocn_session_v2", JSON.stringify(currentAccount));
+                        localStorage.setItem("hellocn_session_v3", JSON.stringify(currentAccount));
                         updateUserInterface();
                     }
                 }
             }, (err) => {
-                console.warn("계정 구독 알림:", err);
+                console.warn("계정 동기화 알림:", err);
             });
 
             // 스프레드시트 데이터 실시간 구독
@@ -416,7 +406,7 @@
                     saveSheetsToFirebase();
                 }
             }, (err) => {
-                console.error("시트 동기화 에러:", err);
+                console.error("DB 동기화 에러:", err);
                 setSyncStatus(false);
             });
         };
@@ -430,7 +420,7 @@
                 document.getElementById('sync-status').className = "bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 mr-2";
             } else {
                 dot.className = "w-2 h-2 rounded-full bg-red-400";
-                text.innerText = "DB 규칙 확인필요";
+                text.innerText = "연결 오류";
                 document.getElementById('sync-status').className = "bg-red-500/20 text-red-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 mr-2";
             }
         }
@@ -466,78 +456,58 @@
             errBox.classList.remove('hidden');
         }
 
-        // 로그인 검증 (100% 정확한 브라우저 해시 검증)
         async function handleLoginSubmit(e) {
             e.preventDefault();
             document.getElementById('login-error-box').classList.add('hidden');
 
             const name = document.getElementById('login-name').value.trim();
             const pw = document.getElementById('login-pw').value.trim();
-
-            if (!ADMIN_HASH) {
-                ADMIN_HASH = await hashPassword(_ak());
-                INITIAL_HASH = await hashPassword(_ik());
-            }
+            const inputHash = await hashPassword(pw);
 
             ensureSuperAdmins();
 
-            // 1. 관리자 2인(심현섭, 최영우) 최우선 검증
-            if (name === "심현섭" || name === "최영우") {
-                const inputHash = await hashPassword(pw);
+            const user = accountsData.find(a => a.name === name);
+            if (!user) {
+                showLoginError("등록되지 않은 계정입니다. 관리자에게 문의하세요.");
+                return;
+            }
+
+            const isSuperAdmin = (name === "심현섭" || name === "최영우");
+            if (isSuperAdmin) {
                 if (inputHash !== ADMIN_HASH) {
                     showLoginError("관리자 비밀번호가 일치하지 않습니다.");
                     return;
                 }
-                const adminUser = { name: name, role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false };
-                currentAccount = adminUser;
-                localStorage.setItem("hellocn_session_v2", JSON.stringify(adminUser));
+            } else {
+                const isInitialMatch = (pw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
+                const isHashedMatch = (user.passwordHash === inputHash);
 
-                document.getElementById('login-modal').classList.add('hidden');
-                document.getElementById('login-modal').classList.remove('flex');
-                updateUserInterface();
-                saveAccountsToFirebase();
-                showToast(`${name} 관리자님 환영합니다.`);
-                return;
-            }
+                if (!isInitialMatch && !isHashedMatch) {
+                    showLoginError("비밀번호가 일치하지 않습니다.");
+                    return;
+                }
 
-            // 2. 일반 등록 계정 확인 (미등록 시 차단)
-            const user = accountsData.find(a => a && a.name === name);
-            if (!user) {
-                showLoginError("등록되지 않은 계정입니다. 관리자에게 등록을 요청하세요.");
-                return;
-            }
-
-            const inputHash = await hashPassword(pw);
-            const isInitialMatch = (inputHash === INITIAL_HASH) && (user.isInitialPw || user.passwordHash === INITIAL_HASH || !user.passwordHash);
-            const isHashedMatch = (user.passwordHash === inputHash);
-
-            if (!isInitialMatch && !isHashedMatch) {
-                showLoginError("비밀번호가 일치하지 않습니다.");
-                return;
-            }
-
-            if (isInitialMatch) {
-                user.isInitialPw = true;
-                user.passwordHash = INITIAL_HASH;
+                if (isInitialMatch) {
+                    user.isInitialPw = true;
+                    user.passwordHash = INITIAL_HASH_1470;
+                }
             }
 
             currentAccount = user;
-            localStorage.setItem("hellocn_session_v2", JSON.stringify(currentAccount));
+            localStorage.setItem("hellocn_session_v3", JSON.stringify(currentAccount));
 
             document.getElementById('login-modal').classList.add('hidden');
             document.getElementById('login-modal').classList.remove('flex');
             updateUserInterface();
 
-            // 초기 비밀번호 상태인 일반 사용자는 비밀번호 변경 창 표시
-            if (user.isInitialPw) {
+            if (!isSuperAdmin && user.isInitialPw) {
                 document.getElementById('pw-change-modal').classList.remove('hidden');
                 document.getElementById('pw-change-modal').classList.add('flex');
             } else {
-                showToast(`${user.name}님 로그인되었습니다.`);
+                showToast(`${user.name}님 환영합니다.`);
             }
         }
 
-        // 일반 사용자 최초 비밀번호 변경 처리
         async function handlePasswordChangeSubmit(e) {
             e.preventDefault();
             const errBox = document.getElementById('pw-error-box');
@@ -551,21 +521,18 @@
                 errBox.classList.remove('hidden');
                 return;
             }
-
-            const newHash = await hashPassword(p1);
-            if (newHash === INITIAL_HASH) {
+            if (p1 === "1470") {
                 errBox.innerText = "초기 비밀번호와 다른 새 비밀번호를 입력해 주세요.";
                 errBox.classList.remove('hidden');
                 return;
             }
 
+            const newHash = await hashPassword(p1);
             currentAccount.passwordHash = newHash;
             currentAccount.isInitialPw = false;
 
             const idx = accountsData.findIndex(a => a.name === currentAccount.name);
             if (idx !== -1) accountsData[idx] = currentAccount;
-
-            localStorage.setItem("hellocn_session_v2", JSON.stringify(currentAccount));
             await saveAccountsToFirebase();
 
             document.getElementById('pw-change-modal').classList.add('hidden');
@@ -573,9 +540,8 @@
             showToast("새 비밀번호가 안전하게 저장되었습니다!");
         }
 
-        // 로그아웃
         function handleLogout() {
-            localStorage.removeItem("hellocn_session_v2");
+            localStorage.removeItem("hellocn_session_v3");
             currentAccount = null;
             document.getElementById('login-name').value = '';
             document.getElementById('login-pw').value = '';
@@ -729,7 +695,7 @@
             });
         }
 
-        // 엑셀 클립보드 다중 셀 붙여넣기 (Ctrl + V)
+        // 엑셀 클립보드 붙여넣기 (Ctrl + V)
         document.addEventListener('paste', function(e) {
             if (!currentAccount || selectedCell.r === undefined || selectedCell.c === undefined) return;
             let clipboardData = (e.clipboardData || window.clipboardData).getData('text');
@@ -814,9 +780,15 @@
             }
         }
 
-        // 열 구조 편집
+        // ==========================================
+        // 열 구조 편집 (순서 변경 및 실시간 상태 보존)
+        // ==========================================
+        let tempEditColumns = [];
+
         function openColumnManager() {
             if (!currentAccount || currentAccount.role !== '관리자') return;
+            // 현재 시트의 열 구조를 깊은 복사하여 임시 편집 배열에 로드
+            tempEditColumns = JSON.parse(JSON.stringify(sheetsData[activeSheet].columns));
             document.getElementById('column-modal').classList.remove('hidden');
             document.getElementById('column-modal').classList.add('flex');
             renderColumnEditList();
@@ -827,71 +799,94 @@
             document.getElementById('column-modal').classList.remove('flex');
         }
 
+        function syncTempColumnsFromUI() {
+            tempEditColumns.forEach((col, idx) => {
+                let nameInput = document.getElementById(`col-name-${idx}`);
+                let typeInput = document.getElementById(`col-type-${idx}`);
+                let optsInput = document.getElementById(`col-opts-${idx}`);
+                if (nameInput) col.name = nameInput.value.trim();
+                if (typeInput) col.type = typeInput.value;
+                if (optsInput) col.options = optsInput.value.trim();
+            });
+        }
+
         function renderColumnEditList() {
             const container = document.getElementById('column-edit-list');
             container.innerHTML = '';
-            let sheet = sheetsData[activeSheet];
 
-            sheet.columns.forEach((col, idx) => {
+            tempEditColumns.forEach((col, idx) => {
                 let div = document.createElement('div');
                 div.className = "flex items-center space-x-2 bg-slate-50 p-2.5 rounded-lg border border-slate-200";
                 div.innerHTML = `
                     <span class="text-xs font-bold text-slate-500 w-6">${idx + 1}</span>
-                    <input type="text" value="${col.name}" id="col-name-${idx}" placeholder="열 제목" class="border rounded px-2 py-1 text-xs w-1/3 outline-none focus:border-blue-500">
+                    <input type="text" value="${col.name || ''}" id="col-name-${idx}" placeholder="열 제목" class="border rounded px-2 py-1 text-xs w-1/4 outline-none focus:border-blue-500">
                     <select id="col-type-${idx}" onchange="toggleOptionsInput(${idx})" class="border rounded px-2 py-1 text-xs w-1/4 outline-none focus:border-blue-500">
                         <option value="text" ${col.type === 'text' ? 'selected' : ''}>자유 입력</option>
                         <option value="select" ${col.type === 'select' ? 'selected' : ''}>선택 목록 (드롭다운)</option>
                     </select>
-                    <input type="text" value="${col.options || ''}" id="col-opts-${idx}" placeholder="옵션 (쉼표로 구분: 승인,반려)" class="border rounded px-2 py-1 text-xs flex-1 outline-none focus:border-blue-500 ${col.type === 'select' ? '' : 'hidden'}">
-                    <button onclick="removeColumnField(${idx})" class="text-red-500 hover:text-red-700 px-2 py-1 text-xs"><i class="fa-solid fa-trash"></i></button>
+                    <input type="text" value="${col.options || ''}" id="col-opts-${idx}" placeholder="옵션 (쉼표 구분)" class="border rounded px-2 py-1 text-xs flex-1 outline-none focus:border-blue-500 ${col.type === 'select' ? '' : 'hidden'}">
+                    <div class="flex items-center space-x-1">
+                        <button onclick="moveColumn(${idx}, -1)" title="위로 이동" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-1.5 py-1 rounded text-xs ${idx === 0 ? 'opacity-40 cursor-not-allowed' : ''}"><i class="fa-solid fa-arrow-up"></i></button>
+                        <button onclick="moveColumn(${idx}, 1)" title="아래로 이동" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-1.5 py-1 rounded text-xs ${idx === tempEditColumns.length - 1 ? 'opacity-40 cursor-not-allowed' : ''}"><i class="fa-solid fa-arrow-down"></i></button>
+                        <button onclick="removeColumnField(${idx})" title="삭제" class="bg-red-100 hover:bg-red-200 text-red-600 px-2 py-1 rounded text-xs"><i class="fa-solid fa-trash"></i></button>
+                    </div>
                 `;
                 container.appendChild(div);
             });
         }
 
         function toggleOptionsInput(idx) {
+            syncTempColumnsFromUI();
             let typeVal = document.getElementById(`col-type-${idx}`).value;
             let optInput = document.getElementById(`col-opts-${idx}`);
             if (typeVal === 'select') optInput.classList.remove('hidden');
             else optInput.classList.add('hidden');
         }
 
+        function moveColumn(idx, direction) {
+            syncTempColumnsFromUI();
+            let targetIdx = idx + direction;
+            if (targetIdx < 0 || targetIdx >= tempEditColumns.length) return;
+
+            // 열 이동
+            let movedCol = tempEditColumns.splice(idx, 1)[0];
+            tempEditColumns.splice(targetIdx, 0, movedCol);
+
+            // 각 행(row)들의 데이터 순서도 함께 재정렬
+            sheetsData[activeSheet].rows.forEach(row => {
+                let movedVal = row.splice(idx, 1)[0];
+                row.splice(targetIdx, 0, movedVal);
+            });
+
+            renderColumnEditList();
+        }
+
         function addColumnField() {
-            sheetsData[activeSheet].columns.push({ name: "신규항목", type: "text", options: "" });
+            syncTempColumnsFromUI();
+            tempEditColumns.push({ name: "신규항목", type: "text", options: "" });
             renderColumnEditList();
         }
 
         function removeColumnField(idx) {
-            if (sheetsData[activeSheet].columns.length <= 1) {
+            syncTempColumnsFromUI();
+            if (tempEditColumns.length <= 1) {
                 showToast('최소 1개의 열은 유지해야 합니다.');
                 return;
             }
-            sheetsData[activeSheet].columns.splice(idx, 1);
+            tempEditColumns.splice(idx, 1);
             sheetsData[activeSheet].rows.forEach(row => row.splice(idx, 1));
             renderColumnEditList();
         }
 
         async function saveColumnChanges() {
+            syncTempColumnsFromUI();
             let sheet = sheetsData[activeSheet];
-            let newColumns = [];
-            sheet.columns.forEach((col, idx) => {
-                let nameInput = document.getElementById(`col-name-${idx}`);
-                let typeInput = document.getElementById(`col-type-${idx}`);
-                let optsInput = document.getElementById(`col-opts-${idx}`);
-                if (nameInput) {
-                    newColumns.push({
-                        name: nameInput.value.trim() || `항목${idx+1}`,
-                        type: typeInput.value,
-                        options: optsInput ? optsInput.value.trim() : ''
-                    });
-                }
-            });
-            sheet.columns = newColumns;
-            
+            sheet.columns = JSON.parse(JSON.stringify(tempEditColumns));
+
             await saveSheetsToFirebase();
             closeColumnManager();
             renderGrid();
-            showToast("열 구조가 안전하게 저장되었습니다!");
+            showToast("열 구조와 순서가 안전하게 저장되었습니다!");
         }
 
         // 계정/권한 관리 모달
@@ -929,7 +924,7 @@
                                 PW 초기화
                             </button>
                             <button onclick="adminDeleteAccount(${idx})" class="text-red-500 hover:text-red-700 p-1"><i class="fa-solid fa-trash"></i></button>
-                        ` : '<span class="text-[11px] text-slate-400 font-medium">관리자 보호됨</span>'}
+                        ` : '<span class="text-[11px] text-slate-400 font-medium">관리자 전용</span>'}
                     </div>
                 `;
                 container.appendChild(div);
@@ -937,13 +932,15 @@
         }
 
         async function adminResetPassword(name) {
-            const target = accountsData.find(a => a.name === name);
-            if (target) {
-                target.passwordHash = INITIAL_HASH;
-                target.isInitialPw = true;
-                await saveAccountsToFirebase();
-                renderAdminAccountList();
-                showToast(`${name} 님의 비밀번호가 초기 상태로 리셋되었습니다.`);
+            if (confirm(`${name} 님의 비밀번호를 초기 상태로 되돌리시겠습니까?`)) {
+                const target = accountsData.find(a => a.name === name);
+                if (target) {
+                    target.passwordHash = INITIAL_HASH_1470;
+                    target.isInitialPw = true;
+                    await saveAccountsToFirebase();
+                    renderAdminAccountList();
+                    showToast(`${name} 님의 비밀번호가 초기 상태(1470)로 리셋되었습니다.`);
+                }
             }
         }
 
@@ -963,21 +960,22 @@
             accountsData.push({
                 name: name,
                 role: role,
-                passwordHash: INITIAL_HASH,
+                passwordHash: INITIAL_HASH_1470,
                 isInitialPw: true
             });
 
             await saveAccountsToFirebase();
             document.getElementById('new-user-name').value = '';
             renderAdminAccountList();
-            showToast(`새 계정(${name})이 등록되었습니다.`);
+            showToast(`새 계정(${name})이 성공적으로 등록되었습니다.`);
         }
 
         async function adminDeleteAccount(idx) {
-            const removed = accountsData.splice(idx, 1);
-            await saveAccountsToFirebase();
-            renderAdminAccountList();
-            if (removed[0]) showToast(`${removed[0].name} 계정이 삭제되었습니다.`);
+            if (confirm("해당 계정을 삭제하시겠습니까?")) {
+                accountsData.splice(idx, 1);
+                await saveAccountsToFirebase();
+                renderAdminAccountList();
+            }
         }
 
         function exportExcel() {
