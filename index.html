@@ -109,7 +109,7 @@
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">사용자 이름</label>
-                    <input type="text" id="login-name" required placeholder="예: 심현섭" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <input type="text" id="login-name" required placeholder="예: 심현섭 또는 최영우" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
@@ -122,7 +122,7 @@
         </div>
     </div>
 
-    <!-- 2. 비밀번호 변경 모달 (최초 로그인 시) -->
+    <!-- 2. 비밀번호 변경 모달 (일반 사용자 최초 로그인 시) -->
     <div id="pw-change-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
         <div class="bg-white w-[380px] rounded-2xl shadow-2xl p-6">
             <div class="text-center mb-4">
@@ -181,7 +181,7 @@
             </div>
             <div class="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
                 <div>
-                    <h4 class="text-xs font-bold text-slate-700 mb-2">등록된 계정 목록 (비밀번호 초기화 가능)</h4>
+                    <h4 class="text-xs font-bold text-slate-700 mb-2">등록된 계정 목록</h4>
                     <div id="admin-account-list" class="space-y-2"></div>
                 </div>
 
@@ -240,13 +240,16 @@
 
     <!-- 메인 비즈니스 로직 -->
     <script>
+        // SHA-256 해시 함수
         async function hashPassword(str) {
             const msgBuffer = new TextEncoder().encode(str);
             const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
             return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        const INITIAL_HASH_1470 = "ea817cbb346df91ee939ceaa6644f83cfecaa7e06a35043bf7e24a87cbb9797d";
+        // SHA-256 해시값 (코드에 원문 비밀번호가 노출되지 않음)
+        const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; // 지정된 관리자 암호 해시
+        const INITIAL_HASH_1470 = "ea817cbb346df91ee939ceaa6644f83cfecaa7e06a35043bf7e24a87cbb9797d"; // 1470
 
         let defaultSheetsData = {
             "월별실적취합": {
@@ -270,9 +273,14 @@
 
         let sheetsData = JSON.parse(JSON.stringify(defaultSheetsData));
 
-        // 기본 등록 계정
+        // 고정 관리자 2인 정의
+        const SUPER_ADMINS = [
+            { name: "심현섭", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
+            { name: "최영우", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
+        ];
+
         let accountsData = [
-            { name: "심현섭", role: "관리자", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
+            ...SUPER_ADMINS,
             { name: "김민수", role: "해운대센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
             { name: "박영희", role: "부평센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
         ];
@@ -281,6 +289,20 @@
         let activeSheet = "월별실적취합";
         let selectedCell = { r: 0, c: 0 };
         let isRemoteUpdating = false;
+
+        // 관리자 2인 영구 보장 및 복구
+        function ensureSuperAdmins() {
+            SUPER_ADMINS.forEach(admin => {
+                const idx = accountsData.findIndex(a => a.name === admin.name);
+                if (idx === -1) {
+                    accountsData.unshift({ ...admin });
+                } else {
+                    accountsData[idx].role = "관리자";
+                    accountsData[idx].passwordHash = ADMIN_HASH;
+                    accountsData[idx].isInitialPw = false;
+                }
+            });
+        }
 
         window.initApp = function() {
             const { db, doc, onSnapshot, setDoc } = window.fb;
@@ -291,12 +313,10 @@
                     let remoteAccounts = snap.data().accounts;
                     if (Array.isArray(remoteAccounts) && remoteAccounts.length > 0) {
                         accountsData = remoteAccounts;
-                    } else {
-                        setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
                     }
-                } else {
-                    setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
                 }
+                ensureSuperAdmins();
+                saveAccountsToFirebase();
 
                 // 자동 로그인 유지 복원
                 const savedUser = localStorage.getItem("hellocn_auth_user");
@@ -361,6 +381,7 @@
 
         async function saveAccountsToFirebase() {
             try {
+                ensureSuperAdmins();
                 const { db, doc, setDoc } = window.fb;
                 const cleanAccounts = JSON.parse(JSON.stringify(accountsData));
                 await setDoc(doc(db, "config", "accountsDoc"), { accounts: cleanAccounts });
@@ -369,13 +390,15 @@
             }
         }
 
-        // 로그인 검증: 1470 직관적 인증 및 자가 치유 로직 탑재
+        // 로그인 검증
         async function handleLoginSubmit(e) {
             e.preventDefault();
             const name = document.getElementById('login-name').value.trim();
             const pw = document.getElementById('login-pw').value.trim();
 
-            // 1. 등록된 계정인지 확인
+            ensureSuperAdmins();
+
+            // 1. 등록 계정 확인
             const user = accountsData.find(a => a.name === name);
             if (!user) {
                 alert("등록되지 않은 계정입니다. 관리자에게 계정 등록을 요청하세요.");
@@ -384,21 +407,27 @@
 
             const inputHash = await hashPassword(pw);
 
-            // 2. 비밀번호 확인
-            // 조건 A: 1470을 입력했고 초기 비밀번호 상태이거나, DB 해시값이 꼬여있는 경우 즉시 허용
-            // 조건 B: 사용자가 변경한 비밀번호의 해시값과 일치하는 경우 허용
-            const isInitialMatch = (pw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
-            const isHashedMatch = (user.passwordHash === inputHash);
+            // 2. 관리자 2인 인증 확인
+            const isSuperAdmin = (name === "심현섭" || name === "최영우");
+            if (isSuperAdmin) {
+                if (inputHash !== ADMIN_HASH) {
+                    alert("비밀번호가 일치하지 않습니다.");
+                    return;
+                }
+            } else {
+                // 3. 일반 사용자 인증 확인
+                const isInitialMatch = (pw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
+                const isHashedMatch = (user.passwordHash === inputHash);
 
-            if (!isInitialMatch && !isHashedMatch) {
-                alert("비밀번호가 일치하지 않습니다.");
-                return;
-            }
+                if (!isInitialMatch && !isHashedMatch) {
+                    alert("비밀번호가 일치하지 않습니다.");
+                    return;
+                }
 
-            // 초기 로그인인 경우 해시값을 올바른 1470 해시로 자동 보정
-            if (isInitialMatch) {
-                user.isInitialPw = true;
-                user.passwordHash = INITIAL_HASH_1470;
+                if (isInitialMatch) {
+                    user.isInitialPw = true;
+                    user.passwordHash = INITIAL_HASH_1470;
+                }
             }
 
             currentAccount = user;
@@ -407,14 +436,14 @@
             document.getElementById('login-modal').classList.add('hidden');
             updateUserInterface();
 
-            // 초기 상태이면 새 비밀번호 설정 유도
-            if (user.isInitialPw) {
+            // 일반 사용자가 초기 상태인 경우만 비밀번호 변경 모달 노출
+            if (!isSuperAdmin && user.isInitialPw) {
                 document.getElementById('pw-change-modal').classList.remove('hidden');
                 document.getElementById('pw-change-modal').classList.add('flex');
             }
         }
 
-        // 비밀번호 변경 처리
+        // 비밀번호 변경 처리 (일반 계정용)
         async function handlePasswordChangeSubmit(e) {
             e.preventDefault();
             const p1 = document.getElementById('new-pw-input').value.trim();
@@ -762,6 +791,7 @@
             container.innerHTML = '';
 
             accountsData.forEach((acc, idx) => {
+                const isSuperAdmin = (acc.name === "심현섭" || acc.name === "최영우");
                 const div = document.createElement('div');
                 div.className = "flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50";
                 div.innerHTML = `
@@ -769,14 +799,16 @@
                         <div class="flex items-center space-x-2">
                             <span class="text-xs font-bold text-slate-800">${acc.name}</span>
                             <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-medium">${acc.role}</span>
-                            ${acc.isInitialPw ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">초기PW상태</span>' : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded">비밀번호설정됨</span>'}
+                            ${isSuperAdmin ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">최고관리자</span>' : (acc.isInitialPw ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">초기PW상태</span>' : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded">비밀번호설정됨</span>')}
                         </div>
                     </div>
                     <div class="flex items-center space-x-1.5">
-                        <button onclick="adminResetPassword('${acc.name}')" class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[11px] font-semibold transition">
-                            PW 초기화
-                        </button>
-                        ${acc.name !== '심현섭' ? `<button onclick="adminDeleteAccount(${idx})" class="text-red-500 hover:text-red-700 p-1"><i class="fa-solid fa-trash"></i></button>` : ''}
+                        ${!isSuperAdmin ? `
+                            <button onclick="adminResetPassword('${acc.name}')" class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[11px] font-semibold transition">
+                                PW 초기화
+                            </button>
+                            <button onclick="adminDeleteAccount(${idx})" class="text-red-500 hover:text-red-700 p-1"><i class="fa-solid fa-trash"></i></button>
+                        ` : '<span class="text-[11px] text-slate-400 font-medium">관리자 전용</span>'}
                     </div>
                 `;
                 container.appendChild(div);
@@ -784,14 +816,14 @@
         }
 
         async function adminResetPassword(name) {
-            if (confirm(`${name} 님의 비밀번호를 초기 비밀번호로 되돌리시겠습니까?`)) {
+            if (confirm(`${name} 님의 비밀번호를 초기 상태로 되돌리시겠습니까?`)) {
                 const target = accountsData.find(a => a.name === name);
                 if (target) {
                     target.passwordHash = INITIAL_HASH_1470;
                     target.isInitialPw = true;
                     await saveAccountsToFirebase();
                     renderAdminAccountList();
-                    alert(`${name} 님의 비밀번호가 초기 상태로 리셋되었습니다.`);
+                    alert(`${name} 님의 비밀번호가 초기 상태(1470)로 리셋되었습니다.`);
                 }
             }
         }
@@ -819,7 +851,7 @@
             await saveAccountsToFirebase();
             document.getElementById('new-user-name').value = '';
             renderAdminAccountList();
-            alert(`새 계정(${name})이 성공적으로 등록되었습니다.`);
+            alert(`새 계정(${name})이 성공적으로 등록되었습니다. 초기 비밀번호는 1470 입니다.`);
         }
 
         async function adminDeleteAccount(idx) {
