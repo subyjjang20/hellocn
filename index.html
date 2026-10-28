@@ -109,7 +109,7 @@
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">사용자 이름</label>
-                    <input type="text" id="login-name" required placeholder="예: 홍길동" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <input type="text" id="login-name" required placeholder="예: 심현섭 또는 최영우" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
@@ -238,14 +238,8 @@
     </script>
 
     <script>
-        async function hashPassword(str) {
-            const msgBuffer = new TextEncoder().encode(str);
-            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
-        }
-
-        const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; // wpswkd20
-        const INITIAL_HASH_1470 = "ea817cbb346df91ee939ceaa6644f83cfecaa7e06a35043bf7e24a87cbb9797d"; // 1470
+        const ADMIN_PW = "wpswkd20";
+        const INITIAL_PW = "1470";
 
         let defaultSheetsData = {
             "월별실적취합": {
@@ -270,14 +264,14 @@
         let sheetsData = JSON.parse(JSON.stringify(defaultSheetsData));
 
         const SUPER_ADMINS = [
-            { name: "심현섭", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
-            { name: "최영우", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
+            { name: "심현섭", role: "관리자", password: ADMIN_PW, isInitialPw: false },
+            { name: "최영우", role: "관리자", password: ADMIN_PW, isInitialPw: false }
         ];
 
         let accountsData = [
             ...SUPER_ADMINS,
-            { name: "김민수", role: "해운대센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
-            { name: "박영희", role: "부평센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
+            { name: "김민수", role: "해운대센터", password: INITIAL_PW, isInitialPw: true },
+            { name: "박영희", role: "부평센터", password: INITIAL_PW, isInitialPw: true }
         ];
 
         let currentAccount = null;
@@ -292,7 +286,7 @@
                     accountsData.unshift({ ...admin });
                 } else {
                     found.role = "관리자";
-                    found.passwordHash = ADMIN_HASH;
+                    found.password = ADMIN_PW;
                     found.isInitialPw = false;
                 }
             });
@@ -384,7 +378,7 @@
         }
 
         // 로그인 처리
-        async function handleLoginSubmit(e) {
+        function handleLoginSubmit(e) {
             e.preventDefault();
             const name = document.getElementById('login-name').value.trim();
             const pw = document.getElementById('login-pw').value.trim();
@@ -397,27 +391,9 @@
                 return;
             }
 
-            const inputHash = await hashPassword(pw);
-            const isSuperAdmin = (name === "심현섭" || name === "최영우");
-
-            if (isSuperAdmin) {
-                if (inputHash !== ADMIN_HASH) {
-                    alert("비밀번호가 일치하지 않습니다.");
-                    return;
-                }
-            } else {
-                const isInitialMatch = (pw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
-                const isHashedMatch = (user.passwordHash === inputHash);
-
-                if (!isInitialMatch && !isHashedMatch) {
-                    alert("비밀번호가 일치하지 않습니다.");
-                    return;
-                }
-
-                if (isInitialMatch) {
-                    user.isInitialPw = true;
-                    user.passwordHash = INITIAL_HASH_1470;
-                }
+            if (user.password !== pw) {
+                alert("비밀번호가 일치하지 않습니다.");
+                return;
             }
 
             currentAccount = user;
@@ -426,7 +402,7 @@
             document.getElementById('login-modal').classList.add('hidden');
             updateUserInterface();
 
-            if (!isSuperAdmin && user.isInitialPw) {
+            if (user.isInitialPw) {
                 openPasswordModal(false);
             }
         }
@@ -469,13 +445,12 @@
                 alert("새 비밀번호가 서로 일치하지 않습니다.");
                 return;
             }
-            if (p1 === "1470" && currentAccount.role !== '관리자') {
+            if (p1 === INITIAL_PW && currentAccount.role !== '관리자') {
                 alert("초기 비밀번호(1470) 외의 새 비밀번호를 입력해 주세요.");
                 return;
             }
 
-            const newHash = await hashPassword(p1);
-            currentAccount.passwordHash = newHash;
+            currentAccount.password = p1;
             currentAccount.isInitialPw = false;
 
             const idx = accountsData.findIndex(a => a.name === currentAccount.name);
@@ -843,7 +818,7 @@
             if (confirm(`${name} 님의 비밀번호를 초기 상태(1470)로 리셋하시겠습니까?`)) {
                 const target = accountsData.find(a => a.name === name);
                 if (target) {
-                    target.passwordHash = INITIAL_HASH_1470;
+                    target.password = INITIAL_PW;
                     target.isInitialPw = true;
                     await saveAccountsToFirebase();
                     renderAdminAccountList();
@@ -868,7 +843,7 @@
             accountsData.push({
                 name: name,
                 role: role,
-                passwordHash: INITIAL_HASH_1470,
+                password: INITIAL_PW,
                 isInitialPw: true
             });
 
