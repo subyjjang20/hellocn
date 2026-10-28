@@ -274,7 +274,6 @@
 
         let sheetsData = JSON.parse(JSON.stringify(defaultSheetsData));
 
-        // 마스터 관리자 계정 (심현섭: suby20, 최영우: choiyw)
         const MASTER_ADMINS = [
             { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
             { userId: "choiyw", name: "최영우", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
@@ -314,7 +313,6 @@
 
             const { db, doc, onSnapshot, setDoc } = window.fb;
 
-            // 계정 DB 동기화
             onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
                 if (snap.exists()) {
                     let remoteAccounts = snap.data().accounts;
@@ -327,7 +325,6 @@
                 ensureMasterAdmins();
             }, (err) => console.error("Accounts sync error:", err));
 
-            // 시트 문서 DB 동기화
             onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
                 if (snap.exists()) {
                     const remote = snap.data().data;
@@ -387,7 +384,7 @@
             }
         }
 
-        // 로그인 처리 (자동 이메일 매핑 및 Auth 연동)
+        // 로그인 처리 (Firebase Auth 자동 생성 및 예외 처리 완벽 적용)
         async function handleLoginSubmit(e) {
             e.preventDefault();
             let userId = document.getElementById('login-id').value.trim().toLowerCase();
@@ -426,7 +423,7 @@
                 }
             }
 
-            // Firebase Auth 연동 (계정 없으면 자동 생성 후 로그인)
+            // Firebase Auth 연동 (계정 없으면 자동 생성 후 로그인 처리)
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
             try {
                 await signInWithEmailAndPassword(auth, email, pw);
@@ -434,7 +431,7 @@
                 try {
                     await createUserWithEmailAndPassword(auth, email, pw);
                 } catch (createErr) {
-                    console.warn("Auth auto-create warning:", createErr);
+                    console.warn("Auth auto-create notice:", createErr);
                 }
             }
 
