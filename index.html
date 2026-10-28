@@ -39,7 +39,7 @@
                 <span id="sync-text">동기화 대기중</span>
             </div>
 
-            <!-- 관리자 전용 메뉴 -->
+            <!-- 최고관리자 및 동등 권한(서추, 영추) 전용 메뉴 -->
             <button id="admin-col-btn" onclick="openColumnManager()" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition items-center space-x-1.5 shadow">
                 <i class="fa-solid fa-sliders"></i>
                 <span>열(항목) 구조 편집</span>
@@ -98,22 +98,25 @@
 
     <!-- 1. 로그인 모달 -->
     <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50">
-        <div class="bg-white w-[380px] rounded-2xl shadow-2xl p-6 border border-slate-100">
+        <div class="bg-white w-[420px] rounded-2xl shadow-2xl p-6 border border-slate-100">
             <div class="text-center mb-6">
                 <div class="inline-flex bg-blue-100 text-blue-600 p-3 rounded-full mb-2">
                     <i class="fa-solid fa-shield-halved text-2xl"></i>
                 </div>
                 <h2 class="text-lg font-bold text-slate-800">헬로CN 닥스 로그인</h2>
-                <p class="text-xs text-slate-500 mt-1">등록된 이름과 비밀번호를 입력해 주세요.</p>
+                <p class="text-xs text-slate-500 mt-1">이메일 아이디와 비밀번호를 입력해 주세요.</p>
             </div>
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">사용자 이름</label>
-                    <input type="text" id="login-name" required placeholder="예: 심현섭 또는 최영우" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">이메일 아이디</label>
+                    <div class="flex items-center">
+                        <input type="text" id="login-email-id" required placeholder="예: suby20" class="w-full border border-slate-300 rounded-l-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                        <span class="bg-slate-100 border border-l-0 border-slate-300 px-2.5 py-2 text-xs text-slate-500 rounded-r-lg font-medium">@helloconnectn.com</span>
+                    </div>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
-                    <input type="password" id="login-pw" required placeholder="비밀번호 입력" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+                    <input type="password" id="login-pw" required placeholder="비밀번호 입력" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
                 </div>
                 <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2.5 rounded-lg text-sm transition shadow-md flex items-center justify-center space-x-2">
                     <span>로그인</span>
@@ -152,7 +155,7 @@
     <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[650px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열(항목) 구조 및 순서 설정 (관리자)</h3>
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>열(항목) 구조 및 순서 설정</h3>
                 <button onclick="closeColumnManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
@@ -176,7 +179,7 @@
     <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[560px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
-                <h3 class="font-bold text-sm"><i class="fa-solid fa-users-gear mr-2 text-blue-400"></i>계정 등록 및 관리 (관리자)</h3>
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-users-gear mr-2 text-blue-400"></i>계정 등록 및 관리</h3>
                 <button onclick="closeAccountManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <div class="p-5 space-y-4 max-h-[65vh] overflow-y-auto">
@@ -188,19 +191,17 @@
                 <div class="border-t pt-4">
                     <h4 class="text-xs font-bold text-slate-700 mb-2">새 계정 등록 (초기 비밀번호: 1470)</h4>
                     <div class="grid grid-cols-2 gap-2">
-                        <input type="text" id="new-user-name" placeholder="이름 (예: 홍길동)" class="border border-slate-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500">
+                        <div class="flex items-center">
+                            <input type="text" id="new-user-id" placeholder="아이디 (예: gildong)" class="border border-slate-300 rounded-l px-2 py-1.5 text-xs w-full outline-none focus:border-blue-500">
+                            <span class="bg-slate-100 border border-l-0 border-slate-300 px-1.5 py-1.5 text-[10px] text-slate-500 rounded-r">@helloconnectn.com</span>
+                        </div>
                         <select id="new-user-role" class="border border-slate-300 rounded px-3 py-1.5 text-xs outline-none focus:border-blue-500">
-                            <option value="관리자">전체 관리자</option>
-                            <option value="해운대센터">해운대센터 담당자</option>
-                            <option value="부평센터">부평센터 담당자</option>
-                            <option value="계양센터">계양센터 담당자</option>
-                            <option value="서부센터">서부센터 담당자</option>
-                            <option value="양산센터">양산센터 담당자</option>
-                            <option value="대구동구센터">대구동구센터 담당자</option>
-                            <option value="경주센터">경주센터 담당자</option>
-                            <option value="나라센터">나라센터 담당자</option>
-                            <option value="양천센터">양천센터 담당자</option>
-                            <option value="속초센터">속초센터 담당자</option>
+                            <option value="최고관리자">최고관리자</option>
+                            <option value="서추">서추 (최고관리자 권한)</option>
+                            <option value="영추">영추 (최고관리자 권한)</option>
+                            <option value="수도권">수도권 담당자</option>
+                            <option value="동부">동부 담당자</option>
+                            <option value="남부">남부 담당자</option>
                         </select>
                     </div>
                     <button onclick="adminCreateAccount()" class="mt-2 w-full bg-blue-600 hover:bg-blue-500 text-white py-2 rounded text-xs font-semibold transition">
@@ -217,7 +218,7 @@
     <!-- Firebase SDK 모듈 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -234,10 +235,8 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // 익명 인증 수행하여 Firestore 보안 규칙(request.auth != null) 통과 보장
-        signInAnonymously(auth).catch(err => console.error("Auth error:", err));
+        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut };
 
-        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot };
         window.initApp();
     </script>
 
@@ -256,7 +255,7 @@
             "월별실적취합": {
                 columns: [
                     { name: "구분", type: "select", options: "본사직영, 지사운영, 협력사" },
-                    { name: "센터명", type: "text", options: "" },
+                    { name: "지역", type: "text", options: "" },
                     { name: "당월목표액(원)", type: "text", options: "" },
                     { name: "당월실적액(원)", type: "text", options: "" },
                     { name: "달성률(%)", type: "text", options: "" },
@@ -265,24 +264,25 @@
                     { name: "취합상태", type: "select", options: "대기, 진행중, 완료" }
                 ],
                 rows: [
-                    ["본사직영", "해운대센터", "50000000", "48000000", "96%", "320", "EV충전기 시범운영 완료", "완료"],
-                    ["본사직영", "부평센터", "45000000", "46000000", "102%", "290", "CCTV 솔루션 영업 확대", "진행중"],
-                    ["본사직영", "계양센터", "40000000", "39000000", "97%", "250", "법인 고객사 제안서 발송", "진행중"]
+                    ["본사직영", "수도권", "50000000", "48000000", "96%", "320", "EV충전기 시범운영 완료", "완료"],
+                    ["본사직영", "동부", "45000000", "46000000", "102%", "290", "CCTV 솔루션 영업 확대", "진행중"],
+                    ["본사직영", "남부", "40000000", "39000000", "97%", "250", "법인 고객사 제안서 발송", "진행중"]
                 ]
             }
         };
 
         let sheetsData = JSON.parse(JSON.stringify(defaultSheetsData));
 
-        const SUPER_ADMINS = [
-            { name: "심현섭", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
-            { name: "최영우", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
+        // 기본 최고 권한 계정 (suby20, choiyw 등)
+        const MASTER_ADMINS = [
+            { email: "suby20@helloconnectn.com", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
+            { email: "choiyw@helloconnectn.com", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
         ];
 
         let accountsData = [
-            ...SUPER_ADMINS,
-            { name: "김민수", role: "해운대센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
-            { name: "박영희", role: "부평센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
+            ...MASTER_ADMINS,
+            { email: "minsu@helloconnectn.com", role: "수도권", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
+            { email: "younghee@helloconnectn.com", role: "동부", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
         ];
 
         let currentAccount = null;
@@ -290,45 +290,43 @@
         let selectedCell = { r: 0, c: 0 };
         let isRemoteUpdating = false;
 
-        function ensureSuperAdmins() {
-            SUPER_ADMINS.forEach(admin => {
-                const idx = accountsData.findIndex(a => a.name === admin.name);
+        function ensureMasterAdmins() {
+            MASTER_ADMINS.forEach(admin => {
+                const idx = accountsData.findIndex(a => a.email === admin.email);
                 if (idx === -1) {
                     accountsData.unshift({ ...admin });
                 } else {
-                    accountsData[idx].role = "관리자";
+                    accountsData[idx].role = "최고관리자";
                     accountsData[idx].passwordHash = ADMIN_HASH;
                     accountsData[idx].isInitialPw = false;
                 }
             });
         }
 
+        // 최고관리자급 권한인지 확인 (최고관리자, 서추, 영추)
+        function isPrivilegedRole(role) {
+            return role === "최고관리자" || role === "서추" || role === "영추";
+        }
+
         window.initApp = function() {
+            ensureMasterAdmins();
+
             const { db, doc, onSnapshot, setDoc } = window.fb;
 
-            // 1. 계정 동기화
+            // 1. 파이어베이스 계정 DB 동기화
             onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
                 if (snap.exists()) {
                     let remoteAccounts = snap.data().accounts;
                     if (Array.isArray(remoteAccounts) && remoteAccounts.length > 0) {
                         accountsData = remoteAccounts;
                     }
+                } else {
+                    saveAccountsToFirebase();
                 }
-                ensureSuperAdmins();
-                saveAccountsToFirebase();
-
-                const savedUser = localStorage.getItem("hellocn_auth_user");
-                if (savedUser && !currentAccount) {
-                    const found = accountsData.find(a => a.name === savedUser);
-                    if (found) {
-                        currentAccount = found;
-                        document.getElementById('login-modal').classList.add('hidden');
-                        updateUserInterface();
-                    }
-                }
+                ensureMasterAdmins();
             }, (err) => console.error("Accounts sync error:", err));
 
-            // 2. 스프레드시트 데이터 동기화
+            // 2. 파이어베이스 시트 문서 DB 동기화 (실시간 반영)
             onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
                 if (snap.exists()) {
                     const remote = snap.data().data;
@@ -379,7 +377,7 @@
 
         async function saveAccountsToFirebase() {
             try {
-                ensureSuperAdmins();
+                ensureMasterAdmins();
                 const { db, doc, setDoc } = window.fb;
                 const cleanAccounts = JSON.parse(JSON.stringify(accountsData));
                 await setDoc(doc(db, "config", "accountsDoc"), { accounts: cleanAccounts });
@@ -388,24 +386,25 @@
             }
         }
 
-        // 로그인 검증
+        // 로그인 처리 (이메일 자동 조합 및 Firebase Auth 연동)
         async function handleLoginSubmit(e) {
             e.preventDefault();
-            const name = document.getElementById('login-name').value.trim();
+            const emailId = document.getElementById('login-email-id').value.trim();
+            const email = emailId.includes('@') ? emailId : emailId + "@helloconnectn.com";
             const pw = document.getElementById('login-pw').value.trim();
 
-            ensureSuperAdmins();
+            ensureMasterAdmins();
 
-            const user = accountsData.find(a => a.name === name);
+            const user = accountsData.find(a => a.email === email);
             if (!user) {
-                alert("등록되지 않은 계정입니다. 관리자에게 계정 등록을 요청하세요.");
+                alert("등록되지 않은 이메일 계정입니다. 최고관리자에게 문의하세요.");
                 return;
             }
 
             const inputHash = await hashPassword(pw);
-            const isSuperAdmin = (name === "심현섭" || name === "최영우");
+            const isMaster = (email === "suby20@helloconnectn.com" || email === "choiyw@helloconnectn.com");
 
-            if (isSuperAdmin) {
+            if (isMaster) {
                 if (inputHash !== ADMIN_HASH) {
                     alert("비밀번호가 일치하지 않습니다.");
                     return;
@@ -425,13 +424,25 @@
                 }
             }
 
+            // Firebase Auth 로그인 수행 (없으면 자동 생성하여 request.auth != null 만족)
+            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
+            try {
+                await signInWithEmailAndPassword(auth, email, pw);
+            } catch (authErr) {
+                try {
+                    await createUserWithEmailAndPassword(auth, email, pw);
+                } catch (createErr) {
+                    console.warn("Auth sync warning:", createErr);
+                }
+            }
+
             currentAccount = user;
-            localStorage.setItem("hellocn_auth_user", user.name);
+            localStorage.setItem("hellocn_auth_email", user.email);
 
             document.getElementById('login-modal').classList.add('hidden');
             updateUserInterface();
 
-            if (!isSuperAdmin && user.isInitialPw) {
+            if (!isMaster && user.isInitialPw) {
                 document.getElementById('pw-change-modal').classList.remove('hidden');
                 document.getElementById('pw-change-modal').classList.add('flex');
             }
@@ -455,7 +466,7 @@
             currentAccount.passwordHash = newHash;
             currentAccount.isInitialPw = false;
 
-            const idx = accountsData.findIndex(a => a.name === currentAccount.name);
+            const idx = accountsData.findIndex(a => a.email === currentAccount.email);
             if (idx !== -1) accountsData[idx] = currentAccount;
             await saveAccountsToFirebase();
 
@@ -464,12 +475,14 @@
             alert("새 비밀번호가 안전하게 설정되었습니다!");
         }
 
-        function handleLogout() {
+        async function handleLogout() {
             if (confirm("로그아웃 하시겠습니까?")) {
-                localStorage.removeItem("hellocn_auth_user");
+                const { auth, signOut } = window.fb;
+                await signOut(auth).catch(e => {});
+                localStorage.removeItem("hellocn_auth_email");
                 currentAccount = null;
                 document.getElementById('login-modal').classList.remove('hidden');
-                document.getElementById('login-name').value = '';
+                document.getElementById('login-email-id').value = '';
                 document.getElementById('login-pw').value = '';
                 updateUserInterface();
                 renderGrid();
@@ -486,15 +499,17 @@
                 return;
             }
 
-            document.getElementById('current-user-badge').innerText = `👤 ${currentAccount.name} (${currentAccount.role})`;
+            document.getElementById('current-user-badge').innerText = `👤 ${currentAccount.email} (${currentAccount.role})`;
             document.getElementById('logout-btn').classList.remove('hidden');
 
-            if (currentAccount.role === '관리자') {
+            const hasPrivilege = isPrivilegedRole(currentAccount.role);
+
+            if (hasPrivilege) {
                 document.getElementById('admin-col-btn').classList.remove('hidden');
                 document.getElementById('admin-col-btn').classList.add('flex');
                 document.getElementById('admin-acc-btn').classList.remove('hidden');
                 document.getElementById('admin-acc-btn').classList.add('flex');
-                document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-shield-halved text-blue-500 mr-1"></i> 관리자 (전체 편집 권한)`;
+                document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-shield-halved text-blue-500 mr-1"></i> ${currentAccount.role} (전체 편집/관리 권한)`;
                 document.getElementById('edit-permission-status').className = "text-blue-600 font-semibold";
             } else {
                 document.getElementById('admin-col-btn').classList.add('hidden');
@@ -557,9 +572,9 @@
                 let isLocked = false;
                 if (!currentAccount) {
                     isLocked = true;
-                } else if (currentAccount.role !== '관리자') {
-                    const rowCenter = row[1] || '';
-                    if (!rowCenter.includes(currentAccount.role)) isLocked = true;
+                } else if (!isPrivilegedRole(currentAccount.role)) {
+                    const rowRegion = row[1] || '';
+                    if (!rowRegion.includes(currentAccount.role)) isLocked = true;
                 }
 
                 sheet.columns.forEach((col, cIdx) => {
@@ -638,9 +653,9 @@
                         sheet.rows.push(new Array(sheet.columns.length).fill(""));
                     }
 
-                    if (currentAccount.role !== '관리자') {
-                        const rowCenter = sheet.rows[targetR][1] || '';
-                        if (!rowCenter.includes(currentAccount.role)) return;
+                    if (!isPrivilegedRole(currentAccount.role)) {
+                        const rowRegion = sheet.rows[targetR][1] || '';
+                        if (!rowRegion.includes(currentAccount.role)) return;
                     }
 
                     cells.forEach((val, cOffset) => {
@@ -660,15 +675,15 @@
             if (!currentAccount) return;
             let sheet = sheetsData[activeSheet];
             let newRow = new Array(sheet.columns.length).fill("");
-            if (currentAccount.role !== '관리자') newRow[1] = currentAccount.role;
+            if (!isPrivilegedRole(currentAccount.role)) newRow[1] = currentAccount.role;
             sheet.rows.push(newRow);
             saveSheetsToFirebase();
             renderGrid();
         }
 
         function addNewSheet() {
-            if (!currentAccount || currentAccount.role !== '관리자') {
-                alert("새 시트 추가는 관리자만 가능합니다.");
+            if (!currentAccount || !isPrivilegedRole(currentAccount.role)) {
+                alert("새 시트 추가는 최고관리자 및 해당 권한 보유자만 가능합니다.");
                 return;
             }
             let sheetName = prompt("새 시트 이름을 입력하세요:", "시트" + (Object.keys(sheetsData).length + 1));
@@ -676,10 +691,10 @@
                 sheetsData[sheetName] = {
                     columns: [
                         { name: "항목1", type: "text", options: "" },
-                        { name: "센터명", type: "text", options: "" },
+                        { name: "지역", type: "text", options: "" },
                         { name: "상태", type: "select", options: "대기, 진행중, 완료" }
                     ],
-                    rows: [["데이터1", "해운대센터", "진행중"]]
+                    rows: [["데이터1", "수도권", "진행중"]]
                 };
                 saveSheetsToFirebase();
                 switchSheet(sheetName);
@@ -688,7 +703,7 @@
 
         // 열 구조 편집
         function openColumnManager() {
-            if (!currentAccount || currentAccount.role !== '관리자') return;
+            if (!currentAccount || !isPrivilegedRole(currentAccount.role)) return;
             document.getElementById('column-modal').classList.remove('hidden');
             document.getElementById('column-modal').classList.add('flex');
             renderColumnEditList();
@@ -733,17 +748,14 @@
         }
 
         function moveColumn(idx, direction) {
-            // 현재 입력 중인 값 임시 동기화
             syncCurrentColumnInputs();
             let sheet = sheetsData[activeSheet];
             let targetIdx = idx + direction;
             if (targetIdx < 0 || targetIdx >= sheet.columns.length) return;
 
-            // 열 이동
             let movedCol = sheet.columns.splice(idx, 1)[0];
             sheet.columns.splice(targetIdx, 0, movedCol);
 
-            // 각 행의 데이터 순서도 함께 이동
             sheet.rows.forEach(row => {
                 let movedVal = row.splice(idx, 1)[0];
                 row.splice(targetIdx, 0, movedVal);
@@ -789,12 +801,12 @@
             await saveSheetsToFirebase();
             closeColumnManager();
             renderGrid();
-            alert("열 구조가 안전하게 DB에 저장되었습니다!");
+            alert("열 구조가 안전하게 저장되었습니다!");
         }
 
         // 계정/권한 관리 모달
         function openAccountManager() {
-            if (!currentAccount || currentAccount.role !== '관리자') return;
+            if (!currentAccount || !isPrivilegedRole(currentAccount.role)) return;
             document.getElementById('account-modal').classList.remove('hidden');
             document.getElementById('account-modal').classList.add('flex');
             renderAdminAccountList();
@@ -810,67 +822,69 @@
             container.innerHTML = '';
 
             accountsData.forEach((acc, idx) => {
-                const isSuperAdmin = (acc.name === "심현섭" || acc.name === "최영우");
+                const isMaster = (acc.email === "suby20@helloconnectn.com" || acc.email === "choiyw@helloconnectn.com");
                 const div = document.createElement('div');
                 div.className = "flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50";
                 div.innerHTML = `
                     <div>
                         <div class="flex items-center space-x-2">
-                            <span class="text-xs font-bold text-slate-800">${acc.name}</span>
+                            <span class="text-xs font-bold text-slate-800">${acc.email}</span>
                             <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-medium">${acc.role}</span>
-                            ${isSuperAdmin ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">최고관리자</span>' : (acc.isInitialPw ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">초기PW상태</span>' : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded">비밀번호설정됨</span>')}
+                            ${isMaster ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">마스터계정</span>' : (acc.isInitialPw ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">초기PW상태</span>' : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded">비밀번호설정됨</span>')}
                         </div>
                     </div>
                     <div class="flex items-center space-x-1.5">
-                        ${!isSuperAdmin ? `
-                            <button onclick="adminResetPassword('${acc.name}')" class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[11px] font-semibold transition">
+                        ${!isMaster ? `
+                            <button onclick="adminResetPassword('${acc.email}')" class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-[11px] font-semibold transition">
                                 PW 초기화
                             </button>
                             <button onclick="adminDeleteAccount(${idx})" class="text-red-500 hover:text-red-700 p-1"><i class="fa-solid fa-trash"></i></button>
-                        ` : '<span class="text-[11px] text-slate-400 font-medium">관리자 전용</span>'}
+                        ` : '<span class="text-[11px] text-slate-400 font-medium">관리 대상 아님</span>'}
                     </div>
                 `;
                 container.appendChild(div);
             });
         }
 
-        async function adminResetPassword(name) {
-            if (confirm(`${name} 님의 비밀번호를 초기 상태로 되돌리시겠습니까?`)) {
-                const target = accountsData.find(a => a.name === name);
+        async function adminResetPassword(email) {
+            if (confirm(`${email} 계정의 비밀번호를 초기 상태(1470)로 리셋하시겠습니까?`)) {
+                const target = accountsData.find(a => a.email === email);
                 if (target) {
                     target.passwordHash = INITIAL_HASH_1470;
                     target.isInitialPw = true;
                     await saveAccountsToFirebase();
                     renderAdminAccountList();
-                    alert(`${name} 님의 비밀번호가 초기 상태(1470)로 리셋되었습니다.`);
+                    alert("비밀번호가 초기화되었습니다.");
                 }
             }
         }
 
         async function adminCreateAccount() {
-            const name = document.getElementById('new-user-name').value.trim();
+            const userId = document.getElementById('new-user-id').value.trim();
             const role = document.getElementById('new-user-role').value;
 
-            if (!name) {
-                alert("사용자 이름을 입력해 주세요.");
+            if (!userId) {
+                alert("이메일 아이디를 입력해 주세요.");
                 return;
             }
-            if (accountsData.some(a => a.name === name)) {
-                alert("이미 존재하는 이름입니다.");
+            const email = userId.includes('@') ? userId : userId + "@helloconnectn.com";
+
+            if (accountsData.some(a => a.email === email)) {
+                alert("이미 존재하는 이메일 계정입니다.");
                 return;
             }
 
             accountsData.push({
-                name: name,
+                email: email,
                 role: role,
                 passwordHash: INITIAL_HASH_1470,
                 isInitialPw: true
             });
 
             await saveAccountsToFirebase();
-            document.getElementById('new-user-name').value = '';
+            document.getElementById('new-user-id').value = '';
             renderAdminAccountList();
-            alert(`새 계정(${name})이 성공적으로 등록되었습니다. 초기 비밀번호는 1470 입니다.`);
+            alert(`새 계정(${email})이 등록되었습니다. 초기 비밀번호는 1470 입니다.`);
         }
 
         async function adminDeleteAccount(idx) {
