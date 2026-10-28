@@ -122,7 +122,7 @@
         </div>
     </div>
 
-    <!-- 2. 비밀번호 변경 모달 (최초 로그인 또는 관리자 변경용) -->
+    <!-- 2. 비밀번호 변경 모달 -->
     <div id="pw-change-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
         <div class="bg-white w-[380px] rounded-2xl shadow-2xl p-6">
             <div class="text-center mb-4">
@@ -149,7 +149,7 @@
         </div>
     </div>
 
-    <!-- 3. 열 구조 편집 모달 (순서 변경 및 데이터 보호) -->
+    <!-- 3. 열 구조 편집 모달 -->
     <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[650px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex items-center justify-between">
@@ -158,7 +158,7 @@
             </div>
             <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
                 <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-lg text-xs text-indigo-900">
-                    항목 제목, 입력 방식(자유입력/드롭다운 옵션)을 수정하거나 <b>[위로/아래로]</b> 버튼으로 열 순서를 변경할 수 있습니다.
+                    항목 제목, 입력 방식을 수정하거나 <b>[위로/아래로]</b> 버튼으로 열 순서를 변경할 수 있습니다.
                 </div>
                 <div id="column-edit-list" class="space-y-3"></div>
                 <button onclick="addColumnField()" class="w-full bg-slate-100 hover:bg-slate-200 border border-dashed border-slate-400 text-slate-700 py-2 rounded-lg text-xs font-semibold transition flex items-center justify-center space-x-1">
@@ -215,10 +215,9 @@
         </div>
     </div>
 
-    <!-- Firebase SDK 및 비즈니스 로직 -->
+    <!-- Firebase SDK 및 메인 로직 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -232,25 +231,21 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
         const db = getFirestore(app);
 
-        window.fb = { auth, db, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, signOut, doc, setDoc, getDoc, onSnapshot };
-
-        // 앱 구동 초기화
+        window.fb = { db, doc, setDoc, getDoc, onSnapshot };
         window.initApp();
     </script>
 
     <script>
-        // 이름을 고유한 가상 이메일로 변환 (Firebase Auth 필수 이메일 규격용)
-        async function nameToEmail(name) {
-            const encoder = new TextEncoder();
-            const data = encoder.encode(name.trim() + "_hellocn_auth_salt");
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-            const hashArray = Array.from(new Uint8Array(hashBuffer));
-            const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 16);
-            return `user_${hashHex}@hellocn.com`;
+        async function hashPassword(str) {
+            const msgBuffer = new TextEncoder().encode(str);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
+
+        const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; // wpswkd20
+        const INITIAL_HASH_1470 = "ea817cbb346df91ee939ceaa6644f83cfecaa7e06a35043bf7e24a87cbb9797d"; // 1470
 
         let defaultSheetsData = {
             "월별실적취합": {
@@ -274,12 +269,15 @@
 
         let sheetsData = JSON.parse(JSON.stringify(defaultSheetsData));
 
-        // 고정 관리자 2인 정의 (비밀번호 wpswkd20)
+        const SUPER_ADMINS = [
+            { name: "심현섭", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
+            { name: "최영우", role: "관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
+        ];
+
         let accountsData = [
-            { name: "심현섭", role: "관리자", password: "wpswkd20", isInitialPw: false },
-            { name: "최영우", role: "관리자", password: "wpswkd20", isInitialPw: false },
-            { name: "김민수", role: "해운대센터", password: "1470", isInitialPw: true },
-            { name: "박영희", role: "부평센터", password: "1470", isInitialPw: true }
+            ...SUPER_ADMINS,
+            { name: "김민수", role: "해운대센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
+            { name: "박영희", role: "부평센터", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
         ];
 
         let currentAccount = null;
@@ -288,23 +286,23 @@
         let isRemoteUpdating = false;
 
         function ensureSuperAdmins() {
-            const adminNames = ["심현섭", "최영우"];
-            adminNames.forEach(name => {
-                let found = accountsData.find(a => a.name === name);
+            SUPER_ADMINS.forEach(admin => {
+                let found = accountsData.find(a => a.name === admin.name);
                 if (!found) {
-                    accountsData.unshift({ name: name, role: "관리자", password: "wpswkd20", isInitialPw: false });
+                    accountsData.unshift({ ...admin });
                 } else {
                     found.role = "관리자";
-                    if (!found.password) found.password = "wpswkd20";
+                    found.passwordHash = ADMIN_HASH;
+                    found.isInitialPw = false;
                 }
             });
         }
 
         window.initApp = function() {
-            const { db, doc, onSnapshot, setDoc, auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
+            const { db, doc, onSnapshot } = window.fb;
 
-            // 1. 계정 정보 동기화 구독
-            onSnapshot(doc(db, "config", "accountsDoc"), async (snap) => {
+            // 1. 계정 동기화 구독
+            onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
                 if (snap.exists()) {
                     let remoteAccounts = snap.data().accounts;
                     if (Array.isArray(remoteAccounts) && remoteAccounts.length > 0) {
@@ -314,27 +312,18 @@
                 ensureSuperAdmins();
                 saveAccountsToFirebase();
 
-                // 새로고침 시 localStorage 세션 복원 및 자동 인증 시도
                 const savedUser = localStorage.getItem("hellocn_auth_user");
                 if (savedUser && !currentAccount) {
                     const found = accountsData.find(a => a.name === savedUser);
                     if (found) {
                         currentAccount = found;
-                        const email = await nameToEmail(found.name);
-                        try {
-                            await signInWithEmailAndPassword(auth, email, found.password + "_secure");
-                        } catch (e) {
-                            try {
-                                await createUserWithEmailAndPassword(auth, email, found.password + "_secure");
-                            } catch (err) {}
-                        }
                         document.getElementById('login-modal').classList.add('hidden');
                         updateUserInterface();
                     }
                 }
             });
 
-            // 2. 스프레드시트 데이터 동기화 구독 (문서 자동 생성 보장)
+            // 2. 스프레드시트 데이터 동기화 구독
             onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
                 if (snap.exists()) {
                     const remote = snap.data().data;
@@ -394,7 +383,7 @@
             }
         }
 
-        // 로그인 검증 및 공식 인증 처리
+        // 로그인 처리
         async function handleLoginSubmit(e) {
             e.preventDefault();
             const name = document.getElementById('login-name').value.trim();
@@ -408,23 +397,26 @@
                 return;
             }
 
-            if (user.password !== pw) {
-                alert("비밀번호가 일치하지 않습니다.");
-                return;
-            }
+            const inputHash = await hashPassword(pw);
+            const isSuperAdmin = (name === "심현섭" || name === "최영우");
 
-            // Firebase 공식 Auth 연동 (Firestore 규칙 request.auth != null 통과용)
-            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
-            const email = await nameToEmail(name);
-            const authPw = pw + "_secure";
+            if (isSuperAdmin) {
+                if (inputHash !== ADMIN_HASH) {
+                    alert("비밀번호가 일치하지 않습니다.");
+                    return;
+                }
+            } else {
+                const isInitialMatch = (pw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
+                const isHashedMatch = (user.passwordHash === inputHash);
 
-            try {
-                await signInWithEmailAndPassword(auth, email, authPw);
-            } catch (err) {
-                try {
-                    await createUserWithEmailAndPassword(auth, email, authPw);
-                } catch (cErr) {
-                    console.error("Auth 연동 경고:", cErr);
+                if (!isInitialMatch && !isHashedMatch) {
+                    alert("비밀번호가 일치하지 않습니다.");
+                    return;
+                }
+
+                if (isInitialMatch) {
+                    user.isInitialPw = true;
+                    user.passwordHash = INITIAL_HASH_1470;
                 }
             }
 
@@ -434,13 +426,11 @@
             document.getElementById('login-modal').classList.add('hidden');
             updateUserInterface();
 
-            const isSuperAdmin = (name === "심현섭" || name === "최영우");
             if (!isSuperAdmin && user.isInitialPw) {
                 openPasswordModal(false);
             }
         }
 
-        // 비밀번호 변경 모달 열기 (최초 로그인 또는 관리자 변경용)
         function openPasswordModal(isManualChange = false) {
             const modal = document.getElementById('pw-change-modal');
             const cancelBtn = document.getElementById('pw-cancel-btn');
@@ -484,22 +474,13 @@
                 return;
             }
 
-            currentAccount.password = p1;
+            const newHash = await hashPassword(p1);
+            currentAccount.passwordHash = newHash;
             currentAccount.isInitialPw = false;
 
             const idx = accountsData.findIndex(a => a.name === currentAccount.name);
             if (idx !== -1) accountsData[idx] = currentAccount;
             await saveAccountsToFirebase();
-
-            // Firebase Auth 비밀번호도 업데이트 시도
-            try {
-                const { auth, updatePassword } = window.fb;
-                if (auth.currentUser) {
-                    await updatePassword(auth.currentUser, p1 + "_secure");
-                }
-            } catch (err) {
-                console.error("Auth PW 업데이트 안내:", err);
-            }
 
             closePasswordModal();
             alert("새 비밀번호가 안전하게 설정되었습니다!");
@@ -507,8 +488,6 @@
 
         function handleLogout() {
             if (confirm("로그아웃 하시겠습니까?")) {
-                const { auth, signOut } = window.fb;
-                signOut(auth).catch(() => {});
                 localStorage.removeItem("hellocn_auth_user");
                 currentAccount = null;
                 document.getElementById('login-modal').classList.remove('hidden');
@@ -864,7 +843,7 @@
             if (confirm(`${name} 님의 비밀번호를 초기 상태(1470)로 리셋하시겠습니까?`)) {
                 const target = accountsData.find(a => a.name === name);
                 if (target) {
-                    target.password = "1470";
+                    target.passwordHash = INITIAL_HASH_1470;
                     target.isInitialPw = true;
                     await saveAccountsToFirebase();
                     renderAdminAccountList();
@@ -889,7 +868,7 @@
             accountsData.push({
                 name: name,
                 role: role,
-                password: "1470",
+                passwordHash: INITIAL_HASH_1470,
                 isInitialPw: true
             });
 
