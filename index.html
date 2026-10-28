@@ -387,7 +387,7 @@
             }
         }
 
-        // 로그인 처리 (suby20 입력 시 자동으로 suby20@helloconnectn.com 처리)
+        // 로그인 처리 (자동 이메일 매핑 및 Auth 연동)
         async function handleLoginSubmit(e) {
             e.preventDefault();
             let userId = document.getElementById('login-id').value.trim().toLowerCase();
@@ -426,7 +426,7 @@
                 }
             }
 
-            // Firebase Auth 연동 (request.auth != null 만족)
+            // Firebase Auth 연동 (계정 없으면 자동 생성 후 로그인)
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
             try {
                 await signInWithEmailAndPassword(auth, email, pw);
@@ -434,7 +434,7 @@
                 try {
                     await createUserWithEmailAndPassword(auth, email, pw);
                 } catch (createErr) {
-                    console.warn("Auth sync warning:", createErr);
+                    console.warn("Auth auto-create warning:", createErr);
                 }
             }
 
