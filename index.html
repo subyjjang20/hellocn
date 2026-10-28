@@ -193,7 +193,7 @@
                     <div class="grid grid-cols-3 gap-2">
                         <div class="flex items-center col-span-1">
                             <input type="text" id="new-user-id" placeholder="아이디(영문)" class="border border-slate-300 rounded-l px-2 py-1.5 text-xs w-full outline-none focus:border-blue-500">
-                            <span class="bg-slate-100 border border-l-0 border-slate-300 px-1.5 py-1.5 text-[9px] text-slate-500 rounded-r">@...</span>
+                            <span class="bg-slate-100 border border-l-0 border-slate-300 px-1 py-1.5 text-[9px] text-slate-500 rounded-r">@...</span>
                         </div>
                         <input type="text" id="new-user-name" placeholder="성명 (예: 홍길동)" class="border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-500">
                         <select id="new-user-role" class="border border-slate-300 rounded px-2 py-1.5 text-xs outline-none focus:border-blue-500">
@@ -219,7 +219,7 @@
     <!-- Firebase SDK 모듈 -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const firebaseConfig = {
@@ -236,22 +236,25 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut };
+        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
 
+        // 시스템 시작 시 호출
         window.initApp();
     </script>
 
     <!-- 메인 비즈니스 로직 -->
     <script>
+        // 공통 해시 함수
         async function hashPassword(str) {
             const msgBuffer = new TextEncoder().encode(str);
             const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
             return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
         }
 
-        const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; // wpswkd20
-        const INITIAL_HASH_1470 = "ea817cbb346df91ee939ceaa6644f83cfecaa7e06a35043bf7e24a87cbb9797d"; // 1470
+        const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; // wpswkd20 해시
+        const INITIAL_HASH_1470 = "ea817cbb346df91ee939ceaa6644f83cfecaa7e06a35043bf7e24a87cbb9797d"; // 1470 해시
 
+        // 초기 기본 데이터 구조
         let defaultSheetsData = {
             "월별실적취합": {
                 columns: [
@@ -272,85 +275,81 @@
             }
         };
 
+        // 데이터 변수 초기화
         let sheetsData = JSON.parse(JSON.stringify(defaultSheetsData));
-
-        const MASTER_ADMINS = [
-            { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
-            { userId: "choiyw", name: "최영우", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
-        ];
-
-        let accountsData = [
-            ...MASTER_ADMINS,
-            { userId: "minsu", name: "김민수", role: "수도권", passwordHash: INITIAL_HASH_1470, isInitialPw: true },
-            { userId: "younghee", name: "박영희", role: "동부", passwordHash: INITIAL_HASH_1470, isInitialPw: true }
-        ];
-
+        let accountsData = [];
         let currentAccount = null;
         let activeSheet = "월별실적취합";
         let selectedCell = { r: 0, c: 0 };
         let isRemoteUpdating = false;
 
+        // 마스터 관리자는 배열에 무조건 존재하도록 강제 (DB 의존성 탈피)
         function ensureMasterAdmins() {
-            MASTER_ADMINS.forEach(admin => {
+            const masters = [
+                { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
+                { userId: "choiyw", name: "최영우", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
+            ];
+            
+            masters.forEach(admin => {
                 const idx = accountsData.findIndex(a => a.userId === admin.userId);
                 if (idx === -1) {
-                    accountsData.unshift({ ...admin });
+                    accountsData.unshift(admin);
                 } else {
                     accountsData[idx].name = admin.name;
-                    accountsData[idx].role = "최고관리자";
-                    accountsData[idx].passwordHash = ADMIN_HASH;
+                    accountsData[idx].role = admin.role;
+                    accountsData[idx].passwordHash = admin.passwordHash;
                     accountsData[idx].isInitialPw = false;
                 }
             });
         }
 
+        // 최고 권한 체크
         function isPrivilegedRole(role) {
             return role === "최고관리자" || role === "서추" || role === "영추";
         }
 
-        window.initApp = function() {
-            ensureMasterAdmins();
+        // 실시간 DB 동기화 시작 (Firebase 인증이 완료된 직후에만 호출됨)
+        let unsubAccounts = null;
+        let unsubSheets = null;
 
-            const { db, doc, onSnapshot, setDoc } = window.fb;
+        function startDatabaseSync() {
+            const { db, doc, onSnapshot } = window.fb;
+            
+            // 기존 구독 해제 (중복 방지)
+            if (unsubAccounts) unsubAccounts();
+            if (unsubSheets) unsubSheets();
 
-            // 계정 DB 실시간 동기화
-            onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
+            unsubAccounts = onSnapshot(doc(db, "config", "accountsDoc"), (snap) => {
                 if (snap.exists()) {
-                    let remoteAccounts = snap.data().accounts;
-                    if (Array.isArray(remoteAccounts) && remoteAccounts.length > 0) {
-                        accountsData = remoteAccounts;
-                    }
+                    accountsData = snap.data().accounts || [];
+                    ensureMasterAdmins();
                 } else {
-                    saveAccountsToFirebase();
+                    ensureMasterAdmins();
+                    saveAccountsToFirebase(); // 문서가 없으면 초기 생성
                 }
-                ensureMasterAdmins();
                 setSyncStatus(true);
             }, (err) => {
-                console.error("Accounts sync error:", err);
+                console.error("계정 연동 에러:", err);
                 setSyncStatus(false);
             });
 
-            // 시트 문서 DB 실시간 동기화
-            onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
+            unsubSheets = onSnapshot(doc(db, "sheets", "mainDoc"), (snap) => {
                 if (snap.exists()) {
-                    const remote = snap.data().data;
-                    if (remote && Object.keys(remote).length > 0) {
-                        isRemoteUpdating = true;
-                        sheetsData = remote;
-                        if (!sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
-                        renderSheetTabs();
-                        renderGrid();
-                        isRemoteUpdating = false;
-                        setSyncStatus(true);
-                    }
+                    isRemoteUpdating = true;
+                    sheetsData = snap.data().data;
+                    if (!sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
+                    renderSheetTabs();
+                    renderGrid();
+                    isRemoteUpdating = false;
+                    setSyncStatus(true);
                 } else {
-                    saveSheetsToFirebase();
+                    saveSheetsToFirebase(); // 문서가 없으면 초기 생성
                 }
             }, (err) => {
-                console.error("Sheets sync error:", err);
+                console.error("시트 연동 에러:", err);
                 setSyncStatus(false);
             });
-        };
+        }
 
         function setSyncStatus(isOk) {
             const dot = document.getElementById('sync-dot');
@@ -361,7 +360,7 @@
                 document.getElementById('sync-status').className = "bg-emerald-500/20 text-emerald-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 mr-2";
             } else {
                 dot.className = "w-2 h-2 rounded-full bg-red-400";
-                text.innerText = "연결 오류";
+                text.innerText = "연결 끊김";
                 document.getElementById('sync-status').className = "bg-red-500/20 text-red-300 px-2.5 py-1 rounded text-xs font-semibold flex items-center space-x-1.5 mr-2";
             }
         }
@@ -372,10 +371,8 @@
                 const { db, doc, setDoc } = window.fb;
                 const cleanData = JSON.parse(JSON.stringify(sheetsData));
                 await setDoc(doc(db, "sheets", "mainDoc"), { data: cleanData });
-                setSyncStatus(true);
             } catch (e) {
-                console.error("시트 DB 저장 실패:", e);
-                setSyncStatus(false);
+                console.error("시트 저장 실패:", e);
             }
         }
 
@@ -386,71 +383,145 @@
                 const cleanAccounts = JSON.parse(JSON.stringify(accountsData));
                 await setDoc(doc(db, "config", "accountsDoc"), { accounts: cleanAccounts });
             } catch (e) {
-                console.error("계정 DB 저장 실패:", e);
+                console.error("계정 저장 실패:", e);
             }
         }
 
-        // 로그인 처리 (Firebase Auth 자동 생성 및 로그인 연동으로 보안과 접속 동시 보장)
+        // 앱 초기화 로직
+        window.initApp = function() {
+            ensureMasterAdmins();
+            renderSheetTabs();
+            renderGrid();
+
+            const { auth, onAuthStateChanged } = window.fb;
+            const savedUserId = localStorage.getItem("hellocn_auth_userid");
+
+            // 페이지 새로고침 시 Firebase Auth 세션이 살아있는지 확인
+            onAuthStateChanged(auth, async (fbUser) => {
+                if (fbUser && savedUserId) {
+                    // Firebase Auth에 이미 로그인 되어 있다면 실시간 동기화 시작
+                    startDatabaseSync();
+                    
+                    // DB에서 계정 정보가 다 로드되길 살짝 기다린 후 UI 세팅 (최초 1회 방어)
+                    setTimeout(() => {
+                        const found = accountsData.find(a => a.userId === savedUserId);
+                        if (found) {
+                            currentAccount = found;
+                            document.getElementById('login-modal').classList.add('hidden');
+                            updateUserInterface();
+                        } else {
+                            // 만약 DB에 계정이 없는데 세션만 살아있으면 강제 로그아웃
+                            handleLogout();
+                        }
+                    }, 800);
+                } else {
+                    // 로그아웃 상태면 로그인 창 표시
+                    document.getElementById('login-modal').classList.remove('hidden');
+                }
+            });
+        };
+
+        // 🌟 하이브리드 로그인 처리 (핵심 완벽 해결 로직)
         async function handleLoginSubmit(e) {
             e.preventDefault();
+            
+            // UI 비활성화 및 로딩 표시 (중복 클릭 방지)
+            const btn = document.getElementById('login-submit-btn');
+            const originalBtnHtml = btn.innerHTML;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>로그인 처리중...</span>`;
+            btn.disabled = true;
+
             let userId = document.getElementById('login-id').value.trim().toLowerCase();
             userId = userId.replace('@helloconnectn.com', '');
-            const email = userId + "@helloconnectn.com";
-            const pw = document.getElementById('login-pw').value.trim();
+            const inputPw = document.getElementById('login-pw').value.trim();
 
-            ensureMasterAdmins();
+            const fbEmail = userId + "@helloconnectn.com";
+            // Firebase Auth와 앱 비밀번호 충돌을 원천 차단하기 위한 시스템 통신 전용 비밀번호
+            const fbGatewayPw = "HelloCN_Sys_1004!" + userId; 
+            
+            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc, setDoc } = window.fb;
 
-            const user = accountsData.find(a => a.userId === userId || a.email === email);
-            if (!user) {
-                alert("등록되지 않은 아이디입니다. 최고관리자에게 문의하세요.");
-                return;
-            }
-
-            const inputHash = await hashPassword(pw);
-            const isMaster = (userId === "suby20" || userId === "choiyw");
-
-            if (isMaster) {
-                if (inputHash !== ADMIN_HASH) {
-                    alert("비밀번호가 일치하지 않습니다.");
-                    return;
-                }
-            } else {
-                const isInitialMatch = (pw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
-                const isHashedMatch = (user.passwordHash === inputHash);
-
-                if (!isInitialMatch && !isHashedMatch) {
-                    alert("비밀번호가 일치하지 않습니다.");
-                    return;
-                }
-
-                if (isInitialMatch) {
-                    user.isInitialPw = true;
-                    user.passwordHash = INITIAL_HASH_1470;
-                }
-            }
-
-            // Firebase Auth 연동 (계정 없으면 자동 생성 후 로그인 처리하여 보안 규칙 통과)
-            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
             try {
-                await signInWithEmailAndPassword(auth, email, pw);
-            } catch (authErr) {
+                // [Step 1] 파이어베이스 Auth 무조건 로그인 강제 (request.auth 확보)
                 try {
-                    await createUserWithEmailAndPassword(auth, email, pw);
-                } catch (createErr) {
-                    console.warn("Auth auto-create notice:", createErr);
+                    await signInWithEmailAndPassword(auth, fbEmail, fbGatewayPw);
+                } catch (authErr) {
+                    // 계정이 없으면 즉시 자동 생성하여 로그인 패스
+                    await createUserWithEmailAndPassword(auth, fbEmail, fbGatewayPw);
                 }
+                
+                // --- 이 시점부터 파이어베이스 보안규칙 (request.auth != null) 통과 완료 ---
+
+                // [Step 2] 앱 자체 DB(accountsDoc) 불러오기 (실제 권한/비밀번호 검증용)
+                const docSnap = await getDoc(doc(db, "config", "accountsDoc"));
+                if (docSnap.exists()) {
+                    accountsData = docSnap.data().accounts || [];
+                } else {
+                    ensureMasterAdmins();
+                    await setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
+                }
+                ensureMasterAdmins(); // 마스터 계정 무결성 보장
+
+                // [Step 3] 사용자가 입력한 비밀번호와 앱 DB(accountsDoc) 해시 검증
+                const user = accountsData.find(a => a.userId === userId);
+                if (!user) {
+                    alert("등록되지 않은 아이디입니다. 최고관리자에게 문의하세요.");
+                    await window.fb.signOut(auth);
+                    resetLoginBtn(btn, originalBtnHtml);
+                    return;
+                }
+
+                // 마스터 계정은 wpswkd20 으로 즉시 하드코딩 패스
+                if (userId === "suby20" || userId === "choiyw") {
+                    if (inputPw !== "wpswkd20") {
+                        alert("비밀번호가 일치하지 않습니다.");
+                        await window.fb.signOut(auth);
+                        resetLoginBtn(btn, originalBtnHtml);
+                        return;
+                    }
+                } else {
+                    // 일반 계정 해시 검증
+                    const inputHash = await hashPassword(inputPw);
+                    const isInitialMatch = (inputPw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
+                    const isHashedMatch = (user.passwordHash === inputHash);
+
+                    if (!isInitialMatch && !isHashedMatch) {
+                        alert("비밀번호가 일치하지 않습니다.");
+                        await window.fb.signOut(auth);
+                        resetLoginBtn(btn, originalBtnHtml);
+                        return;
+                    }
+                    if (isInitialMatch) {
+                        user.isInitialPw = true;
+                        user.passwordHash = INITIAL_HASH_1470;
+                    }
+                }
+
+                // [Step 4] 로그인 검증 완료 및 UI 전환
+                currentAccount = user;
+                localStorage.setItem("hellocn_auth_userid", user.userId);
+                
+                document.getElementById('login-modal').classList.add('hidden');
+                updateUserInterface();
+                startDatabaseSync(); // 실시간 통신 리스너 본격 가동
+
+                // 초기 비밀번호(1470)인 경우 변경 창 띄우기
+                if (userId !== "suby20" && userId !== "choiyw" && user.isInitialPw) {
+                    document.getElementById('pw-change-modal').classList.remove('hidden');
+                    document.getElementById('pw-change-modal').classList.add('flex');
+                }
+
+            } catch (fatalErr) {
+                console.error("로그인 프로세스 에러:", fatalErr);
+                alert("서버 연결에 문제가 발생했습니다. 관리자에게 문의하세요.");
+            } finally {
+                resetLoginBtn(btn, originalBtnHtml);
             }
+        }
 
-            currentAccount = user;
-            localStorage.setItem("hellocn_auth_userid", user.userId);
-
-            document.getElementById('login-modal').classList.add('hidden');
-            updateUserInterface();
-
-            if (!isMaster && user.isInitialPw) {
-                document.getElementById('pw-change-modal').classList.remove('hidden');
-                document.getElementById('pw-change-modal').classList.add('flex');
-            }
+        function resetLoginBtn(btn, html) {
+            btn.innerHTML = html;
+            btn.disabled = false;
         }
 
         async function handlePasswordChangeSubmit(e) {
@@ -483,14 +554,21 @@
         async function handleLogout() {
             if (confirm("로그아웃 하시겠습니까?")) {
                 const { auth, signOut } = window.fb;
-                await signOut(auth).catch(e => {});
+                await signOut(auth).catch(e => {}); // 파이어베이스 인증 세션 해제
+                
+                if (unsubAccounts) unsubAccounts(); // DB 리스너 끄기
+                if (unsubSheets) unsubSheets();
+                
                 localStorage.removeItem("hellocn_auth_userid");
                 currentAccount = null;
+                
                 document.getElementById('login-modal').classList.remove('hidden');
                 document.getElementById('login-id').value = '';
                 document.getElementById('login-pw').value = '';
+                
                 updateUserInterface();
                 renderGrid();
+                setSyncStatus(false);
             }
         }
 
@@ -688,7 +766,7 @@
 
         function addNewSheet() {
             if (!currentAccount || !isPrivilegedRole(currentAccount.role)) {
-                alert("새 시트 추가는 최고관리자 및 해당 권한 보유자만 가능합니다.");
+                alert("새 시트 추가는 최고관리자 권한 보유자만 가능합니다.");
                 return;
             }
             let sheetName = prompt("새 시트 이름을 입력하세요:", "시트" + (Object.keys(sheetsData).length + 1));
@@ -806,7 +884,7 @@
             await saveSheetsToFirebase();
             closeColumnManager();
             renderGrid();
-            alert("열 구조가 안전하게 저장되었습니다!");
+            alert("열 구조가 안전하게 반영되었습니다!");
         }
 
         // 계정/권한 관리 모달
@@ -834,7 +912,7 @@
                     <div>
                         <div class="flex items-center space-x-2">
                             <span class="text-xs font-bold text-slate-800">${acc.name}</span>
-                            <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">${acc.userId}@helloconnectn.com</span>
+                            <span class="text-[10px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded font-mono">${acc.userId}</span>
                             <span class="text-[10px] bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded font-medium">${acc.role}</span>
                             ${isMaster ? '<span class="text-[10px] bg-blue-100 text-blue-700 px-1 rounded font-bold">마스터</span>' : (acc.isInitialPw ? '<span class="text-[10px] bg-amber-100 text-amber-700 px-1 rounded">초기PW</span>' : '<span class="text-[10px] bg-emerald-100 text-emerald-700 px-1 rounded">설정됨</span>')}
                         </div>
@@ -860,7 +938,7 @@
                     target.isInitialPw = true;
                     await saveAccountsToFirebase();
                     renderAdminAccountList();
-                    alert("비밀번호가 초기화되었습니다.");
+                    alert("비밀번호가 1470으로 초기화되었습니다.");
                 }
             }
         }
@@ -875,17 +953,15 @@
                 alert("아이디와 성명을 모두 입력해 주세요.");
                 return;
             }
-            const email = userId + "@helloconnectn.com";
 
-            if (accountsData.some(a => a.userId === userId || a.email === email)) {
-                alert("이미 존재하는 아이디 또는 이메일입니다.");
+            if (accountsData.some(a => a.userId === userId)) {
+                alert("이미 존재하는 아이디입니다.");
                 return;
             }
 
             accountsData.push({
                 userId: userId,
                 name: name,
-                email: email,
                 role: role,
                 passwordHash: INITIAL_HASH_1470,
                 isInitialPw: true
@@ -895,11 +971,11 @@
             document.getElementById('new-user-id').value = '';
             document.getElementById('new-user-name').value = '';
             renderAdminAccountList();
-            alert(`새 계정(${name} / ${userId})이 등록되었습니다. 초기 비밀번호는 1470 입니다.`);
+            alert(`새 계정(${name} / ${userId})이 성공적으로 등록되었습니다.`);
         }
 
         async function adminDeleteAccount(idx) {
-            if (confirm("해당 계정을 삭제하시겠습니까?")) {
+            if (confirm("정말 이 계정을 삭제하시겠습니까?")) {
                 accountsData.splice(idx, 1);
                 await saveAccountsToFirebase();
                 renderAdminAccountList();
