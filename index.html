@@ -96,8 +96,8 @@
         </div>
     </div>
 
-    <!-- 1. 로그인 모달 -->
-    <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-50">
+    <!-- 1. 로그인 모달 (기본 숨김 처리로 깜빡임 방지) -->
+    <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50">
         <div class="bg-white w-[420px] rounded-2xl shadow-2xl p-6 border border-slate-100">
             <div class="text-center mb-6">
                 <div class="inline-flex bg-blue-100 text-blue-600 p-3 rounded-full mb-2">
@@ -283,11 +283,11 @@
         let selectedCell = { r: 0, c: 0 };
         let isRemoteUpdating = false;
 
-        // 마스터 관리자는 배열에 무조건 존재하도록 강제 (DB 의존성 탈피)
+        // 마스터 관리자는 배열에 무조건 존재하도록 강제 (DB 의존성 탈피, 최영우 아이디 abcd9420 적용[cite: 3])
         function ensureMasterAdmins() {
             const masters = [
                 { userId: "suby20", name: "심현섭", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false },
-                { userId: "choiyw", name: "최영우", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
+                { userId: "abcd9420", name: "최영우", role: "최고관리자", passwordHash: ADMIN_HASH, isInitialPw: false }
             ];
             
             masters.forEach(admin => {
@@ -343,7 +343,7 @@
                     isRemoteUpdating = false;
                     setSyncStatus(true);
                 } else {
-                    saveSheetsToFirebase(); // 문서가 없으면 초기 생성
+                    saveSheetsToFirebase(); //[cite: 3] DB에 sheets/mainDoc 문서가 없으면 즉시 강제 생성
                 }
             }, (err) => {
                 console.error("시트 연동 에러:", err);
@@ -370,7 +370,7 @@
             try {
                 const { db, doc, setDoc } = window.fb;
                 const cleanData = JSON.parse(JSON.stringify(sheetsData));
-                await setDoc(doc(db, "sheets", "mainDoc"), { data: cleanData });
+                await setDoc(doc(db, "sheets", "mainDoc"), { data: cleanData }); //[cite: 3] 시트 데이터 저장 실행
             } catch (e) {
                 console.error("시트 저장 실패:", e);
             }
@@ -387,7 +387,7 @@
             }
         }
 
-        // 앱 초기화 로직
+        // 앱 초기화 로직 (로그인 깜빡임 해결)
         window.initApp = function() {
             ensureMasterAdmins();
             renderSheetTabs();
@@ -395,37 +395,35 @@
 
             const { auth, onAuthStateChanged } = window.fb;
             const savedUserId = localStorage.getItem("hellocn_auth_userid");
+            const loginModal = document.getElementById('login-modal');
 
             // 페이지 새로고침 시 Firebase Auth 세션이 살아있는지 확인
             onAuthStateChanged(auth, async (fbUser) => {
                 if (fbUser && savedUserId) {
-                    // Firebase Auth에 이미 로그인 되어 있다면 실시간 동기화 시작
+                    // Firebase Auth에 이미 로그인 되어 있다면 실시간 동기화 시작 (모달은 계속 숨김 상태 유지)
                     startDatabaseSync();
                     
-                    // DB에서 계정 정보가 다 로드되길 살짝 기다린 후 UI 세팅 (최초 1회 방어)
                     setTimeout(() => {
                         const found = accountsData.find(a => a.userId === savedUserId);
                         if (found) {
                             currentAccount = found;
-                            document.getElementById('login-modal').classList.add('hidden');
                             updateUserInterface();
                         } else {
-                            // 만약 DB에 계정이 없는데 세션만 살아있으면 강제 로그아웃
                             handleLogout();
                         }
                     }, 800);
                 } else {
-                    // 로그아웃 상태면 로그인 창 표시
-                    document.getElementById('login-modal').classList.remove('hidden');
+                    // 로그아웃 상태일 때만 로그인 창을 화면에 표시 (flex 적용)
+                    loginModal.classList.remove('hidden');
+                    loginModal.classList.add('flex');
                 }
             });
         };
 
-        // 🌟 하이브리드 로그인 처리 (핵심 완벽 해결 로직)
+        // 🌟 하이브리드 로그인 처리
         async function handleLoginSubmit(e) {
             e.preventDefault();
             
-            // UI 비활성화 및 로딩 표시 (중복 클릭 방지)
             const btn = document.getElementById('login-submit-btn');
             const originalBtnHtml = btn.innerHTML;
             btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> <span>로그인 처리중...</span>`;
@@ -436,7 +434,6 @@
             const inputPw = document.getElementById('login-pw').value.trim();
 
             const fbEmail = userId + "@helloconnectn.com";
-            // Firebase Auth와 앱 비밀번호 충돌을 원천 차단하기 위한 시스템 통신 전용 비밀번호
             const fbGatewayPw = "HelloCN_Sys_1004!" + userId; 
             
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc, setDoc } = window.fb;
@@ -446,12 +443,9 @@
                 try {
                     await signInWithEmailAndPassword(auth, fbEmail, fbGatewayPw);
                 } catch (authErr) {
-                    // 계정이 없으면 즉시 자동 생성하여 로그인 패스
                     await createUserWithEmailAndPassword(auth, fbEmail, fbGatewayPw);
                 }
                 
-                // --- 이 시점부터 파이어베이스 보안규칙 (request.auth != null) 통과 완료 ---
-
                 // [Step 2] 앱 자체 DB(accountsDoc) 불러오기 (실제 권한/비밀번호 검증용)
                 const docSnap = await getDoc(doc(db, "config", "accountsDoc"));
                 if (docSnap.exists()) {
@@ -460,9 +454,9 @@
                     ensureMasterAdmins();
                     await setDoc(doc(db, "config", "accountsDoc"), { accounts: accountsData });
                 }
-                ensureMasterAdmins(); // 마스터 계정 무결성 보장
+                ensureMasterAdmins(); 
 
-                // [Step 3] 사용자가 입력한 비밀번호와 앱 DB(accountsDoc) 해시 검증
+                // [Step 3] 사용자가 입력한 비밀번호와 앱 DB(accountsDoc) 검증
                 const user = accountsData.find(a => a.userId === userId);
                 if (!user) {
                     alert("등록되지 않은 아이디입니다. 최고관리자에게 문의하세요.");
@@ -471,8 +465,8 @@
                     return;
                 }
 
-                // 마스터 계정은 wpswkd20 으로 즉시 하드코딩 패스
-                if (userId === "suby20" || userId === "choiyw") {
+                // 마스터 계정 처리 로직에 abcd9420 추가[cite: 3]
+                if (userId === "suby20" || userId === "abcd9420") {
                     if (inputPw !== "wpswkd20") {
                         alert("비밀번호가 일치하지 않습니다.");
                         await window.fb.signOut(auth);
@@ -480,7 +474,6 @@
                         return;
                     }
                 } else {
-                    // 일반 계정 해시 검증
                     const inputHash = await hashPassword(inputPw);
                     const isInitialMatch = (inputPw === "1470") && (user.isInitialPw || user.passwordHash === INITIAL_HASH_1470 || !user.passwordHash);
                     const isHashedMatch = (user.passwordHash === inputHash);
@@ -501,12 +494,14 @@
                 currentAccount = user;
                 localStorage.setItem("hellocn_auth_userid", user.userId);
                 
-                document.getElementById('login-modal').classList.add('hidden');
+                const loginModal = document.getElementById('login-modal');
+                loginModal.classList.remove('flex');
+                loginModal.classList.add('hidden');
+                
                 updateUserInterface();
                 startDatabaseSync(); // 실시간 통신 리스너 본격 가동
 
-                // 초기 비밀번호(1470)인 경우 변경 창 띄우기
-                if (userId !== "suby20" && userId !== "choiyw" && user.isInitialPw) {
+                if (userId !== "suby20" && userId !== "abcd9420" && user.isInitialPw) {
                     document.getElementById('pw-change-modal').classList.remove('hidden');
                     document.getElementById('pw-change-modal').classList.add('flex');
                 }
@@ -554,15 +549,17 @@
         async function handleLogout() {
             if (confirm("로그아웃 하시겠습니까?")) {
                 const { auth, signOut } = window.fb;
-                await signOut(auth).catch(e => {}); // 파이어베이스 인증 세션 해제
+                await signOut(auth).catch(e => {}); 
                 
-                if (unsubAccounts) unsubAccounts(); // DB 리스너 끄기
+                if (unsubAccounts) unsubAccounts(); 
                 if (unsubSheets) unsubSheets();
                 
                 localStorage.removeItem("hellocn_auth_userid");
                 currentAccount = null;
                 
-                document.getElementById('login-modal').classList.remove('hidden');
+                const loginModal = document.getElementById('login-modal');
+                loginModal.classList.remove('hidden');
+                loginModal.classList.add('flex');
                 document.getElementById('login-id').value = '';
                 document.getElementById('login-pw').value = '';
                 
@@ -686,6 +683,7 @@
                                 select.appendChild(opt);
                             });
 
+                            // 셀렉트 박스 변경 시 자동 저장 트리거
                             select.onchange = (e) => {
                                 sheetsData[activeSheet].rows[rIdx][cIdx] = e.target.value;
                                 saveSheetsToFirebase();
@@ -700,7 +698,8 @@
                                 selectedCell = { r: rIdx, c: cIdx };
                                 document.getElementById('selected-cell-indicator').innerText = `선택 셀: ${String.fromCharCode(65 + cIdx)}${rIdx + 1}`;
                             };
-                            input.oninput = (e) => {
+                            // 엔터를 치거나 다른 셀을 클릭했을 때 DB에 자동 저장 실행 (onchange 이벤트 적용)
+                            input.onchange = (e) => {
                                 sheetsData[activeSheet].rows[rIdx][cIdx] = e.target.value;
                                 saveSheetsToFirebase();
                             };
@@ -713,7 +712,7 @@
             });
         }
 
-        // 클립보드 붙여넣기 (Ctrl + V)
+        // 클립보드 붙여넣기 (Ctrl + V) 시 저장 트리거 추가
         document.addEventListener('paste', function(e) {
             if (!currentAccount || selectedCell.r === undefined || selectedCell.c === undefined) return;
             let clipboardData = (e.clipboardData || window.clipboardData).getData('text');
@@ -905,7 +904,8 @@
             container.innerHTML = '';
 
             accountsData.forEach((acc, idx) => {
-                const isMaster = (acc.userId === "suby20" || acc.userId === "choiyw");
+                // 마스터 계정 UI 처리에 abcd9420 추가[cite: 3]
+                const isMaster = (acc.userId === "suby20" || acc.userId === "abcd9420");
                 const div = document.createElement('div');
                 div.className = "flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50";
                 div.innerHTML = `
