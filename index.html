@@ -7,6 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
@@ -16,14 +17,12 @@
         #grid-container { height: calc(100vh - 210px); overflow: auto; scroll-behavior: smooth; }
         table.custom-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid #cbd5e1; border-left: 1px solid #cbd5e1; }
         
-        /* 헤더 고정 및 레이아웃 */
         .grid-header { background-color: #f1f5f9; color: #334155; font-weight: bold; text-align: center; font-size: 12px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; position: sticky; z-index: 10; box-sizing: border-box; cursor: pointer; }
         .grid-header-row1 { top: 0; }
         .grid-header-row2 { top: 28px; } 
         .grid-header-corner { position: sticky; left: 0; z-index: 20; background-color: #e2e8f0; cursor: pointer; }
         .row-header { position: sticky; left: 0; z-index: 5; background-color: #f8fafc; font-weight: bold; color: #64748b; text-align: center; font-size: 11px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; cursor: pointer; }
         
-        /* 셀 디자인 및 마우스오버 효과 (요청 5 반영) */
         .grid-cell { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 0; position: relative; background: #ffffff; transition: background-color 0.1s, box-shadow 0.1s; }
         .grid-cell:hover { box-shadow: inset 0 0 0 1px #93c5fd; z-index: 2; }
         
@@ -31,18 +30,14 @@
         .cell-input:focus { background: #eff6ff; box-shadow: inset 0 0 0 2px #3b82f6; z-index: 3; position: relative; }
         .cell-select { width: 100%; height: 100%; min-height: 28px; border: none; background: transparent; padding: 2px 4px; outline: none; font-size: 12px; cursor: pointer; }
         
-        /* 다중 선택 드래그 및 부가 기능 */
         .cell-selected { background-color: #e0f2fe !important; }
         .grid-cell.locked { background-color: #f8fafc; color: #94a3b8; cursor: not-allowed; }
         .grid-cell.locked:hover { box-shadow: none; }
         
         .memo-indicator { position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 8px 8px 0; border-color: transparent #f59e0b transparent transparent; cursor: help; z-index: 1; }
-        
-        /* 🌟 실시간 커서 (요청 8 반영) */
         .cursor-indicator { position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px; border: 2px solid; pointer-events: none; z-index: 4; display: none; }
         .cursor-name { position: absolute; top: -20px; right: -2px; background: inherit; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px 4px 0px 4px; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
 
-        /* 크기 조절(Resize) 핸들 */
         .resize-handle-col { position: absolute; right: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 15; }
         .resize-handle-col:hover { background-color: #3b82f6; }
         .resize-handle-row { position: absolute; bottom: -3px; left: 0; right: 0; height: 6px; cursor: row-resize; z-index: 15; }
@@ -58,7 +53,6 @@
 </head>
 <body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
 
-    <!-- 로딩 오버레이 -->
     <div id="initial-loader" class="fixed inset-0 bg-slate-900 z-[999] flex flex-col items-center justify-center text-white transition-opacity duration-200">
         <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-500 mb-5"></i>
         <h2 class="text-xl font-bold tracking-tight">시스템 연결 및 데이터 로딩 중...</h2>
@@ -90,9 +84,14 @@
         </div>
     </header>
 
-    <!-- 서식 툴바 (퀵 팔레트) -->
+    <!-- 🌟 서식 툴바 및 Undo/Redo -->
     <div class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between text-slate-600 z-10 shadow-sm">
         <div class="flex items-center space-x-1">
+            <!-- 🌟 로컬 되돌리기/앞으로 돌리기 -->
+            <button onclick="handleUndo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="실행 취소 (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
+            <button onclick="handleRedo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="다시 실행 (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
+            <div class="w-px h-5 bg-slate-300 mx-2"></div>
+            
             <button onclick="applyFormat('b', true)" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="굵게"><i class="fa-solid fa-bold"></i></button>
             <div class="w-px h-5 bg-slate-300 mx-1"></div>
             <button onclick="applyFormat('align', 'left')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="왼쪽 정렬"><i class="fa-solid fa-align-left"></i></button>
@@ -114,6 +113,8 @@
             <button onclick="addMemoToCell()" class="p-1.5 hover:bg-slate-100 rounded text-amber-500 font-bold text-xs flex items-center"><i class="fa-regular fa-comment-dots mr-1"></i>메모</button>
         </div>
         <div class="flex items-center space-x-2">
+            <!-- 🌟 대시보드 버튼으로 변경 -->
+            <button onclick="openDashboard()" class="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded font-bold transition flex items-center"><i class="fa-solid fa-chart-pie mr-1.5"></i>요약 대시보드</button>
             <button onclick="exportPDF()" class="text-xs bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded font-bold transition flex items-center"><i class="fa-solid fa-file-pdf mr-1.5"></i>PDF</button>
             <button onclick="exportExcel()" class="text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded font-bold transition flex items-center"><i class="fa-solid fa-file-excel mr-1.5"></i>엑셀 다운</button>
         </div>
@@ -147,7 +148,6 @@
             <div id="stat-avg" class="font-bold text-emerald-600">평균: 0</div>
         </div>
         
-        <!-- 하단 시트 탭 (순서 이동 버튼 포함) -->
         <div class="bg-slate-100 border-t border-slate-200 px-2 py-1 flex items-center justify-between">
             <div class="flex items-center space-x-1 flex-1 overflow-x-auto" id="sheet-tabs"></div>
             <div class="flex items-center space-x-1 ml-2">
@@ -171,7 +171,51 @@
         </div>
     </div>
 
-    <!-- 모달: 로그인 -->
+    <!-- 🌟 인터랙티브 대시보드 모달 -->
+    <div id="dashboard-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
+        <div class="bg-white w-[850px] max-h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-chart-pie mr-2 text-indigo-400"></i>피벗 요약표 및 대시보드</h3>
+                <button onclick="closeDashboard()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 bg-slate-50 border-b flex space-x-4">
+                <div class="flex-1">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">기준 항목 (X축 / 그룹화)</label>
+                    <select id="dash-group-col" onchange="renderDashboard()" class="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500"></select>
+                </div>
+                <div class="flex-1">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">계산 항목 (Y축 / 값)</label>
+                    <select id="dash-val-col" onchange="renderDashboard()" class="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500"></select>
+                </div>
+                <div class="w-32">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">계산 방식</label>
+                    <select id="dash-agg-type" onchange="renderDashboard()" class="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500">
+                        <option value="sum">합계 (SUM)</option>
+                        <option value="avg">평균 (AVG)</option>
+                        <option value="count">개수 (COUNT)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex-1 p-5 flex space-x-5 overflow-y-auto">
+                <div class="w-1/2 bg-white border border-slate-200 rounded-lg p-3">
+                    <canvas id="dashboard-chart"></canvas>
+                </div>
+                <div class="w-1/2 bg-white border border-slate-200 rounded-lg overflow-hidden flex flex-col">
+                    <table class="w-full text-sm text-left">
+                        <thead class="text-xs text-slate-700 bg-slate-100 border-b">
+                            <tr>
+                                <th class="px-4 py-2" id="dash-th-group">그룹</th>
+                                <th class="px-4 py-2 text-right" id="dash-th-val">결과값</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dash-table-body" class="divide-y divide-slate-200"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 모달: 로그인, 시트설정, 계정관리 -->
     <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50">
         <div class="bg-white w-[400px] rounded-xl shadow-2xl p-6">
             <h2 class="text-lg font-bold text-center mb-4">헬로CN 닥스 PRO</h2>
@@ -183,7 +227,6 @@
         </div>
     </div>
 
-    <!-- 모달: 시트 설정 -->
     <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[780px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex justify-between"><h3 class="font-bold text-sm">시트 및 항목 서식 설정</h3><button onclick="closeColumnManager()"><i class="fa-solid fa-xmark"></i></button></div>
@@ -195,7 +238,6 @@
                 <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
                     <div>
                         <span class="text-xs font-bold text-slate-800">엑셀 붙여넣기 헤더 줄수</span>
-                        <p class="text-[10px] text-slate-500">2줄 헤더 선택 시 상위 헤더가 엑셀처럼 자동 병합(Colspan) 됩니다.</p>
                     </div>
                     <select id="header-rows-select" class="border rounded px-3 py-1.5 text-xs font-bold text-blue-600 outline-none"><option value="1">1줄 헤더</option><option value="2">2줄 헤더</option></select>
                 </div>
@@ -235,15 +277,17 @@
         let myFilters = {}; let selection = { startR: null, startC: null, endR: null, endC: null, active: false }; let activeCell = { r: null, c: null };
         let resizeState = { active: false, type: '', idx: -1, startX: 0, startY: 0, startWidth: 0, startHeight: 0 };
         const presenceColors = ['#ef4444', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#0ea5e9'];
+        let chartObj = null;
+
+        // 🌟 로컬 Undo / Redo 스택
+        let localUndoStack = [];
+        let localRedoStack = [];
 
         let defaultSheetsData = {
             "월별실적": {
-                headerRows: 2, rowHeights: {},
-                columns: [
-                    { name: "지역", name2: "", type: "text", width: 120 },
-                    { name: "상태", name2: "진행상태", type: "select", options: "대기,완료", width: 100 }
-                ],
-                rows: [ [{v:"수도권",b:false,bg:"",align:"center",memo:""}, {v:"완료",b:false,bg:"",align:"center",memo:""}] ]
+                headerRows: 1, rowHeights: {},
+                columns: [{ name: "항목1", name2: "", type: "text", width: 120 }],
+                rows: [ [{v:"",b:false,bg:"",align:"center",memo:""}] ]
             }
         };
 
@@ -255,11 +299,8 @@
                 if(!data[sName].headerRows) data[sName].headerRows = 1;
                 if(!data[sName].rowHeights) data[sName].rowHeights = {};
                 data[sName].columns.forEach(c => { 
-                    if(!c.width) c.width = 120; 
-                    if(c.name2 === undefined) c.name2 = ""; 
-                    if(c.validation === 'number') c.type = 'number';
-                    if(c.validation === 'date') c.type = 'date';
-                    delete c.validation;
+                    if(!c.width) c.width = 120; if(c.name2 === undefined) c.name2 = ""; 
+                    if(c.validation === 'number') c.type = 'number'; if(c.validation === 'date') c.type = 'date'; delete c.validation;
                 });
                 data[sName].rows = data[sName].rows.map(row => row.map(cell => (typeof cell === 'string' ? { v: cell, b: false, bg: "", align: "center", memo: "" } : cell)));
             });
@@ -302,11 +343,7 @@
                 } else { sheetsData = migrateDataStructure(JSON.parse(JSON.stringify(defaultSheetsData))); activeSheet = Object.keys(sheetsData)[0]; saveSheetsToFirebase(); }
                 isRemoteUpdating = false;
             });
-            
-            // 🌟 실시간 커서 리스너 연동 (요청 8)
-            unsubPresence = onSnapshot(doc(db, "sheets", "presence"), snap => {
-                if (snap.exists() && activeSheet) drawRemoteCursors(snap.data().active || {});
-            });
+            unsubPresence = onSnapshot(doc(db, "sheets", "presence"), snap => { if (snap.exists() && activeSheet) drawRemoteCursors(snap.data().active || {}); });
         }
 
         async function saveSheetsToFirebase() {
@@ -320,98 +357,124 @@
             else { dot.className = "w-1.5 h-1.5 rounded-full bg-red-400"; text.innerText = "연결 끊김"; }
         }
 
-        // 🌟 실시간 커서 방송 (요청 8)
+        // 실시간 커서 방송
         async function broadcastCursor() {
             if(!currentAccount || !activeSheet || activeCell.r === null) return;
-            try {
-                await window.fb.setDoc(window.fb.doc(window.fb.db, "sheets", "presence"), { 
-                    [`active.${currentAccount.userId}`]: { sheet: activeSheet, r: activeCell.r, c: activeCell.c, name: currentAccount.name, ts: Date.now() }
-                }, { merge: true });
-            } catch(e) {}
+            try { await window.fb.setDoc(window.fb.doc(window.fb.db, "sheets", "presence"), { [`active.${currentAccount.userId}`]: { sheet: activeSheet, r: activeCell.r, c: activeCell.c, name: currentAccount.name, ts: Date.now() } }, { merge: true }); } catch(e) {}
         }
         function drawRemoteCursors(activeData) {
             document.querySelectorAll('.cursor-indicator').forEach(el => el.style.display = 'none');
-            const now = Date.now();
-            let colorIdx = 0;
+            const now = Date.now(); let colorIdx = 0;
             Object.keys(activeData).forEach(uid => {
                 if (uid === currentAccount.userId) return;
                 const pos = activeData[uid];
-                if (pos.sheet === activeSheet && (now - pos.ts < 60000)) { // 1분 이내만 표시
+                if (pos.sheet === activeSheet && (now - pos.ts < 60000)) { 
                     const td = document.getElementById(`cell-${pos.r}-${pos.c}`);
                     if (td) {
                         const cur = td.querySelector('.cursor-indicator');
                         if (cur) {
                             let color = presenceColors[colorIdx % presenceColors.length];
                             cur.style.borderColor = color;
-                            let nameTag = cur.querySelector('.cursor-name');
-                            nameTag.innerText = pos.name; nameTag.style.backgroundColor = color;
-                            cur.style.display = 'block';
-                            colorIdx++;
+                            let nameTag = cur.querySelector('.cursor-name'); nameTag.innerText = pos.name; nameTag.style.backgroundColor = color;
+                            cur.style.display = 'block'; colorIdx++;
                         }
                     }
                 }
             });
         }
 
-        // 🌟 수식 연산기 (요청 4 - 기본 사칙연산 및 A1, B2 셀 참조)
+        // 수식 연산기 (사칙연산 및 참조)
         function evaluateFormula(val, selfR, selfC) {
             if (typeof val !== 'string' || !val.startsWith('=')) return val;
             try {
                 let expr = val.substring(1).toUpperCase();
-                // A1, B2 등 셀 참조 파싱
                 expr = expr.replace(/[A-Z]+[0-9]+/g, (match) => {
-                    let colStr = match.match(/[A-Z]+/)[0];
-                    let rowStr = match.match(/[0-9]+/)[0];
-                    let c = 0;
-                    for (let i = 0; i < colStr.length; i++) c = c * 26 + (colStr.charCodeAt(i) - 64);
+                    let colStr = match.match(/[A-Z]+/)[0]; let rowStr = match.match(/[0-9]+/)[0];
+                    let c = 0; for (let i = 0; i < colStr.length; i++) c = c * 26 + (colStr.charCodeAt(i) - 64);
                     c -= 1; let r = parseInt(rowStr) - 1;
-                    if(r === selfR && c === selfC) return 0; // 순환참조 방지
+                    if(r === selfR && c === selfC) return 0;
                     let cellVal = sheetsData[activeSheet].rows[r][c]?.v || "0";
-                    let num = parseFloat(cellVal.toString().replace(/,/g, ''));
-                    return isNaN(num) ? 0 : num;
+                    let num = parseFloat(cellVal.toString().replace(/,/g, '')); return isNaN(num) ? 0 : num;
                 });
-                // 안전한 수식 계산
                 let result = new Function('return ' + expr)();
                 return isNaN(result) ? "#ERROR!" : result.toLocaleString();
             } catch(e) { return "#ERROR!"; }
         }
 
-        // 날짜/숫자 포맷터
         function formatDateString(val) {
             if (!val) return "";
-            if (/^\d{1,2}월\s*\d{1,2}일$/.test(val)) {
-                let m = val.match(/(\d+)/g); return `${m[0].padStart(2, '0')}월${m[1].padStart(2, '0')}일`;
-            }
+            if (/^\d{1,2}월\s*\d{1,2}일$/.test(val)) { let m = val.match(/(\d+)/g); return `${m[0].padStart(2, '0')}월${m[1].padStart(2, '0')}일`; }
             let nums = val.replace(/[^0-9]/g, '');
             if (nums.length === 4) return `${nums.substring(0,2)}월${nums.substring(2,4)}일`; 
             if (nums.length === 3) return `0${nums.substring(0,1)}월${nums.substring(1,3)}일`; 
             if (nums.length === 8) return `${nums.substring(4,6)}월${nums.substring(6,8)}일`; 
-            let parts = val.split(/[-/.]/);
-            if (parts.length >= 2) return `${parts[parts.length-2].padStart(2, '0')}월${parts[parts.length-1].padStart(2, '0')}일`;
+            let parts = val.split(/[-/.]/); if (parts.length >= 2) return `${parts[parts.length-2].padStart(2, '0')}월${parts[parts.length-1].padStart(2, '0')}일`;
             return val;
         }
         function formatNumberString(val) {
             if (!val || val.toString().startsWith('=')) return val;
-            let num = parseFloat(val.toString().replace(/,/g, ''));
-            return isNaN(num) ? val : num.toLocaleString();
+            let num = parseFloat(val.toString().replace(/,/g, '')); return isNaN(num) ? val : num.toLocaleString();
         }
 
-        // 🌟 자동 너비 맞춤 (요청 1)
+        // 🌟 로컬 Undo/Redo 엔진 코어
+        function pushUndoState(actionType, r, c, oldData, newData) {
+            localUndoStack.push({ sheet: activeSheet, type: actionType, r, c, oldData: JSON.parse(JSON.stringify(oldData)), newData: JSON.parse(JSON.stringify(newData)) });
+            if(localUndoStack.length > 50) localUndoStack.shift();
+            localRedoStack = [];
+        }
+        function pushMultiUndoState(actions) {
+            localUndoStack.push({ sheet: activeSheet, type: 'multi', actions: JSON.parse(JSON.stringify(actions)) });
+            if(localUndoStack.length > 50) localUndoStack.shift();
+            localRedoStack = [];
+        }
+        function handleUndo() {
+            if (localUndoStack.length === 0) return;
+            let act = localUndoStack.pop();
+            localRedoStack.push(act);
+            applyHistoryAction(act, true);
+        }
+        function handleRedo() {
+            if (localRedoStack.length === 0) return;
+            let act = localRedoStack.pop();
+            localUndoStack.push(act);
+            applyHistoryAction(act, false);
+        }
+        function applyHistoryAction(act, isUndo) {
+            let sheet = sheetsData[act.sheet];
+            if (!sheet) return;
+            
+            if (act.type === 'edit') {
+                if(sheet.rows[act.r] && sheet.rows[act.r][act.c]) {
+                    sheet.rows[act.r][act.c] = isUndo ? JSON.parse(JSON.stringify(act.oldData)) : JSON.parse(JSON.stringify(act.newData));
+                }
+            } else if (act.type === 'multi') {
+                act.actions.forEach(sub => {
+                    if(sheet.rows[sub.r] && sheet.rows[sub.r][sub.c]) {
+                        sheet.rows[sub.r][sub.c] = isUndo ? JSON.parse(JSON.stringify(sub.oldData)) : JSON.parse(JSON.stringify(sub.newData));
+                    }
+                });
+            }
+            saveSheetsToFirebase();
+            if (activeSheet === act.sheet) renderGrid();
+        }
+        
+        // 단축키 매핑 (Ctrl+Z, Ctrl+Y)
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); handleUndo(); }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); handleRedo(); }
+        });
+
+        // 자동 너비 조절
         function autoFitColumn(cIdx) {
-            let sheet = sheetsData[activeSheet];
-            let maxLen = 0;
-            const estimate = (str) => {
-                let len = 0; str = str || "";
-                for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 14 : 8;
-                return len + 25; // padding
-            };
+            let sheet = sheetsData[activeSheet]; let maxLen = 0;
+            const estimate = (str) => { let len = 0; str = str || ""; for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 14 : 8; return len + 25; };
             maxLen = Math.max(maxLen, estimate(sheet.columns[cIdx].name), estimate(sheet.columns[cIdx].name2));
             sheet.rows.forEach(r => { if(r[cIdx]) maxLen = Math.max(maxLen, estimate(r[cIdx].v)); });
             sheet.columns[cIdx].width = Math.max(50, Math.min(400, maxLen));
             saveSheetsToFirebase(); renderGrid();
         }
 
-        // 마우스 드래그 크기 조절
+        // 크기 조절
         function startResize(e, type, idx) {
             e.stopPropagation(); resizeState.active = true; resizeState.type = type; resizeState.idx = idx;
             resizeState.startX = e.clientX; resizeState.startY = e.clientY; let sheet = sheetsData[activeSheet];
@@ -432,11 +495,9 @@
                 let tr = document.getElementById(`row-${resizeState.idx}`); if(tr) tr.style.height = newH+'px';
             }
         });
-        window.addEventListener('mouseup', (e) => {
-            if (resizeState.active) { resizeState.active = false; document.body.style.cursor = 'default'; saveSheetsToFirebase(); renderGrid(); }
-        });
+        window.addEventListener('mouseup', (e) => { if (resizeState.active) { resizeState.active = false; document.body.style.cursor = 'default'; saveSheetsToFirebase(); renderGrid(); } });
 
-        // 🌟 전체/행/열 선택 맵핑 (요청 6)
+        // 전체/행/열 선택
         function selectEntireCol(cIdx) { selection.active = false; selection.startR = 0; selection.endR = sheetsData[activeSheet].rows.length - 1; selection.startC = cIdx; selection.endC = cIdx; activeCell = {r:0, c:cIdx}; drawSelectionHighlight(); calculateStats(); }
         function selectEntireRow(rIdx) { selection.active = false; selection.startR = rIdx; selection.endR = rIdx; selection.startC = 0; selection.endC = sheetsData[activeSheet].columns.length - 1; activeCell = {r:rIdx, c:0}; drawSelectionHighlight(); calculateStats(); }
         function selectAllCells() { selection.active = false; selection.startR = 0; selection.endR = sheetsData[activeSheet].rows.length - 1; selection.startC = 0; selection.endC = sheetsData[activeSheet].columns.length - 1; activeCell = {r:0, c:0}; drawSelectionHighlight(); calculateStats(); }
@@ -518,7 +579,6 @@
                     if (isLocked) {
                         td.innerHTML = `${memoHtml}${cursorHtml}<div class="px-2 py-1.5 text-xs text-slate-500 h-full flex items-center ${cellData.align === 'center' ? 'justify-center' : (cellData.align === 'right' ? 'justify-end' : '')} truncate select-none">${cellData.v}</div>`;
                     } else {
-                        // 🌟 수식 평가 및 포맷팅 처리
                         let displayVal = cellData.v;
                         if(col.type !== 'select' && displayVal.toString().startsWith('=')) {
                             displayVal = evaluateFormula(displayVal, rIdx, cIdx);
@@ -527,18 +587,25 @@
                         if (col.type === 'select') {
                             let sel = document.createElement('select'); sel.className = 'cell-select'; sel.style.fontWeight = cellData.b ? 'bold' : 'normal'; sel.style.textAlign = cellData.align;
                             sel.innerHTML = `<option value="">--</option>` + (col.options||"").split(',').map(o=>`<option value="${o.trim()}" ${cellData.v===o.trim()?'selected':''}>${o.trim()}</option>`).join('');
-                            sel.onchange = (e) => { sheet.rows[rIdx][cIdx].v = e.target.value; saveSheetsToFirebase(); };
-                            sel.onmousedown = () => selectCell(rIdx, cIdx);
+                            
+                            sel.onfocus = () => { sel.dataset.oldVal = sel.value; selectCell(rIdx, cIdx); };
+                            sel.onchange = (e) => { 
+                                let oldC = JSON.parse(JSON.stringify(sheet.rows[rIdx][cIdx]));
+                                sheet.rows[rIdx][cIdx].v = e.target.value; 
+                                pushUndoState('edit', rIdx, cIdx, oldC, sheet.rows[rIdx][cIdx]);
+                                saveSheetsToFirebase(); 
+                            };
                             td.innerHTML = memoHtml + cursorHtml; td.appendChild(sel);
                         } else {
                             let inp = document.createElement('input'); inp.type = 'text'; inp.className = 'cell-input'; inp.value = displayVal;
                             inp.style.fontWeight = cellData.b ? 'bold' : 'normal'; inp.style.textAlign = cellData.align;
                             
-                            inp.onfocus = () => { inp.value = cellData.v; selectCell(rIdx, cIdx); };
+                            inp.onfocus = () => { inp.dataset.oldData = JSON.stringify(cellData); inp.value = cellData.v; selectCell(rIdx, cIdx); };
                             inp.oninput = (e) => { sheet.rows[rIdx][cIdx].v = e.target.value; };
                             inp.onkeydown = (e) => { if (e.key === 'Enter') e.target.blur(); };
                             
                             inp.onblur = (e) => {
+                                let oldC = JSON.parse(inp.dataset.oldData);
                                 let newVal = e.target.value;
                                 if (!newVal.startsWith('=')) {
                                     if (col.type === 'date') newVal = formatDateString(newVal);
@@ -546,7 +613,12 @@
                                 }
                                 sheet.rows[rIdx][cIdx].v = newVal;
                                 inp.value = newVal.startsWith('=') ? evaluateFormula(newVal, rIdx, cIdx) : newVal;
-                                saveSheetsToFirebase();
+                                
+                                // 변경점이 있을때만 Undo 스택에 저장
+                                if(oldC.v !== newVal) {
+                                    pushUndoState('edit', rIdx, cIdx, oldC, sheet.rows[rIdx][cIdx]);
+                                    saveSheetsToFirebase();
+                                }
                             };
                             
                             td.onmousedown = (e) => startDragSelection(e, rIdx, cIdx);
@@ -562,7 +634,7 @@
             drawSelectionHighlight(); 
         }
 
-        // 서식 일괄 적용 함수
+        // 🌟 다중 셀 서식 적용 및 Undo 등록
         function applyFormat(type, value) { 
             if (activeCell.r === null) return alert("셀을 먼저 선택하세요.");
             let rMin = selection.startR !== null ? Math.min(selection.startR, selection.endR) : activeCell.r;
@@ -571,19 +643,22 @@
             let cMax = selection.startC !== null ? Math.max(selection.startC, selection.endC) : activeCell.c;
 
             let sheet = sheetsData[activeSheet];
+            let multiActions = [];
             for (let r = rMin; r <= rMax; r++) {
                 for (let c = cMin; c <= cMax; c++) {
                     if (sheet.rows[r] && sheet.rows[r][c]) {
+                        let oldC = JSON.parse(JSON.stringify(sheet.rows[r][c]));
                         if (type === 'b') sheet.rows[r][c].b = !sheet.rows[r][c].b;
                         if (type === 'align') sheet.rows[r][c].align = value;
                         if (type === 'bg') sheet.rows[r][c].bg = value;
+                        multiActions.push({r, c, oldData: oldC, newData: JSON.parse(JSON.stringify(sheet.rows[r][c]))});
                     }
                 }
             }
+            if(multiActions.length > 0) pushMultiUndoState(multiActions);
             saveSheetsToFirebase(); renderGrid(); 
         }
 
-        // 스마트 드롭다운 필터 UI
         function openCustomFilterMenu(cIdx, event) {
             let sheet = sheetsData[activeSheet];
             let uniqueVals = [...new Set(sheet.rows.map(r => r[cIdx]?.v || ""))].filter(v => v !== "");
@@ -597,7 +672,6 @@
         function applyCustomFilter() { let menu = document.getElementById('custom-filter-menu'); let cIdx = menu.dataset.col; let val = document.getElementById('filter-value-select').value; if (val === "") delete myFilters[cIdx]; else myFilters[cIdx] = val; closeFilterMenu(); renderGrid(); }
         function clearMyFilters() { let r = myFilters['autoRole']; myFilters = {}; if(r) myFilters['autoRole'] = r; renderGrid(); }
 
-        // 드래그 선택 및 통계
         function selectCell(r, c) { 
             activeCell = { r, c }; document.getElementById('selected-cell-indicator').innerText = String.fromCharCode(65 + c) + (r + 1); 
             selection.startR = r; selection.endR = r; selection.startC = c; selection.endC = c; 
@@ -625,7 +699,7 @@
             }
         }
 
-        // 클립보드 엑셀 연동
+        // 클립보드 파싱 및 Undo 등록
         document.addEventListener('paste', function(e) {
             if (!currentAccount || activeCell.r === null) return;
             if (e.target.tagName === 'INPUT' && document.activeElement === e.target && !e.clipboardData.getData('text').includes('\t')) return;
@@ -641,8 +715,7 @@
                 
                 if (rawRows.length > hRows && activeCell.r === 0 && activeCell.c === 0) {
                     if (hRows == 1) {
-                        parsedMatrix[0].forEach((n, i) => { if(n) sheet.columns[i].name = n; });
-                        parsedMatrix = parsedMatrix.slice(1);
+                        parsedMatrix[0].forEach((n, i) => { if(n) sheet.columns[i].name = n; }); parsedMatrix = parsedMatrix.slice(1);
                     } else if (hRows == 2 && parsedMatrix.length >= 2) {
                         let lastTopHeader = "";
                         parsedMatrix[0].forEach((n, i) => { if (n) { sheet.columns[i].name = n; lastTopHeader = n; } else if (lastTopHeader) { sheet.columns[i].name = lastTopHeader; } });
@@ -653,6 +726,7 @@
             }
 
             let startR = activeCell.r, startC = activeCell.c;
+            let multiActions = [];
             parsedMatrix.forEach((rowData, rOffset) => {
                 let tr = startR + rOffset;
                 if (tr >= sheet.rows.length) {
@@ -666,18 +740,18 @@
                     let tc = startC + cOffset; 
                     if (tc < sheet.columns.length) {
                         let col = sheet.columns[tc];
-                        if (!val.startsWith('=')) {
-                            if (col.type === 'date') val = formatDateString(val);
-                            else if (col.type === 'number') val = formatNumberString(val);
-                        }
+                        if (!val.startsWith('=')) { if (col.type === 'date') val = formatDateString(val); else if (col.type === 'number') val = formatNumberString(val); }
+                        
+                        let oldC = JSON.parse(JSON.stringify(sheet.rows[tr][tc]));
                         sheet.rows[tr][tc].v = val; 
+                        multiActions.push({r: tr, c: tc, oldData: oldC, newData: JSON.parse(JSON.stringify(sheet.rows[tr][tc]))});
                     }
                 });
             });
+            if(multiActions.length > 0) pushMultiUndoState(multiActions);
             saveSheetsToFirebase(); renderGrid(); e.preventDefault();
         });
 
-        // 🌟 시트 관리 및 순서 이동 (요청 7, 요청 3 반영)
         function renderSheetTabs() {
             const c = document.getElementById('sheet-tabs'); c.innerHTML = '';
             Object.keys(sheetsData).forEach(sName => {
@@ -689,8 +763,7 @@
             });
         }
         function moveSheetOrder(direction) {
-            let keys = Object.keys(sheetsData);
-            let idx = keys.indexOf(activeSheet);
+            let keys = Object.keys(sheetsData); let idx = keys.indexOf(activeSheet);
             if ((direction === -1 && idx === 0) || (direction === 1 && idx === keys.length - 1)) return;
             let temp = keys[idx]; keys[idx] = keys[idx + direction]; keys[idx + direction] = temp;
             let newData = {}; keys.forEach(k => newData[k] = sheetsData[k]);
@@ -701,12 +774,7 @@
         function addNewSheet() {
             let sName = prompt("새 시트 이름:");
             if (sName && !sheetsData[sName]) { 
-                // 빈 시트 포맷(1행 1열, 가운데 정렬 적용)
-                sheetsData[sName] = {
-                    headerRows: 1, rowHeights: {},
-                    columns: [{ name: "항목1", name2: "", type: "text", width: 120 }],
-                    rows: [ [{v: "", b: false, bg: "", align: "center", memo: ""}] ]
-                }; 
+                sheetsData[sName] = { headerRows: 1, rowHeights: {}, columns: [{ name: "항목1", name2: "", type: "text", width: 120 }], rows: [ [{v: "", b: false, bg: "", align: "center", memo: ""}] ] }; 
                 saveSheetsToFirebase(); switchSheet(sName); 
             }
         }
@@ -728,12 +796,69 @@
             setTimeout(() => { const container = document.getElementById('grid-container'); container.scrollTop = container.scrollHeight; }, 100);
         }
 
-        // 모달: 시트(서식) 설정 
+        // 🌟 인터랙티브 대시보드 로직
+        function openDashboard() {
+            document.getElementById('dashboard-modal').classList.remove('hidden'); document.getElementById('dashboard-modal').classList.add('flex');
+            let sheet = sheetsData[activeSheet];
+            let gSel = document.getElementById('dash-group-col'); let vSel = document.getElementById('dash-val-col');
+            gSel.innerHTML = ''; vSel.innerHTML = '';
+            sheet.columns.forEach((col, i) => {
+                let opt = `<option value="${i}">${col.name}</option>`;
+                gSel.innerHTML += opt;
+                if(col.type === 'number') vSel.innerHTML += opt;
+            });
+            if(vSel.options.length === 0) vSel.innerHTML = `<option value="-1">(계산할 숫자 항목이 없습니다)</option>`;
+            renderDashboard();
+        }
+        function closeDashboard() { document.getElementById('dashboard-modal').classList.add('hidden'); document.getElementById('dashboard-modal').classList.remove('flex'); }
+        function renderDashboard() {
+            let sheet = sheetsData[activeSheet];
+            let gIdx = parseInt(document.getElementById('dash-group-col').value);
+            let vIdx = parseInt(document.getElementById('dash-val-col').value);
+            let aggType = document.getElementById('dash-agg-type').value;
+
+            document.getElementById('dash-th-group').innerText = sheet.columns[gIdx].name;
+            document.getElementById('dash-th-val').innerText = (aggType==='sum'?'합계':aggType==='avg'?'평균':'개수') + (vIdx>=0 ? ` (${sheet.columns[vIdx].name})` : '');
+
+            let pivot = {}; // { groupName: { sum: 0, count: 0 } }
+            sheet.rows.forEach(r => {
+                let gVal = r[gIdx]?.v || "(공백)";
+                let vVal = vIdx >= 0 ? parseFloat(r[vIdx]?.v.replace(/,/g, '')) : 0;
+                if(isNaN(vVal)) vVal = 0;
+                
+                if(!pivot[gVal]) pivot[gVal] = { sum: 0, count: 0 };
+                pivot[gVal].sum += vVal;
+                pivot[gVal].count += 1;
+            });
+
+            let labels = Object.keys(pivot);
+            let dataArr = labels.map(l => {
+                if(aggType === 'sum') return pivot[l].sum;
+                if(aggType === 'avg') return pivot[l].sum / pivot[l].count;
+                return pivot[l].count;
+            });
+
+            // 요약표 렌더링
+            let tbody = document.getElementById('dash-table-body'); tbody.innerHTML = '';
+            labels.forEach((l, i) => {
+                let displayVal = aggType==='count' ? dataArr[i] : dataArr[i].toLocaleString(undefined, {maximumFractionDigits:1});
+                tbody.innerHTML += `<tr><td class="px-4 py-2 font-semibold text-slate-700">${l}</td><td class="px-4 py-2 text-right text-blue-600 font-bold">${displayVal}</td></tr>`;
+            });
+
+            // 차트 렌더링
+            let ctx = document.getElementById('dashboard-chart').getContext('2d');
+            if (chartObj) chartObj.destroy();
+            chartObj = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: labels, datasets: [{ label: document.getElementById('dash-th-val').innerText, data: dataArr, backgroundColor: '#3b82f6', borderRadius: 4 }] },
+                options: { responsive: true, plugins: { legend: { display: false } } }
+            });
+        }
+
+        // 설정 모달
         function openColumnManager() {
             document.getElementById('column-modal').classList.remove('hidden'); document.getElementById('column-modal').classList.add('flex');
-            let sheet = sheetsData[activeSheet];
-            document.getElementById('sheet-rename-input').value = activeSheet;
-            document.getElementById('header-rows-select').value = sheet.headerRows || 1;
+            let sheet = sheetsData[activeSheet]; document.getElementById('sheet-rename-input').value = activeSheet; document.getElementById('header-rows-select').value = sheet.headerRows || 1;
             let list = document.getElementById('column-edit-list'); list.innerHTML = '';
             sheet.columns.forEach((col, i) => {
                 list.innerHTML += `<div class="flex items-center space-x-2 bg-white shadow-sm p-2 border rounded-lg border-slate-200">
@@ -756,17 +881,12 @@
         function addColumnField() { sheetsData[activeSheet].columns.push({name:"새항목", name2:"", type:"text", width:120}); sheetsData[activeSheet].rows.forEach(r=>r.push({v:"", b:false, bg:"", align:"center", memo:""})); openColumnManager(); }
         function closeColumnManager() { document.getElementById('column-modal').classList.add('hidden'); document.getElementById('column-modal').classList.remove('flex'); }
         async function saveColumnChanges() {
-            let sheet = sheetsData[activeSheet];
-            let newSheetName = document.getElementById('sheet-rename-input').value.trim();
-            sheet.headerRows = parseInt(document.getElementById('header-rows-select').value);
-            
+            let sheet = sheetsData[activeSheet]; let newSheetName = document.getElementById('sheet-rename-input').value.trim(); sheet.headerRows = parseInt(document.getElementById('header-rows-select').value);
             sheet.columns.forEach((col, i) => {
                 col.name = document.getElementById(`col-n-${i}`).value;
                 if(sheet.headerRows == 2) col.name2 = document.getElementById(`col-n2-${i}`) ? document.getElementById(`col-n2-${i}`).value : "";
-                col.type = document.getElementById(`col-t-${i}`).value;
-                col.options = document.getElementById(`col-o-${i}`) ? document.getElementById(`col-o-${i}`).value : "";
+                col.type = document.getElementById(`col-t-${i}`).value; col.options = document.getElementById(`col-o-${i}`) ? document.getElementById(`col-o-${i}`).value : "";
             });
-
             if (newSheetName && newSheetName !== activeSheet) {
                 if (sheetsData[newSheetName]) { alert("이미 존재하는 시트 이름입니다."); return; }
                 sheetsData[newSheetName] = sheet; delete sheetsData[activeSheet]; activeSheet = newSheetName;
