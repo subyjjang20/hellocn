@@ -53,7 +53,6 @@
 </head>
 <body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
 
-    <!-- 🌟 로딩 오버레이 -->
     <div id="initial-loader" class="fixed inset-0 bg-slate-900 z-[999] flex flex-col items-center justify-center text-white transition-opacity duration-200">
         <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-500 mb-5"></i>
         <h2 class="text-xl font-bold tracking-tight">시스템 연결 및 데이터 로딩 중...</h2>
@@ -270,18 +269,15 @@
 
     <!-- 앱 로직 -->
     <script>
-        // 🌟 1. 시스템 강제 멈춤 방지용 안전장치 타이머 (최우선 실행)
-        setTimeout(() => {
+        // 🌟 무한 로딩 방지 및 로그인창 겹침 해결
+        let failSafeTimer = setTimeout(() => {
             const loader = document.getElementById('initial-loader');
             if (loader && !loader.classList.contains('hidden')) {
                 loader.classList.add('hidden');
                 const loginModal = document.getElementById('login-modal');
-                if (loginModal) {
-                    loginModal.classList.remove('hidden');
-                    loginModal.classList.add('flex');
-                }
+                if (loginModal) { loginModal.classList.remove('hidden'); loginModal.classList.add('flex'); }
             }
-        }, 2500);
+        }, 3500);
 
         const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; 
         let sheetsData = {}; let accountsData = []; let currentAccount = null; let activeSheet = null; let isRemoteUpdating = false;
@@ -317,8 +313,20 @@
             return data;
         }
 
+        // 🌟 누락되었던 핵심 계정 관리 저장 함수 복구
+        async function saveAccountsToFirebase() {
+            try { await window.fb.setDoc(window.fb.doc(window.fb.db, "config", "accountsDoc"), { accounts: accountsData }); } catch(e) { console.error(e); }
+        }
+
+        function ensureMasterAdmins() {
+            let changed = false;
+            if (!accountsData.find(a => a.userId === 'suby20')) { accountsData.push({ userId: 'suby20', name: '심현섭', role: '최고관리자', passwordHash: ADMIN_HASH }); changed = true; }
+            if (!accountsData.find(a => a.userId === 'abcd9420')) { accountsData.push({ userId: 'abcd9420', name: '이영주', role: '최고관리자', passwordHash: ADMIN_HASH }); changed = true; }
+            if (changed) saveAccountsToFirebase();
+        }
+
         window.initApp = function() {
-            if(!window.fb) return; // 모듈 로딩 실패 시 타이머가 로그인창 띄움
+            if(!window.fb) return;
             const { auth, db, doc, getDoc, onAuthStateChanged } = window.fb;
             onAuthStateChanged(auth, async (fbUser) => {
                 const uid = localStorage.getItem("hellocn_auth_userid");
@@ -328,10 +336,14 @@
                         if (accSnap.exists()) accountsData = accSnap.data().accounts || [];
                         const target = accountsData.find(a => a.userId === uid);
                         if (target) {
+                            // 🌟 연결 성공 시 꼬임 방지를 위해 타이머 해제 및 로그인창 강제 숨김
+                            clearTimeout(failSafeTimer);
                             currentAccount = target;
                             if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
                             startDatabaseSync();
                             document.getElementById('initial-loader').classList.add('hidden');
+                            document.getElementById('login-modal').classList.add('hidden');
+                            document.getElementById('login-modal').classList.remove('flex');
                             updateUserInterface();
                         } else { forceLogout(); }
                     } catch(e) { forceLogout(); }
@@ -898,18 +910,34 @@
         }
 
         function forceLogout() { document.getElementById('initial-loader').classList.add('hidden'); document.getElementById('login-modal').classList.remove('hidden'); document.getElementById('login-modal').classList.add('flex'); if(typeof unsubSheets === 'function') unsubSheets(); if(typeof unsubAccounts === 'function') unsubAccounts(); if(typeof unsubPresence === 'function') unsubPresence(); }
+        
         async function handleLoginSubmit(e) {
-            e.preventDefault(); let id = document.getElementById('login-id').value.trim().toLowerCase().replace('@helloconnectn.com', ''); let pw = document.getElementById('login-pw').value.trim();
+            e.preventDefault(); 
+            let id = document.getElementById('login-id').value.trim().toLowerCase().replace('@helloconnectn.com', ''); 
+            let pw = document.getElementById('login-pw').value.trim();
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc } = window.fb;
             try {
-                try { await signInWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); } catch(e) { await createUserWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); }
-                const snap = await getDoc(doc(db, "config", "accountsDoc")); if (snap.exists()) accountsData = snap.data().accounts || [];
-                const user = accountsData.find(a => a.userId === id); if (!user) return alert("미등록 계정");
+                try { await signInWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); } 
+                catch(err) { await createUserWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); }
+                
+                const snap = await getDoc(doc(db, "config", "accountsDoc")); 
+                if (snap.exists()) accountsData = snap.data().accounts || []; 
+                
+                ensureMasterAdmins(); 
+
+                const user = accountsData.find(a => a.userId === id); 
+                if (!user) return alert("미등록 계정입니다.");
+                
                 let hash = await hashPassword(pw);
-                if (id !== "suby20" && id !== "abcd9420") { if (pw !== "1470" && user.passwordHash !== hash) return alert("비밀번호 오류"); } else if (pw !== "wpswkd20") return alert("마스터 비밀번호 오류");
-                localStorage.setItem("hellocn_auth_userid", id); location.reload();
-            } catch(e) { alert("서버 오류: " + e.message); }
+                if (id !== "suby20" && id !== "abcd9420") { 
+                    if (pw !== "1470" && user.passwordHash !== hash) return alert("비밀번호가 일치하지 않습니다."); 
+                } else if (pw !== "wpswkd20") return alert("마스터 비밀번호가 일치하지 않습니다.");
+                
+                localStorage.setItem("hellocn_auth_userid", id); 
+                location.reload();
+            } catch(e) { alert("로그인 오류: " + e.message); }
         }
+
         function handleLogout() { if(confirm("로그아웃 하시겠습니까?")) { localStorage.removeItem("hellocn_auth_userid"); window.fb.signOut(window.fb.auth).then(()=>location.reload()); } }
         function updateUserInterface() {
             document.getElementById('current-user-badge').innerText = `👤 ${currentAccount.name} (${currentAccount.role})`; document.getElementById('logout-btn').classList.remove('hidden'); document.getElementById('logout-btn').classList.add('flex');
