@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>헬로CN 닥스 프로</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>헬로CN 닥스 PRO</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -11,292 +11,425 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 
     <style>
-        body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; user-select: none; }
+        body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; user-select: none; overflow: hidden; }
         input, select, textarea { user-select: auto; }
         
-        #grid-container { height: calc(100vh - 210px); overflow: auto; scroll-behavior: smooth; }
-        table.custom-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid #cbd5e1; border-left: 1px solid #cbd5e1; }
+        #grid-container { height: calc(100vh - 222px); overflow: auto; position: relative; }
+        table.custom-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid #cbd5e1; border-left: 1px solid #cbd5e1; table-layout: fixed; }
         
-        .grid-header { background-color: #f1f5f9; color: #334155; font-weight: bold; text-align: center; font-size: 12px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; position: sticky; z-index: 10; box-sizing: border-box; cursor: pointer; }
-        .grid-header-row1 { top: 0; }
-        .grid-header-row2 { top: 28px; } 
-        .grid-header-corner { position: sticky; left: 0; z-index: 20; background-color: #e2e8f0; cursor: pointer; }
-        .row-header { position: sticky; left: 0; z-index: 5; background-color: #f8fafc; font-weight: bold; color: #64748b; text-align: center; font-size: 11px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; cursor: pointer; }
+        /* 고정 헤더 (Sticky Header) */
+        .grid-header { background-color: #f1f5f9; color: #1e293b; font-weight: 700; text-align: center; font-size: 12px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; position: sticky; z-index: 15; box-sizing: border-box; cursor: pointer; transition: background-color 0.1s; }
+        .grid-header:hover { background-color: #e2e8f0; }
+        .grid-header-row1 { top: 0; height: 28px; }
+        .grid-header-row2 { top: 28px; height: 28px; } 
+        .grid-header-corner { position: sticky; left: 0; top: 0; z-index: 25; background-color: #cbd5e1; cursor: pointer; }
+        .grid-header-corner:hover { background-color: #94a3b8; color: white; }
         
-        .grid-cell { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 0; position: relative; background: #ffffff; transition: background-color 0.1s, box-shadow 0.1s; }
-        .grid-cell:hover { box-shadow: inset 0 0 0 1px #93c5fd; z-index: 2; }
-        
-        .cell-input { width: 100%; height: 100%; min-height: 28px; border: none; background: transparent; padding: 4px 6px; outline: none; font-size: 13px; }
-        .cell-input:focus { background: #eff6ff; box-shadow: inset 0 0 0 2px #3b82f6; z-index: 3; position: relative; }
-        .cell-select { width: 100%; height: 100%; min-height: 28px; border: none; background: transparent; padding: 2px 4px; outline: none; font-size: 12px; cursor: pointer; }
-        
-        .cell-selected { background-color: #e0f2fe !important; }
-        .grid-cell.locked { background-color: #f8fafc; color: #94a3b8; cursor: not-allowed; }
-        .grid-cell.locked:hover { box-shadow: none; }
-        
-        .memo-indicator { position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 8px 8px 0; border-color: transparent #f59e0b transparent transparent; cursor: help; z-index: 1; }
-        .cursor-indicator { position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px; border: 2px solid; pointer-events: none; z-index: 4; display: none; }
-        .cursor-name { position: absolute; top: -20px; right: -2px; background: inherit; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px 4px 0px 4px; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        /* 좌측 순번 고정 열 */
+        .row-header { position: sticky; left: 0; z-index: 10; background-color: #f8fafc; font-weight: 700; color: #64748b; text-align: center; font-size: 11px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; cursor: pointer; box-sizing: border-box; }
+        .row-header:hover { background-color: #e2e8f0; color: #0f172a; }
+        .row-header.selected-hdr, .grid-header.selected-hdr { background-color: #bfdbfe !important; color: #1d4ed8 !important; }
 
-        .resize-handle-col { position: absolute; right: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 15; }
-        .resize-handle-col:hover { background-color: #3b82f6; }
-        .resize-handle-row { position: absolute; bottom: -3px; left: 0; right: 0; height: 6px; cursor: row-resize; z-index: 15; }
-        .resize-handle-row:hover { background-color: #3b82f6; }
+        /* 데이터 셀 & 마우스 오버 시인성 강화 */
+        .grid-cell { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 0; position: relative; background: #ffffff; box-sizing: border-box; cursor: cell; }
+        .grid-cell:hover { outline: 1.5px dashed #60a5fa; outline-offset: -1.5px; z-index: 2; }
+        
+        .cell-input { width: 100%; height: 100%; min-height: 27px; border: none; background: transparent; padding: 2px 5px; outline: none; font-size: 12.5px; cursor: cell; box-sizing: border-box; }
+        .cell-input:focus { background: #ffffff; box-shadow: inset 0 0 0 2px #2563eb; z-index: 5; position: relative; cursor: text; }
+        .cell-select { width: 100%; height: 100%; min-height: 27px; border: none; background: transparent; padding: 1px 3px; outline: none; font-size: 12px; cursor: pointer; }
+        
+        /* 셀 선택 및 잠금 표시 */
+        .cell-selected { background-color: rgba(191, 219, 254, 0.45) !important; box-shadow: inset 0 0 0 1px #60a5fa; }
+        .cell-active { box-shadow: inset 0 0 0 2px #2563eb !important; z-index: 4; }
+        .grid-cell.locked { background-color: #f8fafc; color: #94a3b8; cursor: not-allowed; }
+        
+        /* 메모 및 실시간 다중 접속 커서 */
+        .memo-indicator { position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 7px 7px 0; border-color: transparent #f59e0b transparent transparent; cursor: help; z-index: 3; }
+        .cursor-indicator { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border: 2px solid; pointer-events: none; z-index: 6; display: none; }
+        .cursor-name { position: absolute; top: -18px; right: -2px; color: white; font-size: 10px; font-weight: bold; padding: 1px 5px; border-radius: 3px 3px 0 3px; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.25); }
+
+        /* 행/열 크기 조절 핸들 */
+        .resize-handle-col { position: absolute; right: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 20; }
+        .resize-handle-col:hover { background-color: #2563eb; }
+        .resize-handle-row { position: absolute; bottom: -3px; left: 0; right: 0; height: 6px; cursor: row-resize; z-index: 20; }
+        .resize-handle-row:hover { background-color: #2563eb; }
 
         @media print {
             body * { visibility: hidden; }
             #printable-area, #printable-area * { visibility: visible; }
-            #printable-area { position: absolute; left: 0; top: 0; width: 100%; }
+            #printable-area { position: absolute; left: 0; top: 0; width: 100%; margin: 0 !important; border: none !important; }
+            #grid-container { height: auto !important; overflow: visible !important; }
             .grid-header, .row-header { position: static !important; }
         }
     </style>
 </head>
-<body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
+<body class="bg-slate-100 h-screen flex flex-col">
 
+    <!-- 초기 로딩 오버레이 -->
     <div id="initial-loader" class="fixed inset-0 bg-slate-900 z-[999] flex flex-col items-center justify-center text-white transition-opacity duration-200">
         <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-500 mb-5"></i>
-        <h2 class="text-xl font-bold tracking-tight">시스템 연결 및 데이터 로딩 중...</h2>
+        <h2 class="text-xl font-bold tracking-tight">헬로CN 닥스 PRO 연결 중...</h2>
+        <p class="text-xs text-slate-400 mt-2">잠시만 기다려 주세요</p>
     </div>
 
-    <!-- 네비게이션바 -->
-    <header class="bg-slate-900 text-white px-4 py-2.5 flex items-center justify-between shadow-md z-20">
+    <!-- 상단 네비게이션바 -->
+    <header class="bg-slate-900 text-white px-4 py-2 flex items-center justify-between shadow-md z-30">
         <div class="flex items-center space-x-3">
             <div class="bg-blue-600 text-white p-1.5 rounded-lg font-bold"><i class="fa-solid fa-table"></i></div>
             <div>
                 <h1 class="text-sm font-bold tracking-tight">헬로CN 닥스 PRO</h1>
-                <p class="text-[10px] text-slate-400">데이터 무실손 동기화 시스템</p>
+                <p class="text-[10px] text-slate-400">실시간 협업 스프레드시트 시스템</p>
             </div>
         </div>
         <div class="flex items-center space-x-2">
-            <div id="sync-status" class="bg-slate-700 text-slate-300 px-2 py-1 rounded text-[10px] font-semibold flex items-center space-x-1.5 mr-2">
-                <span id="sync-dot" class="w-1.5 h-1.5 rounded-full bg-slate-400"></span><span id="sync-text">연결 대기</span>
+            <!-- 실시간 접속자 배지 영역 -->
+            <div id="online-users-list" class="hidden md:flex items-center space-x-1 mr-2"></div>
+
+            <div id="sync-status" class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center space-x-1.5 border border-slate-700">
+                <span id="sync-dot" class="w-2 h-2 rounded-full bg-slate-400"></span><span id="sync-text">연결 대기</span>
             </div>
-            <button id="admin-col-btn" onclick="openColumnManager()" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded text-xs font-semibold transition items-center space-x-1.5">
-                <i class="fa-solid fa-sliders"></i><span>시트 설정</span>
+            <button id="admin-col-btn" onclick="openColumnManager()" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1.5 rounded text-xs font-semibold transition items-center space-x-1">
+                <i class="fa-solid fa-sliders"></i><span class="hidden sm:inline">시트 설정</span>
             </button>
-            <button id="admin-acc-btn" onclick="openAccountManager()" class="hidden bg-slate-700 hover:bg-slate-600 text-white px-3 py-1.5 rounded text-xs font-medium transition items-center space-x-1.5">
-                <i class="fa-solid fa-users-gear text-blue-400"></i><span>권한 관리</span>
+            <button id="admin-acc-btn" onclick="openAccountManager()" class="hidden bg-slate-700 hover:bg-slate-600 text-white px-2.5 py-1.5 rounded text-xs font-medium transition items-center space-x-1">
+                <i class="fa-solid fa-users-gear text-blue-400"></i><span class="hidden sm:inline">권한 관리</span>
             </button>
-            <div class="flex items-center space-x-2 bg-slate-800 px-3 py-1.5 rounded border border-slate-700">
+            <div class="flex items-center space-x-2 bg-slate-800 px-2.5 py-1 rounded border border-slate-700">
                 <span id="current-user-badge" class="text-xs font-semibold text-slate-200">로그인 필요</span>
             </div>
-            <button id="logout-btn" onclick="handleLogout()" class="hidden text-slate-400 hover:text-white px-2" title="로그아웃"><i class="fa-solid fa-power-off"></i></button>
+            <button id="logout-btn" onclick="handleLogout()" class="hidden text-slate-400 hover:text-white px-1.5" title="로그아웃"><i class="fa-solid fa-power-off"></i></button>
         </div>
     </header>
 
-    <!-- 서식 툴바 -->
-    <div class="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between text-slate-600 z-10 shadow-sm">
-        <div class="flex items-center space-x-1">
-            <button onclick="handleUndo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="실행 취소 (Ctrl+Z)"><i class="fa-solid fa-rotate-left"></i></button>
-            <button onclick="handleRedo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="다시 실행 (Ctrl+Y)"><i class="fa-solid fa-rotate-right"></i></button>
-            <div class="w-px h-5 bg-slate-300 mx-2"></div>
+    <!-- 엑셀/구글닥스 서식 툴바 -->
+    <div class="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between text-slate-600 z-20 shadow-sm overflow-x-auto">
+        <div class="flex items-center space-x-1 shrink-0">
+            <!-- 로컬 Undo / Redo -->
+            <button onclick="handleUndo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="되돌리기 (Ctrl+Z) - 내 작업만"><i class="fa-solid fa-rotate-left"></i></button>
+            <button onclick="handleRedo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="앞으로 돌리기 (Ctrl+Y) - 내 작업만"><i class="fa-solid fa-rotate-right"></i></button>
+            <div class="w-px h-4 bg-slate-300 mx-1"></div>
             
-            <button onclick="applyFormat('b', true)" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="굵게"><i class="fa-solid fa-bold"></i></button>
-            <div class="w-px h-5 bg-slate-300 mx-1"></div>
+            <!-- 글꼴 굵게 & 정렬 -->
+            <button onclick="applyFormat('b', true)" class="p-1.5 hover:bg-slate-100 rounded text-slate-700 font-bold" title="굵게 (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
             <button onclick="applyFormat('align', 'left')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="왼쪽 정렬"><i class="fa-solid fa-align-left"></i></button>
             <button onclick="applyFormat('align', 'center')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="가운데 정렬"><i class="fa-solid fa-align-center"></i></button>
             <button onclick="applyFormat('align', 'right')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="오른쪽 정렬"><i class="fa-solid fa-align-right"></i></button>
-            <div class="w-px h-5 bg-slate-300 mx-2"></div>
-            
-            <div class="flex items-center space-x-1 bg-slate-50 p-1 rounded border border-slate-200">
-                <button onclick="applyFormat('bg', '')" class="w-5 h-5 rounded-full border border-slate-300 bg-white hover:scale-110 transition" title="채우기 없음"></button>
-                <button onclick="applyFormat('bg', '#fef08a')" class="w-5 h-5 rounded-full border border-yellow-300 bg-yellow-200 hover:scale-110 transition" title="노랑"></button>
-                <button onclick="applyFormat('bg', '#bbf7d0')" class="w-5 h-5 rounded-full border border-green-300 bg-green-200 hover:scale-110 transition" title="초록"></button>
-                <button onclick="applyFormat('bg', '#bfdbfe')" class="w-5 h-5 rounded-full border border-blue-300 bg-blue-200 hover:scale-110 transition" title="파랑"></button>
-                <button onclick="applyFormat('bg', '#fecaca')" class="w-5 h-5 rounded-full border border-red-300 bg-red-200 hover:scale-110 transition" title="빨강"></button>
-                <button onclick="applyFormat('bg', '#e2e8f0')" class="w-5 h-5 rounded-full border border-slate-300 bg-slate-200 hover:scale-110 transition" title="회색"></button>
-                <input type="color" id="bg-color-picker" onchange="applyFormat('bg', this.value)" class="w-5 h-5 ml-1 p-0 border-0 rounded cursor-pointer" title="사용자 지정 색상">
+            <div class="w-px h-4 bg-slate-300 mx-1"></div>
+
+            <!-- 글자색 퀵 선택 -->
+            <div class="flex items-center space-x-1 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200" title="글자 색상">
+                <i class="fa-solid fa-font text-[11px] text-slate-500 mr-0.5"></i>
+                <button onclick="applyFormat('color', '#0f172a')" class="w-4 h-4 rounded-full bg-slate-900 hover:scale-110 transition" title="검정 글자"></button>
+                <button onclick="applyFormat('color', '#dc2626')" class="w-4 h-4 rounded-full bg-red-600 hover:scale-110 transition" title="빨강 글자"></button>
+                <button onclick="applyFormat('color', '#2563eb')" class="w-4 h-4 rounded-full bg-blue-600 hover:scale-110 transition" title="파랑 글자"></button>
+                <button onclick="applyFormat('color', '#16a34a')" class="w-4 h-4 rounded-full bg-green-600 hover:scale-110 transition" title="초록 글자"></button>
+                <input type="color" onchange="applyFormat('color', this.value)" class="w-4 h-4 p-0 border-0 rounded cursor-pointer" title="사용자 지정 글자색">
             </div>
 
-            <div class="w-px h-5 bg-slate-300 mx-2"></div>
-            <button onclick="addMemoToCell()" class="p-1.5 hover:bg-slate-100 rounded text-amber-500 font-bold text-xs flex items-center"><i class="fa-regular fa-comment-dots mr-1"></i>메모</button>
+            <!-- 배경색 퀵 팔레트 -->
+            <div class="flex items-center space-x-1 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200" title="셀 배경 색상">
+                <i class="fa-solid fa-fill-drip text-[11px] text-slate-500 mr-0.5"></i>
+                <button onclick="applyFormat('bg', '')" class="w-4 h-4 rounded-full border border-slate-300 bg-white hover:scale-110 transition relative" title="채우기 없음"><div class="w-full h-px bg-red-500 rotate-45 absolute top-1.5"></div></button>
+                <button onclick="applyFormat('bg', '#fef08a')" class="w-4 h-4 rounded-full border border-yellow-300 bg-yellow-200 hover:scale-110 transition" title="노랑"></button>
+                <button onclick="applyFormat('bg', '#bbf7d0')" class="w-4 h-4 rounded-full border border-green-300 bg-green-200 hover:scale-110 transition" title="초록"></button>
+                <button onclick="applyFormat('bg', '#bfdbfe')" class="w-4 h-4 rounded-full border border-blue-300 bg-blue-200 hover:scale-110 transition" title="파랑"></button>
+                <button onclick="applyFormat('bg', '#fecaca')" class="w-4 h-4 rounded-full border border-red-300 bg-red-200 hover:scale-110 transition" title="빨강"></button>
+                <button onclick="applyFormat('bg', '#e2e8f0')" class="w-4 h-4 rounded-full border border-slate-300 bg-slate-200 hover:scale-110 transition" title="회색"></button>
+                <input type="color" id="bg-color-picker" onchange="applyFormat('bg', this.value)" class="w-4 h-4 p-0 border-0 rounded cursor-pointer" title="사용자 지정 배경색">
+            </div>
+
+            <div class="w-px h-4 bg-slate-300 mx-1"></div>
+            <button onclick="addMemoToCell()" class="px-2 py-1 hover:bg-slate-100 rounded text-amber-600 font-bold text-xs flex items-center" title="선택 셀에 메모 삽입"><i class="fa-regular fa-comment-dots mr-1"></i>메모</button>
         </div>
-        <div class="flex items-center space-x-2">
-            <button onclick="autoFitAllColumns()" class="text-xs bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 px-3 py-1.5 rounded font-bold transition flex items-center"><i class="fa-solid fa-arrows-left-right mr-1.5"></i>전체 너비 맞춤</button>
-            <button onclick="openDashboard()" class="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 px-3 py-1.5 rounded font-bold transition flex items-center"><i class="fa-solid fa-chart-pie mr-1.5"></i>요약 대시보드</button>
-            <button onclick="exportPDF()" class="text-xs bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded font-bold transition flex items-center"><i class="fa-solid fa-file-pdf mr-1.5"></i>PDF</button>
-            <button onclick="exportExcel()" class="text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 px-3 py-1.5 rounded font-bold transition flex items-center"><i class="fa-solid fa-file-excel mr-1.5"></i>엑셀 다운</button>
+
+        <div class="flex items-center space-x-1.5 shrink-0 ml-2">
+            <!-- 빠른 검색창 -->
+            <div class="relative flex items-center">
+                <i class="fa-solid fa-magnifying-glass text-[11px] text-slate-400 absolute left-2.5"></i>
+                <input type="text" id="global-search-input" oninput="handleGlobalSearch(this.value)" placeholder="시트 내 검색..." class="pl-7 pr-2 py-1 text-xs border border-slate-300 rounded-md w-32 focus:w-44 transition-all outline-none focus:border-blue-500">
+            </div>
+            <button onclick="autoFitAllColumns()" class="text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded font-bold transition flex items-center" title="모든 열 너비를 글자수에 맞게 최소로 자동 조절"><i class="fa-solid fa-arrows-left-right mr-1"></i>자동너비</button>
+            <button onclick="openDashboard()" class="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded font-bold transition flex items-center"><i class="fa-solid fa-chart-pie mr-1"></i>요약 대시보드</button>
+            <button onclick="exportPDF()" class="text-xs bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded font-bold transition flex items-center"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</button>
+            <button onclick="exportExcel()" class="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded font-bold transition flex items-center"><i class="fa-solid fa-file-excel mr-1"></i>엑셀</button>
         </div>
     </div>
 
-    <!-- 스프레드시트 영역 -->
-    <div class="flex-1 flex flex-col bg-white m-3 rounded-xl shadow-sm border border-slate-300 overflow-hidden relative" id="printable-area">
-        <div class="bg-slate-50 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-xs">
-            <div class="flex items-center space-x-3">
-                <span class="font-bold text-slate-700" id="selected-cell-indicator">A1</span>
-                <span class="text-slate-300">|</span>
-                <button onclick="addNewRow()" class="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-200 px-2 py-0.5 rounded text-[11px] font-bold shadow-sm transition"><i class="fa-solid fa-plus mr-1"></i>맨 밑에 행 추가</button>
-                <span class="text-slate-300">|</span>
-                <button onclick="clearMyFilters()" class="text-slate-500 hover:text-blue-600 transition"><i class="fa-solid fa-filter-circle-xmark mr-1"></i>필터 모두 초기화</button>
+    <!-- 메인 스프레드시트 작업 영역 -->
+    <div class="flex-1 flex flex-col bg-white m-2 rounded-xl shadow-sm border border-slate-300 overflow-hidden relative" id="printable-area">
+        
+        <!-- 구글닥스 스타일 수식 입력줄 (Formula Bar) & 행 제어 바 -->
+        <div class="bg-slate-50 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-xs gap-2">
+            <div class="flex items-center space-x-2 flex-1">
+                <span class="font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded min-w-[42px] text-center" id="selected-cell-indicator">A1</span>
+                <div class="flex items-center flex-1 bg-white border border-slate-300 rounded px-2 py-0.5 focus-within:border-blue-500">
+                    <span class="text-slate-400 font-serif italic font-bold mr-2 select-none">fx</span>
+                    <input type="text" id="formula-bar-input" placeholder="값 또는 수식 입력 (예: =A1+B1, =SUM(A1:A10), =AVERAGE(B1:B5))" class="w-full text-xs outline-none bg-transparent" onkeydown="handleFormulaBarKey(event)" oninput="handleFormulaBarInput(this.value)">
+                </div>
             </div>
-            <div class="flex space-x-2 items-center">
-                <span id="edit-permission-status" class="text-slate-500 font-semibold"><i class="fa-solid fa-lock mr-1"></i> 로그인 대기</span>
+            <div class="flex items-center space-x-1.5 shrink-0">
+                <button onclick="addNewRow()" class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-[11px] font-bold shadow-sm transition flex items-center"><i class="fa-solid fa-plus mr-1"></i>새 행 추가</button>
+                <button onclick="deleteSelectedRows()" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2.5 py-1 rounded text-[11px] font-bold transition flex items-center"><i class="fa-solid fa-trash-can mr-1"></i>선택 행 삭제</button>
+                <button onclick="clearMyFilters()" class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-2 py-1 rounded text-[11px] font-semibold transition flex items-center"><i class="fa-solid fa-filter-circle-xmark mr-1 text-blue-500"></i>필터 초기화</button>
+                <span id="edit-permission-status" class="text-slate-500 font-semibold pl-1 hidden sm:inline"><i class="fa-solid fa-lock mr-1"></i>로그인 대기</span>
             </div>
         </div>
 
-        <div id="grid-container" class="relative bg-slate-100">
-            <table id="spreadsheet-table" class="custom-grid bg-white table-fixed w-max">
+        <!-- 그리드 테이블 컨테이너 -->
+        <div id="grid-container" class="bg-slate-100">
+            <table id="spreadsheet-table" class="custom-grid bg-white w-max">
                 <thead id="grid-thead"></thead>
                 <tbody id="grid-tbody"></tbody>
             </table>
         </div>
 
-        <div class="bg-white border-t border-slate-300 px-4 py-1.5 flex items-center justify-end text-xs font-mono text-slate-600 space-x-4 shadow-[0_-2px_5px_rgba(0,0,0,0.02)] z-10 mt-auto">
-            <div id="stat-count">선택: 0칸</div>
-            <div id="stat-sum" class="font-bold text-blue-600">합계: 0</div>
-            <div id="stat-avg" class="font-bold text-emerald-600">평균: 0</div>
+        <!-- 하단 상태 표시줄 (집계) -->
+        <div class="bg-white border-t border-slate-200 px-4 py-1 flex items-center justify-between text-xs text-slate-600 z-10 mt-auto">
+            <div class="text-[11px] text-slate-400">💡 팁: 헤더 경계선 <b>더블클릭</b> 시 글자 맞춤 / 셀 <b>우클릭</b> 시 행·열 삽입 메뉴 / 수식 <b>=SUM(A1:A5)</b> 지원</div>
+            <div class="flex items-center space-x-4 font-mono">
+                <div id="stat-count">선택: 0칸</div>
+                <div id="stat-sum" class="font-bold text-blue-600">합계: 0</div>
+                <div id="stat-avg" class="font-bold text-emerald-600">평균: 0</div>
+            </div>
         </div>
         
+        <!-- 시트 탭 & 순서 변경 바 -->
         <div class="bg-slate-100 border-t border-slate-200 px-2 py-1 flex items-center justify-between">
             <div class="flex items-center space-x-1 flex-1 overflow-x-auto" id="sheet-tabs"></div>
-            <div class="flex items-center space-x-1 ml-2">
-                <button onclick="moveSheetOrder(-1)" class="text-slate-400 hover:text-blue-600 px-1" title="시트 앞으로 이동"><i class="fa-solid fa-chevron-left"></i></button>
-                <button onclick="moveSheetOrder(1)" class="text-slate-400 hover:text-blue-600 px-1 mr-2" title="시트 뒤로 이동"><i class="fa-solid fa-chevron-right"></i></button>
-                <div class="w-px h-4 bg-slate-300 mx-1"></div>
-                <button onclick="addNewSheet()" class="text-blue-600 hover:text-blue-800 font-bold px-2 py-1 flex items-center text-xs"><i class="fa-solid fa-plus mr-1"></i>시트추가</button>
+            <div class="flex items-center space-x-1 ml-2 shrink-0">
+                <button onclick="moveSheetOrder(-1)" class="text-slate-500 hover:text-blue-600 px-1.5 py-0.5 rounded bg-white border border-slate-300 text-xs" title="현재 시트 왼쪽으로 이동"><i class="fa-solid fa-chevron-left"></i></button>
+                <button onclick="moveSheetOrder(1)" class="text-slate-500 hover:text-blue-600 px-1.5 py-0.5 rounded bg-white border border-slate-300 text-xs mr-1" title="현재 시트 오른쪽으로 이동"><i class="fa-solid fa-chevron-right"></i></button>
+                <button onclick="addNewSheet()" class="bg-white hover:bg-blue-50 text-blue-600 border border-blue-200 font-bold px-2.5 py-1 rounded flex items-center text-xs shadow-sm"><i class="fa-solid fa-plus mr-1"></i>시트 추가</button>
             </div>
         </div>
     </div>
 
-    <!-- 스마트 필터 메뉴 -->
-    <div id="custom-filter-menu" class="fixed bg-white border border-slate-300 rounded shadow-xl z-[100] hidden flex-col w-48 text-sm">
-        <div class="bg-slate-100 px-3 py-2 border-b font-bold text-xs text-slate-700 flex justify-between items-center">
-            <span>값으로 필터링</span>
-            <button onclick="closeFilterMenu()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+    <!-- 구글닥스식 다중 체크박스 필터 & 정렬 팝업 -->
+    <div id="custom-filter-menu" class="fixed bg-white border border-slate-300 rounded-lg shadow-2xl z-[150] hidden flex-col w-56 text-xs overflow-hidden">
+        <div class="bg-slate-800 text-white px-3 py-2 font-bold flex justify-between items-center">
+            <span id="filter-menu-title">필터 및 정렬</span>
+            <button onclick="closeFilterMenu()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
         </div>
-        <div class="p-2">
-            <select id="filter-value-select" class="w-full border rounded px-2 py-1.5 text-xs outline-none focus:border-blue-500 bg-white"></select>
-            <button onclick="applyCustomFilter()" class="mt-2 w-full bg-blue-600 text-white py-1.5 rounded text-xs font-bold hover:bg-blue-500">적용</button>
+        <div class="p-2 border-b border-slate-200 flex space-x-1 bg-slate-50">
+            <button onclick="sortColumn(true)" class="flex-1 bg-white hover:bg-blue-50 border border-slate-300 py-1 rounded font-semibold text-slate-700"><i class="fa-solid fa-arrow-up-a-z mr-1 text-blue-600"></i>오름차순</button>
+            <button onclick="sortColumn(false)" class="flex-1 bg-white hover:bg-blue-50 border border-slate-300 py-1 rounded font-semibold text-slate-700"><i class="fa-solid fa-arrow-down-z-a mr-1 text-blue-600"></i>내림차순</button>
+        </div>
+        <div class="p-2 border-b border-slate-100">
+            <input type="text" id="filter-search-input" oninput="filterChecklist(this.value)" placeholder="항목 검색..." class="w-full border border-slate-300 rounded px-2 py-1 text-xs outline-none focus:border-blue-500">
+            <div class="flex justify-between mt-1.5 px-1 text-[11px] text-blue-600 font-semibold">
+                <button onclick="toggleAllFilterChecks(true)" class="hover:underline">모두 선택</button>
+                <button onclick="toggleAllFilterChecks(false)" class="hover:underline text-slate-500">모두 해제</button>
+            </div>
+        </div>
+        <div id="filter-checklist" class="max-h-44 overflow-y-auto p-2 space-y-1 bg-white"></div>
+        <div class="p-2 bg-slate-50 border-t border-slate-200 flex space-x-1">
+            <button onclick="closeFilterMenu()" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-700 py-1.5 rounded font-bold">취소</button>
+            <button onclick="applyCustomFilter()" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-1.5 rounded font-bold">필터 적용</button>
+        </div>
+    </div>
+
+    <!-- 마우스 우클릭 컨텍스트 메뉴 (구글 닥스 스타일) -->
+    <div id="context-menu" class="fixed bg-white border border-slate-300 rounded-lg shadow-xl z-[200] hidden flex-col w-48 py-1 text-xs text-slate-700 font-medium">
+        <button onclick="ctxAction('insertRowAbove')" class="px-3 py-1.5 hover:bg-blue-50 hover:text-blue-600 text-left flex items-center"><i class="fa-solid fa-arrow-up w-5 text-slate-400"></i>위로 1행 삽입</button>
+        <button onclick="ctxAction('insertRowBelow')" class="px-3 py-1.5 hover:bg-blue-50 hover:text-blue-600 text-left flex items-center"><i class="fa-solid fa-arrow-down w-5 text-slate-400"></i>아래로 1행 삽입</button>
+        <button onclick="ctxAction('deleteRow')" class="px-3 py-1.5 hover:bg-red-50 hover:text-red-600 text-left flex items-center"><i class="fa-solid fa-trash-can w-5 text-red-400"></i>선택 행 삭제</button>
+        <div class="h-px bg-slate-200 my-1"></div>
+        <button onclick="ctxAction('insertColLeft')" class="px-3 py-1.5 hover:bg-blue-50 hover:text-blue-600 text-left flex items-center"><i class="fa-solid fa-arrow-left w-5 text-slate-400"></i>왼쪽에 1열 삽입</button>
+        <button onclick="ctxAction('insertColRight')" class="px-3 py-1.5 hover:bg-blue-50 hover:text-blue-600 text-left flex items-center"><i class="fa-solid fa-arrow-right w-5 text-slate-400"></i>오른쪽에 1열 삽입</button>
+        <button onclick="ctxAction('deleteCol')" class="px-3 py-1.5 hover:bg-red-50 hover:text-red-600 text-left flex items-center"><i class="fa-solid fa-xmark w-5 text-red-400"></i>선택 열 삭제</button>
+        <div class="h-px bg-slate-200 my-1"></div>
+        <button onclick="ctxAction('clearCells')" class="px-3 py-1.5 hover:bg-slate-100 text-left flex items-center"><i class="fa-solid fa-eraser w-5 text-slate-400"></i>선택 영역 내용 지우기</button>
+        <button onclick="ctxAction('memo')" class="px-3 py-1.5 hover:bg-slate-100 text-left flex items-center"><i class="fa-regular fa-comment-dots w-5 text-amber-500"></i>메모 입력/수정</button>
+    </div>
+
+    <!-- 엑셀 붙여넣기 시 헤더 줄수 선택 모달 (0줄/1줄/2줄 직관적 버튼형) -->
+    <div id="paste-option-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[180]">
+        <div class="bg-white w-[420px] rounded-xl shadow-2xl overflow-hidden">
+            <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-paste mr-2 text-blue-400"></i>엑셀 데이터 붙여넣기 옵션</h3>
+                <button onclick="closePasteModal()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="p-5 space-y-3">
+                <p class="text-xs text-slate-600 font-medium">복사한 엑셀 데이터 상단에 <b>항목명(헤더)이 몇 줄</b> 포함되어 있나요?</p>
+                <button onclick="executePasteWithOption(0)" class="w-full p-3 border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-lg text-left transition flex items-center justify-between group">
+                    <div>
+                        <div class="font-bold text-sm text-slate-800 group-hover:text-blue-700">0줄 (기존 헤더 유지 + 데이터만 붙여넣기)</div>
+                        <div class="text-[11px] text-slate-500">현재 시트의 상단 항목명은 그대로 두고 내용만 채웁니다.</div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-400 group-hover:text-blue-600"></i>
+                </button>
+                <button onclick="executePasteWithOption(1)" class="w-full p-3 border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-lg text-left transition flex items-center justify-between group">
+                    <div>
+                        <div class="font-bold text-sm text-slate-800 group-hover:text-blue-700">1줄 헤더 (첫 줄을 항목명으로 설정)</div>
+                        <div class="text-[11px] text-slate-500">복사한 첫 번째 줄로 상단 헤더를 교체하고 나머지를 입력합니다.</div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-400 group-hover:text-blue-600"></i>
+                </button>
+                <button onclick="executePasteWithOption(2)" class="w-full p-3 border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-lg text-left transition flex items-center justify-between group">
+                    <div>
+                        <div class="font-bold text-sm text-slate-800 group-hover:text-blue-700">2줄 헤더 (상위 병합 + 하위 필터 자동 설정)</div>
+                        <div class="text-[11px] text-slate-500">엑셀의 2단 병합 헤더 구조(예: 예상일정 등)를 그대로 재현합니다.</div>
+                    </div>
+                    <i class="fa-solid fa-chevron-right text-slate-400 group-hover:text-blue-600"></i>
+                </button>
+            </div>
         </div>
     </div>
 
     <!-- 인터랙티브 대시보드 모달 -->
     <div id="dashboard-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50">
-        <div class="bg-white w-[850px] max-h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <div class="bg-white w-[900px] max-w-[95vw] max-h-[88vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
             <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
-                <h3 class="font-bold text-sm"><i class="fa-solid fa-chart-pie mr-2 text-indigo-400"></i>피벗 요약표 및 대시보드</h3>
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-chart-pie mr-2 text-indigo-400"></i>인터랙티브 피벗 요약표 및 대시보드</h3>
                 <button onclick="closeDashboard()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
-            <div class="p-5 bg-slate-50 border-b flex space-x-4">
-                <div class="flex-1">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">기준 항목 (X축 / 그룹화)</label>
-                    <select id="dash-group-col" onchange="renderDashboard()" class="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500"></select>
+            <div class="p-4 bg-slate-50 border-b grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">기준 항목 (그룹화)</label>
+                    <select id="dash-group-col" onchange="renderDashboard()" class="w-full border rounded px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-indigo-500"></select>
                 </div>
-                <div class="flex-1">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">계산 항목 (Y축 / 값)</label>
-                    <select id="dash-val-col" onchange="renderDashboard()" class="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500"></select>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">계산 대상 항목 (값)</label>
+                    <select id="dash-val-col" onchange="renderDashboard()" class="w-full border rounded px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-indigo-500"></select>
                 </div>
-                <div class="w-32">
-                    <label class="block text-xs font-bold text-slate-700 mb-1">계산 방식</label>
-                    <select id="dash-agg-type" onchange="renderDashboard()" class="w-full border rounded px-3 py-2 text-sm outline-none focus:border-indigo-500">
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">집계 방식</label>
+                    <select id="dash-agg-type" onchange="renderDashboard()" class="w-full border rounded px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-indigo-500">
+                        <option value="count">데이터 건수 (COUNT)</option>
                         <option value="sum">합계 (SUM)</option>
                         <option value="avg">평균 (AVG)</option>
-                        <option value="count">개수 (COUNT)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">그래프 형태</label>
+                    <select id="dash-chart-type" onchange="renderDashboard()" class="w-full border rounded px-2.5 py-1.5 text-xs font-semibold outline-none focus:border-indigo-500">
+                        <option value="bar">막대 그래프 (Bar)</option>
+                        <option value="doughnut">도넛 차트 (Doughnut)</option>
+                        <option value="line">선 그래프 (Line)</option>
                     </select>
                 </div>
             </div>
-            <div class="flex-1 p-5 flex space-x-5 overflow-y-auto">
-                <div class="w-1/2 bg-white border border-slate-200 rounded-lg p-3">
+            <div class="flex-1 p-5 grid grid-cols-1 md:grid-cols-2 gap-5 overflow-y-auto">
+                <div class="bg-white border border-slate-200 rounded-lg p-4 flex items-center justify-center min-h-[260px]">
                     <canvas id="dashboard-chart"></canvas>
                 </div>
-                <div class="w-1/2 bg-white border border-slate-200 rounded-lg overflow-hidden flex flex-col">
-                    <table class="w-full text-sm text-left">
-                        <thead class="text-xs text-slate-700 bg-slate-100 border-b">
-                            <tr><th class="px-4 py-2" id="dash-th-group">그룹</th><th class="px-4 py-2 text-right" id="dash-th-val">결과값</th></tr>
-                        </thead>
-                        <tbody id="dash-table-body" class="divide-y divide-slate-200"></tbody>
-                    </table>
+                <div class="bg-white border border-slate-200 rounded-lg overflow-hidden flex flex-col">
+                    <div class="bg-slate-100 px-4 py-2 font-bold text-xs text-slate-700 border-b flex justify-between">
+                        <span>피벗 요약 보고서</span>
+                        <span id="dash-total-badge" class="text-indigo-600"></span>
+                    </div>
+                    <div class="overflow-y-auto max-h-[300px]">
+                        <table class="w-full text-xs text-left">
+                            <thead class="text-slate-600 bg-slate-50 border-b sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-2" id="dash-th-group">구분</th>
+                                    <th class="px-4 py-2 text-right" id="dash-th-val">집계값</th>
+                                    <th class="px-4 py-2 text-right">비중(%)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dash-table-body" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 로그인 모달 -->
-    <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50">
-        <div class="bg-white w-[420px] rounded-xl shadow-2xl p-7">
+    <!-- 로그인 모달 (@helloconnectn.com 고정 UI) -->
+    <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
+        <div class="bg-white w-full max-w-[400px] rounded-xl shadow-2xl p-6">
             <div class="text-center mb-6">
-                <h2 class="text-2xl font-bold text-slate-800">헬로CN 닥스 PRO</h2>
-                <p class="text-xs text-slate-500 mt-1">업무망 로그인 인증</p>
+                <div class="bg-blue-600 text-white w-10 h-10 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-md"><i class="fa-solid fa-table text-lg"></i></div>
+                <h2 class="text-xl font-bold text-slate-800">헬로CN 닥스 PRO</h2>
+                <p class="text-xs text-slate-500 mt-1">사내 업무망 계정으로 로그인하세요</p>
             </div>
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">아이디</label>
-                    <div class="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition">
-                        <input type="text" id="login-id" required placeholder="suby20" class="flex-1 px-3 py-2 text-sm outline-none w-full">
-                        <span class="bg-slate-100 text-slate-500 px-3 py-2 text-xs font-semibold border-l border-slate-300 select-none">@helloconnectn.com</span>
+                    <div class="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500">
+                        <input type="text" id="login-id" required autocomplete="username" autocapitalize="none" placeholder="suby20" class="flex-1 px-3 py-2.5 text-sm outline-none w-full">
+                        <span class="bg-slate-100 text-slate-500 px-3 py-2.5 text-xs font-semibold border-l border-slate-300 select-none">@helloconnectn.com</span>
                     </div>
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
-                    <input type="password" id="login-pw" required placeholder="비밀번호를 입력하세요" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+                    <input type="password" id="login-pw" required autocomplete="current-password" placeholder="비밀번호 입력" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 </div>
                 <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-md transition mt-2">시스템 접속</button>
             </form>
         </div>
     </div>
 
-    <!-- 시트 및 항목 설정 모달 -->
-    <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-        <div class="bg-white w-[780px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
-            <div class="bg-slate-900 text-white px-5 py-4 flex justify-between"><h3 class="font-bold text-sm">시트 및 항목 서식 설정</h3><button onclick="closeColumnManager()"><i class="fa-solid fa-xmark"></i></button></div>
-            <div class="p-5 space-y-4 max-h-[60vh] overflow-y-auto bg-slate-50">
-                <div class="bg-white p-3 rounded-lg border border-slate-200 flex items-center justify-between">
-                    <span class="text-xs font-bold text-slate-800">현재 시트 이름 변경</span>
-                    <input type="text" id="sheet-rename-input" class="border border-slate-300 rounded px-3 py-1.5 text-xs font-bold text-blue-600 outline-none w-1/2">
-                </div>
-                <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
-                    <div>
-                        <span class="text-xs font-bold text-slate-800">엑셀 붙여넣기 헤더 줄수</span>
+    <!-- 시트 및 항목 서식 설정 모달 -->
+    <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white w-full max-w-[800px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+            <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
+                <h3 class="font-bold text-sm"><i class="fa-solid fa-sliders mr-2 text-indigo-400"></i>시트 구조 및 항목별 셀 서식 설정</h3>
+                <button onclick="closeColumnManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 space-y-4 max-h-[65vh] overflow-y-auto bg-slate-50">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div class="bg-white p-3 rounded-lg border border-slate-200 flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-800">시트 이름</span>
+                        <input type="text" id="sheet-rename-input" class="border border-slate-300 rounded px-2.5 py-1 text-xs font-bold text-blue-600 outline-none w-44">
                     </div>
-                    <select id="header-rows-select" class="border rounded px-3 py-1.5 text-xs font-bold text-blue-600 outline-none"><option value="1">1줄 헤더</option><option value="2">2줄 헤더</option></select>
+                    <div class="bg-white p-3 rounded-lg border border-slate-200 flex justify-between items-center">
+                        <span class="text-xs font-bold text-slate-800">상단 헤더 표시 줄수</span>
+                        <select id="header-rows-select" onchange="saveTempColsAndRender()" class="border border-slate-300 rounded px-2.5 py-1 text-xs font-bold text-blue-600 outline-none">
+                            <option value="1">1줄 헤더 (기본)</option>
+                            <option value="2">2줄 헤더 (상단 자동병합)</option>
+                        </select>
+                    </div>
                 </div>
                 <div id="column-edit-list" class="space-y-2"></div>
-                <button onclick="addColumnField()" class="w-full bg-white border-dashed border border-slate-400 py-2 rounded-lg text-xs font-bold text-blue-600 hover:bg-blue-50 transition">+ 새 항목 추가</button>
+                <button onclick="addColumnField()" class="w-full bg-white border-dashed border-2 border-slate-300 py-2 rounded-lg text-xs font-bold text-blue-600 hover:bg-blue-50 transition">+ 새 항목(열) 추가</button>
             </div>
             <div class="bg-white px-5 py-3 flex justify-end space-x-2 border-t">
                 <button onclick="closeColumnManager()" class="bg-slate-200 px-4 py-1.5 rounded text-xs font-bold text-slate-700">취소</button>
-                <button onclick="saveColumnChanges()" class="bg-blue-600 text-white px-4 py-1.5 rounded text-xs font-bold">서버에 서식 반영</button>
+                <button onclick="saveColumnChanges()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-1.5 rounded text-xs font-bold shadow">서버에 서식 반영</button>
             </div>
         </div>
     </div>
     
-    <!-- 권한 관리 모달 -->
-    <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
-        <div class="bg-white w-[750px] rounded-xl overflow-hidden flex flex-col shadow-2xl">
+    <!-- 권한 및 계정 관리 모달 (관리자 비번 변경 + 새 계정 추가 원형 유지) -->
+    <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white w-full max-w-[750px] rounded-xl overflow-hidden flex flex-col shadow-2xl">
             <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
-                <h3 class="text-sm font-bold">권한 및 계정 관리</h3>
+                <h3 class="text-sm font-bold"><i class="fa-solid fa-users-gear mr-2 text-blue-400"></i>권한 및 계정 관리</h3>
                 <button onclick="closeAccountManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <div class="p-5 overflow-y-auto max-h-[70vh] bg-slate-50">
                 <div class="mb-5 bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
-                    <h4 class="text-xs font-bold text-slate-700 mb-3"><i class="fa-solid fa-user-plus mr-1.5"></i>새 계정 추가</h4>
-                    <div class="flex space-x-2">
-                        <input type="text" id="new-acc-id" placeholder="아이디 (예: abc01)" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-1/4 outline-none focus:border-blue-500">
-                        <input type="text" id="new-acc-name" placeholder="이름 (예: 홍길동)" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-1/4 outline-none focus:border-blue-500">
-                        <select id="new-acc-role" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-1/4 outline-none focus:border-blue-500">
+                    <h4 class="text-xs font-bold text-slate-700 mb-3"><i class="fa-solid fa-user-plus mr-1.5 text-blue-600"></i>새 계정 추가</h4>
+                    <div class="flex flex-wrap sm:flex-nowrap gap-2">
+                        <input type="text" id="new-acc-id" placeholder="아이디 (예: abc01)" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-full sm:w-1/4 outline-none focus:border-blue-500">
+                        <input type="text" id="new-acc-name" placeholder="이름 (예: 홍길동)" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-full sm:w-1/4 outline-none focus:border-blue-500">
+                        <select id="new-acc-role" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-full sm:w-1/4 outline-none focus:border-blue-500">
                             <option value="플래너">플래너</option>
                             <option value="영업매니저">영업매니저</option>
                             <option value="센터장">센터장</option>
                             <option value="CS파트장">CS파트장</option>
                             <option value="신사업추진단">신사업추진단</option>
                             <option value="사업추진실장">사업추진실장</option>
+                            <option value="서추">서추</option>
+                            <option value="영추">영추</option>
                             <option value="최고관리자">최고관리자</option>
                         </select>
-                        <input type="password" id="new-acc-pw" placeholder="초기 비밀번호" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-1/4 outline-none focus:border-blue-500">
-                        <button onclick="addNewAccount()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-xs font-bold rounded transition">추가</button>
+                        <input type="password" id="new-acc-pw" placeholder="초기 비밀번호" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-full sm:w-1/4 outline-none focus:border-blue-500">
+                        <button onclick="addNewAccount()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-xs font-bold rounded transition shrink-0">추가</button>
                     </div>
                 </div>
                 
-                <h4 class="text-xs font-bold text-slate-700 mb-2"><i class="fa-solid fa-users mr-1.5"></i>등록된 계정 목록</h4>
+                <h4 class="text-xs font-bold text-slate-700 mb-2"><i class="fa-solid fa-users mr-1.5"></i>등록된 계정 목록 (비밀번호 변경 및 관리)</h4>
                 <div id="admin-account-list" class="space-y-2"></div>
             </div>
         </div>
     </div>
 
-    <!-- Firebase SDK -->
+    <!-- Firebase SDK 연동 (모바일/PC 호환 이메일 인증 정석 복구) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const app = initializeApp({
@@ -309,16 +442,15 @@
         });
         
         const auth = getAuth(app);
-        
-        // 🌟 모바일 보안/CORS 에러 원인이 되는 복잡한 이메일 인증 대신 익명 인증(Anonymous Auth)으로 안전하게 통신 세션 수립
-        signInAnonymously(auth).catch(() => {});
+        const db = getFirestore(app);
 
-        window.fb = { auth, db: getFirestore(app), doc, setDoc, getDoc, onSnapshot, signOut, onAuthStateChanged };
+        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
         window.initApp();
     </script>
 
-    <!-- 앱 로직 -->
+    <!-- 메인 애플리케이션 코어 스크립트 -->
     <script>
+        // 3.5초 안전장치 타이머 (네트워크 지연 시 무한 로딩 방지)
         let failSafeTimer = setTimeout(() => {
             const loader = document.getElementById('initial-loader');
             if (loader && !loader.classList.contains('hidden')) {
@@ -329,42 +461,76 @@
         }, 3500);
 
         const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; 
-        let sheetsData = {}; let accountsData = []; let currentAccount = null; let activeSheet = null; let isRemoteUpdating = false;
-        let myFilters = {}; let selection = { startR: null, startC: null, endR: null, endC: null, active: false }; let activeCell = { r: null, c: null };
+        let sheetsData = {}; 
+        let accountsData = []; 
+        let currentAccount = null; 
+        let activeSheet = null; 
+        let isRemoteUpdating = false;
+        let myFilters = {}; 
+        let globalSearchQuery = "";
+        let selection = { startR: 0, startC: 0, endR: 0, endC: 0, active: false }; 
+        let activeCell = { r: 0, c: 0 };
         let resizeState = { active: false, type: '', idx: -1, startX: 0, startY: 0, startWidth: 0, startHeight: 0 };
         const presenceColors = ['#ef4444', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#0ea5e9'];
         let chartObj = null;
+        let pendingPasteMatrix = null;
 
-        let localUndoStack = []; let localRedoStack = [];
+        let localUndoStack = []; 
+        let localRedoStack = [];
         let unsubAccounts, unsubSheets, unsubPresence;
 
+        // 신규 시트 기본 구조: 1행 1열, 1줄 헤더, 가운데 정렬
         let defaultSheetsData = {
-            "월별실적": {
+            "시트1": {
                 headerRows: 1, rowHeights: {},
-                columns: [{ name: "항목1", name2: "", type: "text", width: 80 }],
-                rows: [ [{v:"",b:false,bg:"",align:"center",memo:""}] ]
+                columns: [{ name: "항목1", name2: "", type: "text", width: 85 }],
+                rows: [ [{v:"", b:false, bg:"", color:"", align:"center", memo:""}] ]
             }
         };
 
-        function isPrivilegedRole(role) { return role === "최고관리자" || role === "서추" || role === "영추"; }
-        async function hashPassword(str) { const msgBuffer = new TextEncoder().encode(str); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join(''); }
+        function isPrivilegedRole(role) { return ["최고관리자", "사업추진실장", "신사업추진단", "서추", "영추"].includes(role); }
+        
+        async function hashPassword(str) { 
+            const msgBuffer = new TextEncoder().encode(str); 
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); 
+            return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join(''); 
+        }
+
+        function getColLetter(cIdx) {
+            let letter = '';
+            let temp = cIdx;
+            while (temp >= 0) {
+                letter = String.fromCharCode((temp % 26) + 65) + letter;
+                temp = Math.floor(temp / 26) - 1;
+            }
+            return letter;
+        }
 
         function migrateDataStructure(data) {
             Object.keys(data).forEach(sName => {
                 if(!data[sName].headerRows) data[sName].headerRows = 1;
                 if(!data[sName].rowHeights) data[sName].rowHeights = {};
                 data[sName].columns.forEach(c => { 
-                    if(!c.width) c.width = 80; if(c.name2 === undefined) c.name2 = ""; 
-                    if(c.validation === 'number') c.type = 'number'; if(c.validation === 'date') c.type = 'date'; delete c.validation;
+                    if(!c.width) c.width = 85; 
+                    if(c.name2 === undefined) c.name2 = ""; 
+                    if(c.validation === 'number') c.type = 'number'; 
+                    if(c.validation === 'date') c.type = 'date'; 
+                    delete c.validation;
                 });
-                data[sName].rows = data[sName].rows.map(row => row.map(cell => (typeof cell === 'string' ? { v: cell, b: false, bg: "", align: "center", memo: "" } : cell)));
+                data[sName].rows = data[sName].rows.map(row => row.map(cell => {
+                    if (typeof cell === 'string') return { v: cell, b: false, bg: "", color: "", align: "center", memo: "" };
+                    if (!cell.align) cell.align = "center";
+                    if (!cell.color) cell.color = "";
+                    return cell;
+                }));
             });
             return data;
         }
 
         async function saveAccountsToFirebase() {
-            try { await window.fb.setDoc(window.fb.doc(window.fb.db, "config", "accountsDoc"), { accounts: accountsData }); } catch(e) {}
+            try { await window.fb.setDoc(window.fb.doc(window.fb.db, "config", "accountsDoc"), { accounts: accountsData }); } catch(e) { console.error(e); }
         }
+        
         function ensureMasterAdmins() {
             let changed = false;
             if (!accountsData.find(a => a.userId === 'suby20')) { accountsData.push({ userId: 'suby20', name: '심현섭', role: '최고관리자', passwordHash: ADMIN_HASH }); changed = true; }
@@ -372,38 +538,38 @@
             if (changed) saveAccountsToFirebase();
         }
 
+        // Firebase Auth 정석 초기화 (모바일 크롬/사파리 완벽 호환)
         window.initApp = async function() {
             if(!window.fb) return;
-            const { db, doc, getDoc } = window.fb;
-            const uid = localStorage.getItem("hellocn_auth_userid");
-            
-            if (uid) {
-                try {
-                    const accSnap = await getDoc(doc(db, "config", "accountsDoc"));
-                    if (accSnap.exists()) accountsData = accSnap.data().accounts || [];
-                    ensureMasterAdmins();
-                    
-                    const target = accountsData.find(a => a.userId === uid);
-                    if (target) {
-                        clearTimeout(failSafeTimer);
-                        currentAccount = target;
-                        if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
-                        startDatabaseSync();
+            const { auth, db, doc, getDoc, onAuthStateChanged, setPersistence, browserLocalPersistence } = window.fb;
+            try { await setPersistence(auth, browserLocalPersistence); } catch(e) {}
+
+            onAuthStateChanged(auth, async (fbUser) => {
+                const uid = localStorage.getItem("hellocn_auth_userid");
+                if (fbUser && uid) {
+                    try {
+                        const accSnap = await getDoc(doc(db, "config", "accountsDoc"));
+                        if (accSnap.exists()) accountsData = accSnap.data().accounts || [];
+                        ensureMasterAdmins();
                         
-                        document.getElementById('initial-loader').classList.add('hidden');
-                        document.getElementById('login-modal').classList.add('hidden');
-                        document.getElementById('login-modal').classList.remove('flex');
-                        updateUserInterface();
-                        return;
-                    }
-                } catch(e) {}
-            }
-            clearTimeout(failSafeTimer);
-            document.getElementById('initial-loader').classList.add('hidden');
-            document.getElementById('login-modal').classList.remove('hidden');
-            document.getElementById('login-modal').classList.add('flex');
+                        const target = accountsData.find(a => a.userId === uid);
+                        if (target) {
+                            clearTimeout(failSafeTimer);
+                            currentAccount = target;
+                            if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
+                            startDatabaseSync();
+                            
+                            document.getElementById('initial-loader').classList.add('hidden');
+                            document.getElementById('login-modal').classList.add('hidden');
+                            document.getElementById('login-modal').classList.remove('flex');
+                            updateUserInterface();
+                        } else { forceLogout(); }
+                    } catch(e) { console.error(e); forceLogout(); }
+                } else { forceLogout(); }
+            });
         };
 
+        let lastKnownRemoteCursors = {};
         function startDatabaseSync() {
             const { db, doc, onSnapshot } = window.fb;
             unsubAccounts = onSnapshot(doc(db, "config", "accountsDoc"), snap => { if (snap.exists()) accountsData = snap.data().accounts || []; });
@@ -411,91 +577,218 @@
                 isRemoteUpdating = true;
                 if (snap.exists()) {
                     try {
+                        // 현재 포커스 중인 셀 정보 기억
+                        let focusedId = document.activeElement ? document.activeElement.id : null;
                         sheetsData = migrateDataStructure(JSON.parse(snap.data().payload));
                         if (!activeSheet || !sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
-                        renderSheetTabs(); renderGrid(); setSyncStatus(true);
-                    } catch(e) {}
-                } else { sheetsData = migrateDataStructure(JSON.parse(JSON.stringify(defaultSheetsData))); activeSheet = Object.keys(sheetsData)[0]; saveSheetsToFirebase(); }
+                        renderSheetTabs(); 
+                        renderGrid(); 
+                        drawRemoteCursors(lastKnownRemoteCursors);
+                        setSyncStatus(true);
+                        if (focusedId && document.getElementById(focusedId)) document.getElementById(focusedId).focus();
+                    } catch(e) { console.error(e); }
+                } else { 
+                    sheetsData = migrateDataStructure(JSON.parse(JSON.stringify(defaultSheetsData))); 
+                    activeSheet = Object.keys(sheetsData)[0]; 
+                    saveSheetsToFirebase(); 
+                }
                 isRemoteUpdating = false;
             });
-            unsubPresence = onSnapshot(doc(db, "sheets", "presence"), snap => { if (snap.exists() && activeSheet) drawRemoteCursors(snap.data().active || {}); });
+            unsubPresence = onSnapshot(doc(db, "sheets", "presence"), snap => { 
+                if (snap.exists()) {
+                    lastKnownRemoteCursors = snap.data() || {};
+                    if (activeSheet) drawRemoteCursors(lastKnownRemoteCursors); 
+                }
+            });
+            // 20초마다 내 생존 신호 갱신
+            setInterval(() => { if(currentAccount) broadcastCursor(); }, 20000);
         }
 
         async function saveSheetsToFirebase() {
             if (isRemoteUpdating) return;
-            try { await window.fb.setDoc(window.fb.doc(window.fb.db, "sheets", "mainDoc"), { payload: JSON.stringify(sheetsData), ts: Date.now() }); setSyncStatus(true); } catch(e) { setSyncStatus(false); }
+            try { 
+                await window.fb.setDoc(window.fb.doc(window.fb.db, "sheets", "mainDoc"), { payload: JSON.stringify(sheetsData), ts: Date.now() }); 
+                setSyncStatus(true); 
+            } catch(e) { setSyncStatus(false); }
         }
 
         function setSyncStatus(isOk) {
             const dot = document.getElementById('sync-dot'); const text = document.getElementById('sync-text');
-            if (isOk) { dot.className = "w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"; text.innerText = "동기화됨"; } 
-            else { dot.className = "w-1.5 h-1.5 rounded-full bg-red-400"; text.innerText = "연결 끊김"; }
+            if (isOk) { dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse"; text.innerText = "실시간 동기화됨"; } 
+            else { dot.className = "w-2 h-2 rounded-full bg-red-400"; text.innerText = "오프라인"; }
         }
 
+        // 실시간 다른 사용자 편집 셀 표시 (Presence 완벽 수정)
         async function broadcastCursor() {
             if(!currentAccount || !activeSheet || activeCell.r === null) return;
-            try { await window.fb.setDoc(window.fb.doc(window.fb.db, "sheets", "presence"), { [`active.${currentAccount.userId}`]: { sheet: activeSheet, r: activeCell.r, c: activeCell.c, name: currentAccount.name, ts: Date.now() } }, { merge: true }); } catch(e) {}
+            try { 
+                await window.fb.setDoc(window.fb.doc(window.fb.db, "sheets", "presence"), { 
+                    [currentAccount.userId]: { sheet: activeSheet, r: activeCell.r, c: activeCell.c, name: currentAccount.name, role: currentAccount.role, ts: Date.now() } 
+                }, { merge: true }); 
+            } catch(e) {}
         }
-        function drawRemoteCursors(activeData) {
+
+        function drawRemoteCursors(presenceDoc) {
             document.querySelectorAll('.cursor-indicator').forEach(el => el.style.display = 'none');
-            const now = Date.now(); let colorIdx = 0;
-            Object.keys(activeData).forEach(uid => {
-                if (uid === currentAccount.userId) return;
-                const pos = activeData[uid];
-                if (pos.sheet === activeSheet && (now - pos.ts < 60000)) { 
+            const badgeContainer = document.getElementById('online-users-list');
+            if (badgeContainer) badgeContainer.innerHTML = '';
+
+            // 기존 중첩 구조 및 신규 평면 구조 모두 호환
+            let mapData = presenceDoc.active ? Object.assign({}, presenceDoc, presenceDoc.active) : presenceDoc;
+            delete mapData.active;
+
+            const now = Date.now(); 
+            let colorIdx = 0;
+            Object.keys(mapData).forEach(uid => {
+                const pos = mapData[uid];
+                if (!pos || !pos.name || (now - pos.ts > 120000)) return; // 2분 이내 활성 사용자
+                let color = presenceColors[colorIdx % presenceColors.length];
+                colorIdx++;
+
+                if (uid !== currentAccount?.userId && badgeContainer) {
+                    badgeContainer.innerHTML += `<span class="px-2 py-0.5 rounded-full text-[10px] font-bold text-white shadow-sm flex items-center" style="background-color:${color}" title="${pos.sheet} 시트 (${getColLetter(pos.c)}${pos.r+1}) 편집 중"><span class="w-1.5 h-1.5 rounded-full bg-white mr-1 animate-ping"></span>${pos.name}</span>`;
+                }
+
+                if (uid === currentAccount?.userId) return;
+                if (pos.sheet === activeSheet) { 
                     const td = document.getElementById(`cell-${pos.r}-${pos.c}`);
                     if (td) {
                         const cur = td.querySelector('.cursor-indicator');
                         if (cur) {
-                            let color = presenceColors[colorIdx % presenceColors.length];
                             cur.style.borderColor = color;
-                            let nameTag = cur.querySelector('.cursor-name'); nameTag.innerText = pos.name; nameTag.style.backgroundColor = color;
-                            cur.style.display = 'block'; colorIdx++;
+                            let nameTag = cur.querySelector('.cursor-name'); 
+                            nameTag.innerText = `${pos.name}`; 
+                            nameTag.style.backgroundColor = color;
+                            cur.style.display = 'block';
                         }
                     }
                 }
             });
         }
 
-        function evaluateFormula(val, selfR, selfC) {
-            if (typeof val !== 'string' || !val.startsWith('=')) return val;
-            try {
-                let expr = val.substring(1).toUpperCase();
-                expr = expr.replace(/[A-Z]+[0-9]+/g, (match) => {
-                    let colStr = match.match(/[A-Z]+/)[0]; let rowStr = match.match(/[0-9]+/)[0];
-                    let c = 0; for (let i = 0; i < colStr.length; i++) c = c * 26 + (colStr.charCodeAt(i) - 64);
-                    c -= 1; let r = parseInt(rowStr) - 1;
-                    if(r === selfR && c === selfC) return 0;
-                    let cellVal = sheetsData[activeSheet].rows[r][c]?.v || "0";
-                    let num = parseFloat(cellVal.toString().replace(/,/g, '')); return isNaN(num) ? 0 : num;
-                });
-                let result = new Function('return ' + expr)();
-                return isNaN(result) ? "#ERROR!" : result.toLocaleString();
-            } catch(e) { return "#ERROR!"; }
+        // 구글 닥스급 수식 연산기 (=SUM, =AVERAGE, =MIN, =MAX, =COUNT 및 사칙연산 완벽 지원)
+        function colLetterToIndex(colStr) {
+            let c = 0;
+            for (let i = 0; i < colStr.length; i++) c = c * 26 + (colStr.charCodeAt(i) - 64);
+            return c - 1;
         }
 
+        function getCellNumericValue(r, c, visited = {}) {
+            let key = `${r},${c}`;
+            if (visited[key]) return 0; // 순환 참조 방지
+            visited[key] = true;
+            let sheet = sheetsData[activeSheet];
+            if (!sheet || !sheet.rows[r] || !sheet.rows[r][c]) return 0;
+            let raw = (sheet.rows[r][c].v || "").toString().trim();
+            if (raw.startsWith('=')) {
+                let evalRes = evaluateFormula(raw, r, c, visited);
+                let n = parseFloat(evalRes.toString().replace(/,/g, ''));
+                return isNaN(n) ? 0 : n;
+            }
+            let num = parseFloat(raw.replace(/,/g, ''));
+            return isNaN(num) ? 0 : num;
+        }
+
+        function getRangeValues(rangeStr, selfR, selfC, visited) {
+            let parts = rangeStr.split(':');
+            if (parts.length !== 2) return [];
+            let m1 = parts[0].trim().match(/^([A-Z]+)([0-9]+)$/);
+            let m2 = parts[1].trim().match(/^([A-Z]+)([0-9]+)$/);
+            if (!m1 || !m2) return [];
+            let c1 = colLetterToIndex(m1[1]), r1 = parseInt(m1[2]) - 1;
+            let c2 = colLetterToIndex(m2[1]), r2 = parseInt(m2[2]) - 1;
+            let vals = [];
+            for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+                for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
+                    if (r === selfR && c === selfC) continue;
+                    let raw = sheetsData[activeSheet]?.rows[r]?.[c]?.v || "";
+                    if (raw.toString().trim() !== "") {
+                        vals.push(getCellNumericValue(r, c, Object.assign({}, visited)));
+                    }
+                }
+            }
+            return vals;
+        }
+
+        function evaluateFormula(val, selfR, selfC, visited = {}) {
+            if (typeof val !== 'string' || !val.startsWith('=')) return val;
+            try {
+                let expr = val.substring(1).toUpperCase().trim();
+                visited[`${selfR},${selfC}`] = true;
+
+                // 범위 함수 처리 (SUM, AVERAGE, AVG, MAX, MIN, COUNT)
+                expr = expr.replace(/(SUM|AVERAGE|AVG|MAX|MIN|COUNT)\(([^)]+)\)/g, (match, fn, argsStr) => {
+                    let nums = [];
+                    argsStr.split(',').forEach(arg => {
+                        arg = arg.trim();
+                        if (arg.includes(':')) {
+                            nums.push(...getRangeValues(arg, selfR, selfC, visited));
+                        } else if (/^[A-Z]+[0-9]+$/.test(arg)) {
+                            let colStr = arg.match(/[A-Z]+/)[0];
+                            let rowStr = arg.match(/[0-9]+/)[0];
+                            let c = colLetterToIndex(colStr), r = parseInt(rowStr) - 1;
+                            if (!(r === selfR && c === selfC)) nums.push(getCellNumericValue(r, c, Object.assign({}, visited)));
+                        } else {
+                            let n = parseFloat(arg);
+                            if (!isNaN(n)) nums.push(n);
+                        }
+                    });
+                    if (fn === 'SUM') return nums.reduce((a, b) => a + b, 0);
+                    if (fn === 'AVERAGE' || fn === 'AVG') return nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length) : 0;
+                    if (fn === 'MAX') return nums.length ? Math.max(...nums) : 0;
+                    if (fn === 'MIN') return nums.length ? Math.min(...nums) : 0;
+                    if (fn === 'COUNT') return nums.length;
+                    return 0;
+                });
+
+                // 개별 셀 참조 (A1, B2 등) 치환
+                expr = expr.replace(/[A-Z]+[0-9]+/g, (match) => {
+                    let colStr = match.match(/[A-Z]+/)[0]; 
+                    let rowStr = match.match(/[0-9]+/)[0];
+                    let c = colLetterToIndex(colStr), r = parseInt(rowStr) - 1;
+                    if(r === selfR && c === selfC) return 0;
+                    return getCellNumericValue(r, c, Object.assign({}, visited));
+                });
+
+                let result = new Function('return (' + expr + ')')();
+                return ( result === undefined || isNaN(result) || !isFinite(result) ) ? "#계산오류" : Number(result.toFixed(4)).toLocaleString();
+            } catch(e) { return "#수식오류"; }
+        }
+
+        // "10월01일" 스마트 날짜 변환 및 숫자 콤마 포맷터
         function formatDateString(val) {
             if (!val) return "";
-            if (/^\d{1,2}월\s*\d{1,2}일$/.test(val)) { let m = val.match(/(\d+)/g); return `${m[0].padStart(2, '0')}월${m[1].padStart(2, '0')}일`; }
+            val = val.toString().trim();
+            if (/^\d{1,2}월\s*\d{1,2}일$/.test(val)) { 
+                let m = val.match(/(\d+)/g); 
+                return `${m[0].padStart(2, '0')}월${m[1].padStart(2, '0')}일`; 
+            }
             let nums = val.replace(/[^0-9]/g, '');
             if (nums.length === 4) return `${nums.substring(0,2)}월${nums.substring(2,4)}일`; 
             if (nums.length === 3) return `0${nums.substring(0,1)}월${nums.substring(1,3)}일`; 
             if (nums.length === 8) return `${nums.substring(4,6)}월${nums.substring(6,8)}일`; 
-            let parts = val.split(/[-/.]/); if (parts.length >= 2) return `${parts[parts.length-2].padStart(2, '0')}월${parts[parts.length-1].padStart(2, '0')}일`;
+            let parts = val.split(/[-/.]/); 
+            if (parts.length >= 2) return `${parts[parts.length-2].trim().padStart(2, '0')}월${parts[parts.length-1].trim().padStart(2, '0')}일`;
             return val;
         }
+        
         function formatNumberString(val) {
             if (!val || val.toString().startsWith('=')) return val;
-            let num = parseFloat(val.toString().replace(/,/g, '')); return isNaN(num) ? val : num.toLocaleString();
+            let num = parseFloat(val.toString().replace(/,/g, '')); 
+            return isNaN(num) ? val : num.toLocaleString();
         }
 
+        // 로컬 독립형 Undo / Redo 엔진 (내 작업만 복원)
         function pushUndoState(actionType, r, c, oldData, newData) {
             localUndoStack.push({ sheet: activeSheet, type: actionType, r, c, oldData: JSON.parse(JSON.stringify(oldData)), newData: JSON.parse(JSON.stringify(newData)) });
-            if(localUndoStack.length > 50) localUndoStack.shift(); localRedoStack = [];
+            if(localUndoStack.length > 60) localUndoStack.shift(); 
+            localRedoStack = [];
         }
         function pushMultiUndoState(actions) {
+            if(!actions || actions.length === 0) return;
             localUndoStack.push({ sheet: activeSheet, type: 'multi', actions: JSON.parse(JSON.stringify(actions)) });
-            if(localUndoStack.length > 50) localUndoStack.shift(); localRedoStack = [];
+            if(localUndoStack.length > 60) localUndoStack.shift(); 
+            localRedoStack = [];
         }
         function handleUndo() {
             if (localUndoStack.length === 0) return;
@@ -508,39 +801,58 @@
         function applyHistoryAction(act, isUndo) {
             let sheet = sheetsData[act.sheet]; if (!sheet) return;
             if (act.type === 'edit') {
-                if(sheet.rows[act.r] && sheet.rows[act.r][act.c]) sheet.rows[act.r][act.c] = isUndo ? JSON.parse(JSON.stringify(act.oldData)) : JSON.parse(JSON.stringify(act.newData));
+                if(sheet.rows[act.r] && sheet.rows[act.r][act.c]) {
+                    sheet.rows[act.r][act.c] = isUndo ? JSON.parse(JSON.stringify(act.oldData)) : JSON.parse(JSON.stringify(act.newData));
+                }
             } else if (act.type === 'multi') {
-                act.actions.forEach(sub => { if(sheet.rows[sub.r] && sheet.rows[sub.r][sub.c]) sheet.rows[sub.r][sub.c] = isUndo ? JSON.parse(JSON.stringify(sub.oldData)) : JSON.parse(JSON.stringify(sub.newData)); });
+                act.actions.forEach(sub => { 
+                    if(sheet.rows[sub.r] && sheet.rows[sub.r][sub.c]) {
+                        sheet.rows[sub.r][sub.c] = isUndo ? JSON.parse(JSON.stringify(sub.oldData)) : JSON.parse(JSON.stringify(sub.newData)); 
+                    }
+                });
             }
-            saveSheetsToFirebase(); if (activeSheet === act.sheet) renderGrid();
+            saveSheetsToFirebase(); 
+            if (activeSheet === act.sheet) renderGrid();
         }
-        document.addEventListener('keydown', function(e) {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); handleUndo(); }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); handleRedo(); }
-        });
+
+        // 글자 수 기반 최소 열 너비 자동 계산 (초밀착 Auto-Fit)
+        function calcOptimalColWidth(sheet, cIdx) {
+            const estimate = (str) => {
+                let len = 0; str = (str || "").toString();
+                for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 12.5 : 7.5;
+                return Math.ceil(len) + 26; // 여백 및 필터 아이콘 공간
+            };
+            let col = sheet.columns[cIdx];
+            // 2줄 헤더 병합된 경우 상위 헤더 길이는 분산 계산
+            let topNameLen = sheet.headerRows === 2 ? Math.ceil(estimate(col.name) * 0.6) : estimate(col.name);
+            let maxLen = Math.max(topNameLen, estimate(col.name2));
+            sheet.rows.forEach((r, rIdx) => { 
+                if(r[cIdx]) {
+                    let v = r[cIdx].v || "";
+                    if (v.toString().startsWith('=')) v = evaluateFormula(v, rIdx, cIdx);
+                    maxLen = Math.max(maxLen, estimate(v)); 
+                }
+            });
+            return Math.max(46, Math.min(360, maxLen));
+        }
 
         function autoFitAllColumns() {
-            let sheet = sheetsData[activeSheet];
-            const estimate = (str) => { let len = 0; str = (str||"").toString(); for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 13 : 8; return len + 35; };
-            sheet.columns.forEach((col, cIdx) => {
-                let maxLen = Math.max(estimate(col.name), estimate(col.name2));
-                sheet.rows.forEach(r => { if(r[cIdx]) maxLen = Math.max(maxLen, estimate(r[cIdx].v)); });
-                col.width = Math.max(50, Math.min(400, maxLen));
-            });
+            let sheet = sheetsData[activeSheet]; if(!sheet) return;
+            sheet.columns.forEach((col, cIdx) => { col.width = calcOptimalColWidth(sheet, cIdx); });
             saveSheetsToFirebase(); renderGrid();
         }
         function autoFitColumn(cIdx) {
-            let sheet = sheetsData[activeSheet];
-            const estimate = (str) => { let len = 0; str = (str||"").toString(); for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 13 : 8; return len + 35; };
-            let maxLen = Math.max(estimate(sheet.columns[cIdx].name), estimate(sheet.columns[cIdx].name2));
-            sheet.rows.forEach(r => { if(r[cIdx]) maxLen = Math.max(maxLen, estimate(r[cIdx].v)); });
-            sheet.columns[cIdx].width = Math.max(50, Math.min(400, maxLen));
+            let sheet = sheetsData[activeSheet]; if(!sheet) return;
+            sheet.columns[cIdx].width = calcOptimalColWidth(sheet, cIdx);
             saveSheetsToFirebase(); renderGrid();
         }
 
+        // 마우스 드래그 행/열 간격 조절
         function startResize(e, type, idx) {
-            e.stopPropagation(); resizeState.active = true; resizeState.type = type; resizeState.idx = idx;
-            resizeState.startX = e.clientX; resizeState.startY = e.clientY; let sheet = sheetsData[activeSheet];
+            e.stopPropagation(); e.preventDefault();
+            resizeState.active = true; resizeState.type = type; resizeState.idx = idx;
+            resizeState.startX = e.clientX; resizeState.startY = e.clientY; 
+            let sheet = sheetsData[activeSheet];
             resizeState.startWidth = type === 'col' ? sheet.columns[idx].width : 0;
             resizeState.startHeight = type === 'row' ? (sheet.rowHeights[idx] || 28) : 0;
             document.body.style.cursor = type === 'col' ? 'col-resize' : 'row-resize';
@@ -549,21 +861,39 @@
             if (!resizeState.active) return;
             let sheet = sheetsData[activeSheet];
             if (resizeState.type === 'col') {
-                let newW = Math.max(50, resizeState.startWidth + (e.clientX - resizeState.startX));
+                let newW = Math.max(42, resizeState.startWidth + (e.clientX - resizeState.startX));
                 sheet.columns[resizeState.idx].width = newW;
-                document.querySelectorAll(`.col-w-${resizeState.idx}`).forEach(el => { el.style.width = newW+'px'; el.style.minWidth = newW+'px'; });
+                document.querySelectorAll(`.col-w-${resizeState.idx}`).forEach(el => { el.style.width = newW+'px'; el.style.minWidth = newW+'px'; el.style.maxWidth = newW+'px'; });
             } else {
-                let newH = Math.max(28, resizeState.startHeight + (e.clientY - resizeState.startY));
+                let newH = Math.max(26, resizeState.startHeight + (e.clientY - resizeState.startY));
                 sheet.rowHeights[resizeState.idx] = newH;
                 let tr = document.getElementById(`row-${resizeState.idx}`); if(tr) tr.style.height = newH+'px';
             }
         });
-        window.addEventListener('mouseup', (e) => { if (resizeState.active) { resizeState.active = false; document.body.style.cursor = 'default'; saveSheetsToFirebase(); renderGrid(); } });
+        window.addEventListener('mouseup', () => { 
+            if (resizeState.active) { resizeState.active = false; document.body.style.cursor = 'default'; saveSheetsToFirebase(); renderGrid(); } 
+        });
 
-        function selectEntireCol(cIdx) { selection.active = false; selection.startR = 0; selection.endR = sheetsData[activeSheet].rows.length - 1; selection.startC = cIdx; selection.endC = cIdx; activeCell = {r:0, c:cIdx}; drawSelectionHighlight(); calculateStats(); }
-        function selectEntireRow(rIdx) { selection.active = false; selection.startR = rIdx; selection.endR = rIdx; selection.startC = 0; selection.endC = sheetsData[activeSheet].columns.length - 1; activeCell = {r:rIdx, c:0}; drawSelectionHighlight(); calculateStats(); }
-        function selectAllCells() { selection.active = false; selection.startR = 0; selection.endR = sheetsData[activeSheet].rows.length - 1; selection.startC = 0; selection.endC = sheetsData[activeSheet].columns.length - 1; activeCell = {r:0, c:0}; drawSelectionHighlight(); calculateStats(); }
+        // 전체 / 행 / 열 일괄 선택
+        function selectEntireCol(cIdx, e) {
+            if(e) e.stopPropagation();
+            let sheet = sheetsData[activeSheet]; if(!sheet || sheet.rows.length === 0) return;
+            selection.active = false; selection.startR = 0; selection.endR = sheet.rows.length - 1; selection.startC = cIdx; selection.endC = cIdx; 
+            activeCell = {r:0, c:cIdx}; updateFormulaBar(); drawSelectionHighlight(); calculateStats();
+        }
+        function selectEntireRow(rIdx, e) {
+            if(e) e.stopPropagation();
+            let sheet = sheetsData[activeSheet]; if(!sheet || sheet.columns.length === 0) return;
+            selection.active = false; selection.startR = rIdx; selection.endR = rIdx; selection.startC = 0; selection.endC = sheet.columns.length - 1; 
+            activeCell = {r:rIdx, c:0}; updateFormulaBar(); drawSelectionHighlight(); calculateStats();
+        }
+        function selectAllCells() {
+            let sheet = sheetsData[activeSheet]; if(!sheet || sheet.rows.length === 0) return;
+            selection.active = false; selection.startR = 0; selection.endR = sheet.rows.length - 1; selection.startC = 0; selection.endC = sheet.columns.length - 1; 
+            activeCell = {r:0, c:0}; updateFormulaBar(); drawSelectionHighlight(); calculateStats();
+        }
 
+        // 메인 그리드 렌더링 (2단 헤더 가로/세로 병합 및 2행 필터 완벽 지원)
         function renderGrid() {
             const sheet = sheetsData[activeSheet]; if (!sheet) return;
             if (!sheet.rowHeights) sheet.rowHeights = {};
@@ -571,103 +901,170 @@
             thead.innerHTML = ''; tbody.innerHTML = '';
 
             let hRows = sheet.headerRows || 1;
-            let tr1Html = `<th class="grid-header grid-header-corner grid-header-row1 w-12 bg-slate-200" ${hRows==2?'rowspan="2"':''} onclick="selectAllCells()"><i class="fa-solid fa-list-ol text-slate-400"></i></th>`;
+            let tr1Html = `<th class="grid-header grid-header-corner w-12" ${hRows==2?'rowspan="2"':''} onclick="selectAllCells()" title="시트 전체 선택"><i class="fa-solid fa-border-all text-slate-600"></i></th>`;
             let tr2Html = ``;
 
             if (hRows == 1) {
                 sheet.columns.forEach((col, cIdx) => {
                     let isFiltered = myFilters[cIdx] !== undefined;
-                    let filterIcon = `<i class="fa-solid fa-filter text-[10px] ${isFiltered ? 'text-blue-600' : 'text-slate-300'} hover:text-blue-600 absolute right-2 top-1/2 transform -translate-y-1/2 cursor-pointer bg-[#f1f5f9] px-0.5 z-20" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)"></i>`;
-                    tr1Html += `<th class="grid-header grid-header-row1 col-w-${cIdx} hover:bg-slate-200 transition" style="width:${col.width}px; min-width:${col.width}px; height: 28px;" onclick="selectEntireCol(${cIdx})">
-                        <div class="relative w-full h-full flex items-center justify-center px-4"><span class="truncate text-xs">${col.name}</span>${filterIcon}</div>
-                        <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${cIdx})"></div>
+                    let filterIcon = `<button class="w-4 h-4 rounded hover:bg-slate-300 flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 z-20 ${isFiltered ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)" title="필터 및 정렬"><i class="fa-solid fa-caret-down text-[11px]"></i></button>`;
+                    tr1Html += `<th id="col-hdr-${cIdx}" class="grid-header grid-header-row1 col-w-${cIdx}" style="width:${col.width}px; min-width:${col.width}px; max-width:${col.width}px;" onclick="selectEntireCol(${cIdx}, event)">
+                        <div class="relative w-full h-full flex items-center justify-center pl-1.5 pr-5"><span class="truncate text-xs">${col.name}</span>${filterIcon}</div>
+                        <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${cIdx})" title="드래그: 너비조절 / 더블클릭: 자동맞춤"></div>
                     </th>`;
                 });
             } else {
+                // 2줄 헤더: 원본 엑셀처럼 하위 헤더가 없거나 상하위가 같으면 세로 병합(rowspan=2), 상위 이름이 연속되면 가로 병합(colspan)
                 let cIdx = 0;
                 while (cIdx < sheet.columns.length) {
-                    let col = sheet.columns[cIdx]; let colspan = 1; let nextIdx = cIdx + 1;
-                    while (nextIdx < sheet.columns.length && sheet.columns[nextIdx].name === col.name) { colspan++; nextIdx++; }
-                    tr1Html += `<th class="grid-header grid-header-row1 border-b-0 hover:bg-slate-200 transition" colspan="${colspan}" style="height: 28px;">
-                        <div class="relative w-full h-full flex items-center justify-center px-1"><span class="truncate text-[11px] text-slate-500">${col.name}</span></div>
-                    </th>`;
-                    cIdx = nextIdx;
+                    let col = sheet.columns[cIdx];
+                    let hasSubHeader = col.name2 && col.name2.trim() !== "" && col.name2.trim() !== col.name.trim();
+                    
+                    if (!hasSubHeader) {
+                        // 단일 세로 병합 컬럼 (순번, 실행팀, 속인 등) - 2행 높이를 차지하며 필터도 바로 부착
+                        let isFiltered = myFilters[cIdx] !== undefined;
+                        let filterIcon = `<button class="w-4 h-4 rounded hover:bg-slate-300 flex items-center justify-center absolute right-1.5 bottom-1 z-20 ${isFiltered ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)" title="필터"><i class="fa-solid fa-caret-down text-[11px]"></i></button>`;
+                        tr1Html += `<th id="col-hdr-${cIdx}" class="grid-header grid-header-row1 col-w-${cIdx}" rowspan="2" style="width:${col.width}px; min-width:${col.width}px; max-width:${col.width}px; height:56px;" onclick="selectEntireCol(${cIdx}, event)">
+                            <div class="relative w-full h-full flex items-center justify-center pl-1.5 pr-5"><span class="truncate text-xs">${col.name}</span>${filterIcon}</div>
+                            <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${cIdx})"></div>
+                        </th>`;
+                        cIdx++;
+                    } else {
+                        // 상위 그룹 가로 병합 (회선수, 예상일정, 완료회선 등)
+                        let colspan = 1; let nextIdx = cIdx + 1;
+                        while (nextIdx < sheet.columns.length && sheet.columns[nextIdx].name === col.name && (sheet.columns[nextIdx].name2 && sheet.columns[nextIdx].name2.trim() !== "")) { 
+                            colspan++; nextIdx++; 
+                        }
+                        tr1Html += `<th class="grid-header grid-header-row1 bg-slate-200/80 text-slate-700" colspan="${colspan}">
+                            <div class="w-full h-full flex items-center justify-center px-1"><span class="truncate text-[11.5px]">${col.name}</span></div>
+                        </th>`;
+                        for (let subIdx = cIdx; subIdx < nextIdx; subIdx++) {
+                            let subCol = sheet.columns[subIdx];
+                            let isFiltered = myFilters[subIdx] !== undefined;
+                            let filterIcon = `<button class="w-4 h-4 rounded hover:bg-slate-300 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 z-20 ${isFiltered ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}" onclick="event.stopPropagation(); openCustomFilterMenu(${subIdx}, event)" title="필터"><i class="fa-solid fa-caret-down text-[11px]"></i></button>`;
+                            tr2Html += `<th id="col-hdr-${subIdx}" class="grid-header grid-header-row2 col-w-${subIdx}" style="width:${subCol.width}px; min-width:${subCol.width}px; max-width:${subCol.width}px;" onclick="selectEntireCol(${subIdx}, event)">
+                                <div class="relative w-full h-full flex items-center justify-center pl-1 pr-4"><span class="truncate text-[11.5px]">${subCol.name2}</span>${filterIcon}</div>
+                                <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${subIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${subIdx})"></div>
+                            </th>`;
+                        }
+                        cIdx = nextIdx;
+                    }
                 }
-                sheet.columns.forEach((col, cIdx) => {
-                    let isFiltered = myFilters[cIdx] !== undefined;
-                    let filterIcon = `<i class="fa-solid fa-filter text-[10px] ${isFiltered ? 'text-blue-600' : 'text-slate-300'} hover:text-blue-600 absolute right-2 top-1/2 transform -translate-y-1/2 cursor-pointer bg-[#f1f5f9] px-0.5 z-20" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)"></i>`;
-                    tr2Html += `<th class="grid-header grid-header-row2 col-w-${cIdx} hover:bg-slate-200 transition" style="width:${col.width}px; min-width:${col.width}px; height: 28px;" onclick="selectEntireCol(${cIdx})">
-                        <div class="relative w-full h-full flex items-center justify-center px-4"><span class="truncate text-xs">${col.name2 || ''}</span>${filterIcon}</div>
-                        <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${cIdx})"></div>
-                    </th>`;
-                });
             }
 
             let tr1 = document.createElement('tr'); tr1.innerHTML = tr1Html; thead.appendChild(tr1);
             if (hRows == 2) { let tr2 = document.createElement('tr'); tr2.innerHTML = tr2Html; thead.appendChild(tr2); }
 
             let frag = document.createDocumentFragment();
-            let roleColIdx = sheet.columns.findIndex(c => c.name.includes("부서") || c.name.includes("지역"));
+            let roleColIdx = sheet.columns.findIndex(c => c.name.includes("부서") || c.name.includes("지역") || c.name.includes("실행팀"));
 
             sheet.rows.forEach((row, rIdx) => {
-                if (myFilters['autoRole'] && roleColIdx > -1 && !row[roleColIdx].v.includes(myFilters['autoRole'])) return;
+                // 권한별 자동 필터
+                if (myFilters['autoRole'] && roleColIdx > -1 && !(row[roleColIdx]?.v || "").includes(myFilters['autoRole'])) return;
+                
+                // 다중 선택 필터 체크
                 let hideRow = false;
-                Object.keys(myFilters).forEach(fIdx => { if (fIdx !== 'autoRole' && row[fIdx].v !== myFilters[fIdx]) hideRow = true; });
+                Object.keys(myFilters).forEach(fIdx => { 
+                    if (fIdx === 'autoRole') return;
+                    let allowedSet = myFilters[fIdx];
+                    let cellV = (row[fIdx]?.v || "").toString().trim();
+                    if (Array.isArray(allowedSet) && !allowedSet.includes(cellV)) hideRow = true;
+                    else if (typeof allowedSet === 'string' && cellV !== allowedSet) hideRow = true;
+                });
                 if (hideRow) return;
 
+                // 검색어 필터
+                if (globalSearchQuery) {
+                    let rowMatched = row.some(c => (c?.v || "").toString().toLowerCase().includes(globalSearchQuery));
+                    if (!rowMatched) return;
+                }
+
                 let tr = document.createElement('tr'); tr.id = `row-${rIdx}`; tr.style.height = (sheet.rowHeights[rIdx] || 28) + 'px';
-                tr.innerHTML = `<td class="row-header relative group p-0 hover:bg-slate-200 transition" onclick="selectEntireRow(${rIdx})">
-                    <div class="flex items-center justify-center w-full h-full min-h-[28px]">
+                
+                // 좌측 순번 + 행 추가/삭제 버튼
+                tr.innerHTML = `<td id="row-hdr-${rIdx}" class="row-header relative group p-0" onclick="selectEntireRow(${rIdx}, event)">
+                    <div class="flex items-center justify-center w-full h-full min-h-[27px]">
                         <span>${rIdx + 1}</span>
-                        ${isPrivilegedRole(currentAccount?.role) ? `
-                        <div class="absolute right-0 top-0 bottom-0 hidden group-hover:flex items-center shadow-md z-30">
-                            <button onclick="event.stopPropagation(); insertRow(${rIdx})" class="px-1.5 h-full bg-blue-100 text-blue-600 hover:bg-blue-200 border-l border-white" title="행 삽입"><i class="fa-solid fa-plus text-[10px]"></i></button>
-                            <button onclick="event.stopPropagation(); deleteRow(${rIdx})" class="px-1.5 h-full bg-red-100 text-red-600 hover:bg-red-200 border-l border-white" title="행 삭제"><i class="fa-solid fa-trash text-[10px]"></i></button>
-                        </div>` : ''}
+                        <div class="absolute right-0 top-0 bottom-0 hidden group-hover:flex items-center shadow-sm z-30">
+                            <button onclick="event.stopPropagation(); insertRow(${rIdx})" class="px-1 h-full bg-blue-600 text-white hover:bg-blue-700" title="이 위치에 새 행 삽입"><i class="fa-solid fa-plus text-[9px]"></i></button>
+                            <button onclick="event.stopPropagation(); deleteRow(${rIdx})" class="px-1 h-full bg-red-500 text-white hover:bg-red-600" title="이 행 삭제"><i class="fa-solid fa-trash text-[9px]"></i></button>
+                        </div>
                     </div>
                     <div class="resize-handle-row" onmousedown="startResize(event, 'row', ${rIdx})"></div>
                 </td>`;
 
-                let isLocked = !currentAccount || (!isPrivilegedRole(currentAccount.role) && roleColIdx > -1 && !row[roleColIdx].v.includes(currentAccount.role));
+                let isLocked = !currentAccount || (!isPrivilegedRole(currentAccount.role) && roleColIdx > -1 && !(row[roleColIdx]?.v || "").includes(currentAccount.role));
 
                 sheet.columns.forEach((col, cIdx) => {
-                    let td = document.createElement('td'); td.id = `cell-${rIdx}-${cIdx}`; td.className = `grid-cell ${isLocked ? 'locked' : ''} col-w-${cIdx}`;
-                    let cellData = row[cIdx] || { v: "", b: false, align: "center", bg: "", memo: "" };
-                    td.style.backgroundColor = cellData.bg || ''; td.style.fontWeight = cellData.b ? 'bold' : 'normal'; td.style.textAlign = cellData.align;
-                    let memoHtml = cellData.memo ? `<div class="memo-indicator" title="메모: ${cellData.memo}"></div>` : '';
+                    let td = document.createElement('td'); 
+                    td.id = `cell-${rIdx}-${cIdx}`; 
+                    td.className = `grid-cell ${isLocked ? 'locked' : ''} col-w-${cIdx}`;
+                    td.style.width = col.width + 'px'; td.style.minWidth = col.width + 'px'; td.style.maxWidth = col.width + 'px';
+
+                    if (!row[cIdx]) row[cIdx] = { v: "", b: false, align: "center", bg: "", color: "", memo: "" };
+                    let cellData = row[cIdx];
+                    td.style.backgroundColor = cellData.bg || ''; 
+                    td.style.color = cellData.color || '#0f172a';
+                    td.style.fontWeight = cellData.b ? 'bold' : 'normal'; 
+                    td.style.textAlign = cellData.align || 'center';
+                    
+                    let memoHtml = cellData.memo ? `<div class="memo-indicator" title="💬 메모: ${cellData.memo}"></div>` : '';
                     let cursorHtml = `<div class="cursor-indicator"><span class="cursor-name"></span></div>`;
 
+                    // 우클릭 컨텍스트 메뉴 이벤트
+                    td.oncontextmenu = (e) => openContextMenu(e, rIdx, cIdx);
+
                     if (isLocked) {
-                        td.innerHTML = `${memoHtml}${cursorHtml}<div class="px-2 py-1.5 text-xs text-slate-500 h-full flex items-center ${cellData.align === 'center' ? 'justify-center' : (cellData.align === 'right' ? 'justify-end' : '')} truncate select-none">${cellData.v}</div>`;
+                        let disp = (cellData.v || "").toString().startsWith('=') ? evaluateFormula(cellData.v, rIdx, cIdx) : cellData.v;
+                        td.innerHTML = `${memoHtml}${cursorHtml}<div class="px-1.5 py-1 text-xs h-full flex items-center justify-center truncate select-none">${disp}</div>`;
                     } else {
-                        let displayVal = cellData.v;
+                        let displayVal = cellData.v || "";
                         if(col.type !== 'select' && displayVal.toString().startsWith('=')) {
                             displayVal = evaluateFormula(displayVal, rIdx, cIdx);
                         }
 
                         if (col.type === 'select') {
-                            let sel = document.createElement('select'); sel.className = 'cell-select'; sel.style.fontWeight = cellData.b ? 'bold' : 'normal'; sel.style.textAlign = cellData.align;
-                            sel.innerHTML = `<option value="">--</option>` + (col.options||"").split(',').map(o=>`<option value="${o.trim()}" ${cellData.v===o.trim()?'selected':''}>${o.trim()}</option>`).join('');
+                            let sel = document.createElement('select'); 
+                            sel.id = `input-${rIdx}-${cIdx}`;
+                            sel.className = 'cell-select'; 
+                            sel.style.fontWeight = cellData.b ? 'bold' : 'normal'; 
+                            sel.style.color = cellData.color || '#0f172a';
+                            sel.style.textAlignLast = cellData.align || 'center';
+                            sel.innerHTML = `<option value="">-</option>` + (col.options||"").split(',').map(o=>`<option value="${o.trim()}" ${cellData.v===o.trim()?'selected':''}>${o.trim()}</option>`).join('');
                             
-                            sel.onfocus = () => { sel.dataset.oldVal = sel.value; selectCell(rIdx, cIdx); };
+                            sel.onfocus = () => { selectCell(rIdx, cIdx); };
                             sel.onchange = (e) => { 
                                 let oldC = JSON.parse(JSON.stringify(sheet.rows[rIdx][cIdx]));
                                 sheet.rows[rIdx][cIdx].v = e.target.value; 
                                 pushUndoState('edit', rIdx, cIdx, oldC, sheet.rows[rIdx][cIdx]);
                                 saveSheetsToFirebase(); 
+                                updateFormulaBar();
                             };
                             td.innerHTML = memoHtml + cursorHtml; td.appendChild(sel);
                         } else {
-                            let inp = document.createElement('input'); inp.type = 'text'; inp.className = 'cell-input'; inp.value = displayVal;
-                            inp.style.fontWeight = cellData.b ? 'bold' : 'normal'; inp.style.textAlign = cellData.align;
+                            let inp = document.createElement('input'); 
+                            inp.id = `input-${rIdx}-${cIdx}`;
+                            inp.type = 'text'; 
+                            inp.className = 'cell-input'; 
+                            inp.value = displayVal;
+                            inp.style.fontWeight = cellData.b ? 'bold' : 'normal'; 
+                            inp.style.color = cellData.color || '#0f172a';
+                            inp.style.textAlign = cellData.align || 'center';
                             
-                            inp.onfocus = () => { inp.dataset.oldData = JSON.stringify(cellData); inp.value = cellData.v; selectCell(rIdx, cIdx); };
-                            inp.oninput = (e) => { sheet.rows[rIdx][cIdx].v = e.target.value; };
-                            inp.onkeydown = (e) => { if (e.key === 'Enter') e.target.blur(); };
+                            inp.onfocus = () => { 
+                                inp.dataset.oldData = JSON.stringify(cellData); 
+                                inp.value = cellData.v; // 편집 시에는 원본 수식(=A1+B1) 표시
+                                selectCell(rIdx, cIdx); 
+                            };
+                            inp.oninput = (e) => { 
+                                sheet.rows[rIdx][cIdx].v = e.target.value; 
+                                document.getElementById('formula-bar-input').value = e.target.value;
+                            };
+                            inp.onkeydown = (e) => handleCellKeyDown(e, rIdx, cIdx);
                             
                             inp.onblur = (e) => {
-                                let oldC = JSON.parse(inp.dataset.oldData);
-                                let newVal = e.target.value;
+                                let oldC = inp.dataset.oldData ? JSON.parse(inp.dataset.oldData) : cellData;
+                                let newVal = (e.target.value || "").trim();
                                 if (!newVal.startsWith('=')) {
                                     if (col.type === 'date') newVal = formatDateString(newVal);
                                     if (col.type === 'number') newVal = formatNumberString(newVal);
@@ -678,6 +1075,8 @@
                                 if(oldC.v !== newVal) {
                                     pushUndoState('edit', rIdx, cIdx, oldC, sheet.rows[rIdx][cIdx]);
                                     saveSheetsToFirebase();
+                                    // 수식 참조 셀 갱신을 위해 수식 셀들 재계산
+                                    refreshFormulaDisplays();
                                 }
                             };
                             
@@ -694,6 +1093,128 @@
             drawSelectionHighlight(); 
         }
 
+        function refreshFormulaDisplays() {
+            let sheet = sheetsData[activeSheet]; if (!sheet) return;
+            sheet.rows.forEach((r, rIdx) => {
+                r.forEach((c, cIdx) => {
+                    if ((c?.v || "").toString().startsWith('=')) {
+                        let inp = document.getElementById(`input-${rIdx}-${cIdx}`);
+                        if (inp && document.activeElement !== inp) {
+                            inp.value = evaluateFormula(c.v, rIdx, cIdx);
+                        }
+                    }
+                });
+            });
+        }
+
+        // 키보드 방향키 이동 및 단축키 제어 (구글닥스 UX)
+        function handleCellKeyDown(e, r, c) {
+            let sheet = sheetsData[activeSheet];
+            if (e.key === 'Enter') {
+                e.preventDefault(); e.target.blur();
+                let nextR = Math.min(sheet.rows.length - 1, r + 1);
+                focusCellInput(nextR, c);
+            } else if (e.key === 'Tab') {
+                e.preventDefault(); e.target.blur();
+                let nextC = e.shiftKey ? Math.max(0, c - 1) : Math.min(sheet.columns.length - 1, c + 1);
+                focusCellInput(r, nextC);
+            } else if (e.key === 'ArrowDown' && !e.altKey) {
+                e.preventDefault(); e.target.blur();
+                focusCellInput(Math.min(sheet.rows.length - 1, r + 1), c);
+            } else if (e.key === 'ArrowUp' && !e.altKey) {
+                e.preventDefault(); e.target.blur();
+                focusCellInput(Math.max(0, r - 1), c);
+            }
+        }
+
+        function focusCellInput(r, c) {
+            let el = document.getElementById(`input-${r}-${c}`);
+            if (el) { el.focus(); selectCell(r, c); }
+        }
+
+        // 수식 입력줄 (fx) 연동
+        function updateFormulaBar() {
+            let sheet = sheetsData[activeSheet];
+            if (!sheet || activeCell.r === null || !sheet.rows[activeCell.r]) return;
+            let val = sheet.rows[activeCell.r][activeCell.c]?.v || "";
+            document.getElementById('formula-bar-input').value = val;
+        }
+        function handleFormulaBarInput(val) {
+            let sheet = sheetsData[activeSheet];
+            if (!sheet || activeCell.r === null) return;
+            sheet.rows[activeCell.r][activeCell.c].v = val;
+            let inp = document.getElementById(`input-${activeCell.r}-${activeCell.c}`);
+            if (inp) inp.value = val;
+        }
+        function handleFormulaBarKey(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                e.target.blur();
+                saveSheetsToFirebase();
+                renderGrid();
+            }
+        }
+
+        // 전역 단축키 (Ctrl+Z, Ctrl+Y, Ctrl+B, Ctrl+C, Delete 일괄 삭제)
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); return; }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); return; }
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); applyFormat('b', true); return; }
+
+            // 여러 셀 선택 상태에서 Delete/Backspace로 일괄 지우기
+            let isMultiSelected = selection.startR !== null && (selection.startR !== selection.endR || selection.startC !== selection.endC);
+            if ((e.key === 'Delete' || e.key === 'Backspace') && isMultiSelected) {
+                e.preventDefault();
+                clearSelectedCellsContent();
+            }
+        });
+
+        // 선택 영역 복사 (Ctrl+C) 지원
+        document.addEventListener('copy', function(e) {
+            if (selection.startR === null) return;
+            let isMulti = (selection.startR !== selection.endR || selection.startC !== selection.endC);
+            if (!isMulti && document.activeElement && document.activeElement.tagName === 'INPUT') return;
+            
+            let sheet = sheetsData[activeSheet];
+            let rMin = Math.min(selection.startR, selection.endR), rMax = Math.max(selection.startR, selection.endR);
+            let cMin = Math.min(selection.startC, selection.endC), cMax = Math.max(selection.startC, selection.endC);
+            let lines = [];
+            for (let r = rMin; r <= rMax; r++) {
+                let rowVals = [];
+                for (let c = cMin; c <= cMax; c++) {
+                    let v = sheet.rows[r]?.[c]?.v || "";
+                    if (v.toString().startsWith('=')) v = evaluateFormula(v, r, c);
+                    rowVals.push(v);
+                }
+                lines.push(rowVals.join('\t'));
+            }
+            e.clipboardData.setData('text/plain', lines.join('\n'));
+            e.preventDefault();
+        });
+
+        function clearSelectedCellsContent() {
+            if (selection.startR === null) return;
+            let rMin = Math.min(selection.startR, selection.endR), rMax = Math.max(selection.startR, selection.endR);
+            let cMin = Math.min(selection.startC, selection.endC), cMax = Math.max(selection.startC, selection.endC);
+            let sheet = sheetsData[activeSheet];
+            let multiActions = [];
+            for (let r = rMin; r <= rMax; r++) {
+                for (let c = cMin; c <= cMax; c++) {
+                    if (sheet.rows[r] && sheet.rows[r][c] && sheet.rows[r][c].v !== "") {
+                        let oldC = JSON.parse(JSON.stringify(sheet.rows[r][c]));
+                        sheet.rows[r][c].v = "";
+                        multiActions.push({r, c, oldData: oldC, newData: JSON.parse(JSON.stringify(sheet.rows[r][c]))});
+                    }
+                }
+            }
+            if (multiActions.length > 0) {
+                pushMultiUndoState(multiActions);
+                saveSheetsToFirebase();
+                renderGrid();
+            }
+        }
+
+        // 다중 셀 서식 적용 (배경색, 글자색, 굵기, 정렬)
         function applyFormat(type, value) { 
             if (activeCell.r === null) return alert("셀을 먼저 선택하세요.");
             let rMin = selection.startR !== null ? Math.min(selection.startR, selection.endR) : activeCell.r;
@@ -703,13 +1224,16 @@
 
             let sheet = sheetsData[activeSheet];
             let multiActions = [];
+            let firstCellBold = sheet.rows[rMin]?.[cMin]?.b || false;
+
             for (let r = rMin; r <= rMax; r++) {
                 for (let c = cMin; c <= cMax; c++) {
                     if (sheet.rows[r] && sheet.rows[r][c]) {
                         let oldC = JSON.parse(JSON.stringify(sheet.rows[r][c]));
-                        if (type === 'b') sheet.rows[r][c].b = !sheet.rows[r][c].b;
+                        if (type === 'b') sheet.rows[r][c].b = !firstCellBold;
                         if (type === 'align') sheet.rows[r][c].align = value;
                         if (type === 'bg') sheet.rows[r][c].bg = value;
+                        if (type === 'color') sheet.rows[r][c].color = value;
                         multiActions.push({r, c, oldData: oldC, newData: JSON.parse(JSON.stringify(sheet.rows[r][c]))});
                     }
                 }
@@ -718,73 +1242,273 @@
             saveSheetsToFirebase(); renderGrid(); 
         }
 
-        function openCustomFilterMenu(cIdx, event) {
-            let sheet = sheetsData[activeSheet];
-            let uniqueVals = [...new Set(sheet.rows.map(r => r[cIdx]?.v || ""))].filter(v => v !== "");
-            let menu = document.getElementById('custom-filter-menu'); let selectBox = document.getElementById('filter-value-select');
-            selectBox.innerHTML = `<option value="">(모든 값 보기)</option>` + uniqueVals.map(v => `<option value="${v}">${v}</option>`).join('');
-            selectBox.value = myFilters[cIdx] || "";
-            let rect = event.target.getBoundingClientRect(); menu.style.left = rect.left + 'px'; menu.style.top = (rect.bottom + 5) + 'px';
-            menu.classList.remove('hidden'); menu.classList.add('flex'); menu.dataset.col = cIdx;
+        // 복구된 메모 추가/수정 함수
+        function addMemoToCell() { 
+            if (activeCell.r === null) return alert("메모를 입력할 셀을 선택해주세요."); 
+            let cell = sheetsData[activeSheet].rows[activeCell.r][activeCell.c]; 
+            let memo = prompt("셀 메모 입력 (내용을 지우면 메모가 삭제됩니다):", cell.memo || ""); 
+            if (memo !== null) { 
+                let oldC = JSON.parse(JSON.stringify(cell));
+                cell.memo = memo.trim(); 
+                pushUndoState('edit', activeCell.r, activeCell.c, oldC, cell);
+                saveSheetsToFirebase(); renderGrid(); 
+            } 
         }
-        function closeFilterMenu() { document.getElementById('custom-filter-menu').classList.add('hidden'); document.getElementById('custom-filter-menu').classList.remove('flex'); }
-        function applyCustomFilter() { let menu = document.getElementById('custom-filter-menu'); let cIdx = menu.dataset.col; let val = document.getElementById('filter-value-select').value; if (val === "") delete myFilters[cIdx]; else myFilters[cIdx] = val; closeFilterMenu(); renderGrid(); }
-        function clearMyFilters() { let r = myFilters['autoRole']; myFilters = {}; if(r) myFilters['autoRole'] = r; renderGrid(); }
 
-        function selectCell(r, c) { 
-            activeCell = { r, c }; document.getElementById('selected-cell-indicator').innerText = String.fromCharCode(65 + c) + (r + 1); 
-            selection.startR = r; selection.endR = r; selection.startC = c; selection.endC = c; 
-            drawSelectionHighlight(); broadcastCursor(); 
+        // 우클릭 컨텍스트 메뉴 제어
+        function openContextMenu(e, r, c) {
+            e.preventDefault();
+            if (selection.startR === null || r < Math.min(selection.startR, selection.endR) || r > Math.max(selection.startR, selection.endR) || c < Math.min(selection.startC, selection.endC) || c > Math.max(selection.startC, selection.endC)) {
+                selectCell(r, c);
+            }
+            let menu = document.getElementById('context-menu');
+            menu.style.left = Math.min(window.innerWidth - 200, e.clientX) + 'px';
+            menu.style.top = Math.min(window.innerHeight - 260, e.clientY) + 'px';
+            menu.classList.remove('hidden'); menu.classList.add('flex');
         }
-        function startDragSelection(e, r, c) { if (e.target.tagName === 'INPUT' && document.activeElement === e.target) return; selection.active = true; selectCell(r,c); }
-        function updateDragSelection(e, r, c) { if (!selection.active) return; selection.endR = r; selection.endC = c; drawSelectionHighlight(); }
-        function endDragSelection() { selection.active = false; calculateStats(); }
+        window.addEventListener('click', (e) => {
+            document.getElementById('context-menu').classList.add('hidden');
+            document.getElementById('context-menu').classList.remove('flex');
+            if (!e.target.closest('#custom-filter-menu')) closeFilterMenu();
+        });
+
+        function ctxAction(act) {
+            let sheet = sheetsData[activeSheet];
+            let r = activeCell.r || 0, c = activeCell.c || 0;
+            if (act === 'insertRowAbove') insertRow(r);
+            else if (act === 'insertRowBelow') insertRow(r + 1);
+            else if (act === 'deleteRow') deleteSelectedRows();
+            else if (act === 'insertColLeft') insertColAt(c);
+            else if (act === 'insertColRight') insertColAt(c + 1);
+            else if (act === 'deleteCol') {
+                if (sheet.columns.length <= 1) return alert("최소 1개의 열은 유지해야 합니다.");
+                sheet.columns.splice(c, 1);
+                sheet.rows.forEach(row => row.splice(c, 1));
+                saveSheetsToFirebase(); renderGrid();
+            }
+            else if (act === 'clearCells') clearSelectedCellsContent();
+            else if (act === 'memo') addMemoToCell();
+        }
+
+        function insertColAt(cIdx) {
+            let name = prompt("추가할 열(항목) 이름을 입력하세요:", `새항목`);
+            if (!name) return;
+            let sheet = sheetsData[activeSheet];
+            sheet.columns.splice(cIdx, 0, { name: name, name2: "", type: "text", width: 85 });
+            sheet.rows.forEach(row => row.splice(cIdx, 0, { v: "", b: false, align: "center", bg: "", color: "", memo: "" }));
+            saveSheetsToFirebase(); renderGrid();
+        }
+
+        // 다중 체크박스 필터 및 정렬 기능
+        let currentFilterCol = null;
+        function openCustomFilterMenu(cIdx, event) {
+            currentFilterCol = cIdx;
+            let sheet = sheetsData[activeSheet];
+            let col = sheet.columns[cIdx];
+            document.getElementById('filter-menu-title').innerText = `${col.name2 || col.name} 필터`;
+            document.getElementById('filter-search-input').value = '';
+
+            let uniqueVals = [...new Set(sheet.rows.map(r => (r[cIdx]?.v || "").toString().trim()))].sort();
+            let currentAllowed = myFilters[cIdx];
+            let checklist = document.getElementById('filter-checklist');
+            checklist.innerHTML = '';
+
+            uniqueVals.forEach(v => {
+                let checked = !currentAllowed || (Array.isArray(currentAllowed) ? currentAllowed.includes(v) : currentAllowed === v);
+                let label = v === "" ? "(비어 있음)" : v;
+                checklist.innerHTML += `<label class="flex items-center space-x-2 px-1 py-0.5 hover:bg-slate-100 rounded cursor-pointer filter-item-label" data-label="${label.toLowerCase()}">
+                    <input type="checkbox" class="filter-chk rounded text-blue-600" value="${v.replace(/"/g, '&quot;')}" ${checked ? 'checked' : ''}>
+                    <span class="truncate text-slate-700">${label}</span>
+                </label>`;
+            });
+
+            let menu = document.getElementById('custom-filter-menu');
+            let rect = event.currentTarget.getBoundingClientRect();
+            menu.style.left = Math.min(window.innerWidth - 230, rect.left) + 'px';
+            menu.style.top = (rect.bottom + 6) + 'px';
+            menu.classList.remove('hidden'); menu.classList.add('flex');
+        }
+        function filterChecklist(q) {
+            q = q.toLowerCase();
+            document.querySelectorAll('.filter-item-label').forEach(el => {
+                el.style.display = el.dataset.label.includes(q) ? 'flex' : 'none';
+            });
+        }
+        function toggleAllFilterChecks(state) {
+            document.querySelectorAll('.filter-chk').forEach(chk => {
+                if (chk.closest('label').style.display !== 'none') chk.checked = state;
+            });
+        }
+        function closeFilterMenu() { 
+            document.getElementById('custom-filter-menu').classList.add('hidden'); 
+            document.getElementById('custom-filter-menu').classList.remove('flex'); 
+        }
+        function applyCustomFilter() {
+            if (currentFilterCol === null) return;
+            let allChecks = [...document.querySelectorAll('.filter-chk')];
+            let checkedVals = allChecks.filter(c => c.checked).map(c => c.value);
+            if (checkedVals.length === allChecks.length) delete myFilters[currentFilterCol];
+            else myFilters[currentFilterCol] = checkedVals;
+            closeFilterMenu(); renderGrid();
+        }
+        function sortColumn(asc) {
+            if (currentFilterCol === null) return;
+            let sheet = sheetsData[activeSheet];
+            let cIdx = currentFilterCol;
+            sheet.rows.sort((a, b) => {
+                let vA = (a[cIdx]?.v || "").toString().trim();
+                let vB = (b[cIdx]?.v || "").toString().trim();
+                let nA = parseFloat(vA.replace(/,/g, '')), nB = parseFloat(vB.replace(/,/g, ''));
+                if (!isNaN(nA) && !isNaN(nB)) return asc ? nA - nB : nB - nA;
+                return asc ? vA.localeCompare(vB, 'ko') : vB.localeCompare(vA, 'ko');
+            });
+            closeFilterMenu(); saveSheetsToFirebase(); renderGrid();
+        }
+        function clearMyFilters() { 
+            let r = myFilters['autoRole']; myFilters = {}; if(r) myFilters['autoRole'] = r; 
+            document.getElementById('global-search-input').value = '';
+            globalSearchQuery = "";
+            renderGrid(); 
+        }
+        function handleGlobalSearch(val) {
+            globalSearchQuery = val.trim().toLowerCase();
+            renderGrid();
+        }
+
+        // 셀 선택 및 드래그 하이라이트
+        function selectCell(r, c) { 
+            activeCell = { r, c }; 
+            document.getElementById('selected-cell-indicator').innerText = getColLetter(c) + (r + 1); 
+            selection.startR = r; selection.endR = r; selection.startC = c; selection.endC = c; 
+            updateFormulaBar();
+            drawSelectionHighlight(); 
+            calculateStats();
+            broadcastCursor(); 
+        }
+        function startDragSelection(e, r, c) { 
+            if (e.button === 2) return; // 우클릭 시 드래그 방지
+            selection.active = true; 
+            selectCell(r, c); 
+        }
+        function updateDragSelection(e, r, c) { 
+            if (!selection.active) return; 
+            if (selection.endR !== r || selection.endC !== c) {
+                if (document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();
+                selection.endR = r; selection.endC = c; 
+                drawSelectionHighlight(); 
+            }
+        }
+        function endDragSelection() { if(selection.active) { selection.active = false; calculateStats(); } }
         window.addEventListener('mouseup', endDragSelection);
 
         function drawSelectionHighlight() {
-            document.querySelectorAll('.grid-cell').forEach(td => td.classList.remove('cell-selected'));
+            document.querySelectorAll('.grid-cell').forEach(td => td.classList.remove('cell-selected', 'cell-active'));
+            document.querySelectorAll('.selected-hdr').forEach(th => th.classList.remove('selected-hdr'));
             if (selection.startR === null) return;
+            
             let rMin = Math.min(selection.startR, selection.endR), rMax = Math.max(selection.startR, selection.endR);
             let cMin = Math.min(selection.startC, selection.endC), cMax = Math.max(selection.startC, selection.endC);
-            for (let r = rMin; r <= rMax; r++) { for (let c = cMin; c <= cMax; c++) { let td = document.getElementById(`cell-${r}-${c}`); if (td) td.classList.add('cell-selected'); } }
+            
+            for (let c = cMin; c <= cMax; c++) { let th = document.getElementById(`col-hdr-${c}`); if (th) th.classList.add('selected-hdr'); }
+            for (let r = rMin; r <= rMax; r++) {
+                let rh = document.getElementById(`row-hdr-${r}`); if (rh) rh.classList.add('selected-hdr');
+                for (let c = cMin; c <= cMax; c++) { 
+                    let td = document.getElementById(`cell-${r}-${c}`); 
+                    if (td) td.classList.add('cell-selected'); 
+                } 
+            }
+            if (activeCell.r !== null) {
+                let actTd = document.getElementById(`cell-${activeCell.r}-${activeCell.c}`);
+                if (actTd) actTd.classList.add('cell-active');
+            }
         }
+
         function calculateStats() {
             if (selection.startR !== null) {
                 let rMin = Math.min(selection.startR, selection.endR), rMax = Math.max(selection.startR, selection.endR);
                 let cMin = Math.min(selection.startC, selection.endC), cMax = Math.max(selection.startC, selection.endC);
                 let sum = 0, count = 0, numCount = 0; let sheet = sheetsData[activeSheet];
-                for (let r = rMin; r <= rMax; r++) { for (let c = cMin; c <= cMax; c++) { if(sheet.rows[r]) { count++; let val = sheet.rows[r][c].v.replace(/,/g, ''); if (!isNaN(parseFloat(val)) && val.trim() !== '') { sum += parseFloat(val); numCount++; } } } }
-                document.getElementById('stat-count').innerText = `선택: ${count}칸`; document.getElementById('stat-sum').innerText = `합계: ${sum.toLocaleString()}`; document.getElementById('stat-avg').innerText = `평균: ${numCount > 0 ? (sum/numCount).toLocaleString(undefined, {maximumFractionDigits:2}) : 0}`;
+                if (!sheet) return;
+                for (let r = rMin; r <= rMax; r++) { 
+                    for (let c = cMin; c <= cMax; c++) { 
+                        if(sheet.rows[r] && sheet.rows[r][c]) { 
+                            count++; 
+                            let raw = (sheet.rows[r][c].v || "").toString();
+                            if (raw.startsWith('=')) raw = evaluateFormula(raw, r, c).toString();
+                            let val = raw.replace(/,/g, ''); 
+                            if (!isNaN(parseFloat(val)) && val.trim() !== '') { sum += parseFloat(val); numCount++; } 
+                        } 
+                    } 
+                }
+                document.getElementById('stat-count').innerText = `선택: ${count}칸`; 
+                document.getElementById('stat-sum').innerText = `합계: ${sum.toLocaleString()}`; 
+                document.getElementById('stat-avg').innerText = `평균: ${numCount > 0 ? (sum/numCount).toLocaleString(undefined, {maximumFractionDigits:2}) : 0}`;
             }
         }
 
+        // 엑셀 클립보드 붙여넣기 (직관적 0줄/1줄/2줄 헤더 선택 모달 탑재)
         document.addEventListener('paste', function(e) {
             if (!currentAccount || activeCell.r === null) return;
-            if (e.target.tagName === 'INPUT' && document.activeElement === e.target && !e.clipboardData.getData('text').includes('\t')) return;
+            if (document.activeElement && document.activeElement.id === 'formula-bar-input') return;
+            if (e.target.tagName === 'INPUT' && document.activeElement === e.target && !e.clipboardData.getData('text').includes('\t') && !e.clipboardData.getData('text').includes('\n')) return;
 
             let clipText = (e.clipboardData || window.clipboardData).getData('text'); if (!clipText) return;
             let rawRows = clipText.split(/\r\n|\n|\r/); if (rawRows[rawRows.length - 1] === '') rawRows.pop(); if (rawRows.length === 0) return;
             let parsedMatrix = rawRows.map(r => r.split('\t').map(v => v.trim()));
-            let sheet = sheetsData[activeSheet];
             
-            let hRowsInClip = 0;
-            if (isPrivilegedRole(currentAccount.role) && activeCell.r === 0 && activeCell.c === 0) {
-                let ans = prompt("붙여넣는 엑셀에 항목명(헤더)이 몇 줄 있나요?\n(0 입력 시 기존 항목 유지, 1~2 입력 시 병합 등 자동 설정됨)\n\n[입력값: 0, 1, 2 중 하나 입력]", "0");
-                if (ans === null) return; 
-                hRowsInClip = parseInt(ans); if(isNaN(hRowsInClip) || hRowsInClip < 0 || hRowsInClip > 2) hRowsInClip = 0;
+            e.preventDefault();
 
-                let maxCols = Math.max(...parsedMatrix.map(r => r.length));
-                while (sheet.columns.length < maxCols) { sheet.columns.push({ name: `항목${sheet.columns.length+1}`, name2: "", type: "text", width: 80 }); sheet.rows.forEach(r => r.push({ v: "", b: false, align: "center", bg: "", memo: "" })); }
+            // A1 셀에 다중 열을 붙여넣을 때 헤더 줄수(0, 1, 2) 선택 모달 표시
+            if (isPrivilegedRole(currentAccount.role) && activeCell.r === 0 && activeCell.c === 0 && (parsedMatrix.length > 1 || parsedMatrix[0].length > 1)) {
+                pendingPasteMatrix = parsedMatrix;
+                document.getElementById('paste-option-modal').classList.remove('hidden');
+                document.getElementById('paste-option-modal').classList.add('flex');
+            } else {
+                applyMatrixPaste(parsedMatrix, 0);
+            }
+        });
+
+        function closePasteModal() {
+            pendingPasteMatrix = null;
+            document.getElementById('paste-option-modal').classList.add('hidden');
+            document.getElementById('paste-option-modal').classList.remove('flex');
+        }
+
+        function executePasteWithOption(hRowsInClip) {
+            if (!pendingPasteMatrix) return;
+            let matrix = pendingPasteMatrix;
+            closePasteModal();
+            applyMatrixPaste(matrix, hRowsInClip);
+        }
+
+        function applyMatrixPaste(parsedMatrix, hRowsInClip) {
+            let sheet = sheetsData[activeSheet];
+            let maxCols = Math.max(...parsedMatrix.map(r => r.length)) + activeCell.c;
+
+            if (isPrivilegedRole(currentAccount.role)) {
+                while (sheet.columns.length < maxCols) { 
+                    sheet.columns.push({ name: `항목${sheet.columns.length+1}`, name2: "", type: "text", width: 85 }); 
+                    sheet.rows.forEach(r => r.push({ v: "", b: false, align: "center", bg: "", color: "", memo: "" })); 
+                }
                 
                 if (hRowsInClip === 1 && parsedMatrix.length >= 1) {
                     sheet.headerRows = 1;
-                    parsedMatrix[0].forEach((n, i) => { if(n) sheet.columns[i].name = n; });
+                    parsedMatrix[0].forEach((n, i) => { if(n) { sheet.columns[i].name = n; sheet.columns[i].name2 = ""; } });
                     parsedMatrix = parsedMatrix.slice(1);
                 } else if (hRowsInClip === 2 && parsedMatrix.length >= 2) {
                     sheet.headerRows = 2;
                     let lastTopHeader = "";
-                    parsedMatrix[0].forEach((n, i) => { if (n) { sheet.columns[i].name = n; lastTopHeader = n; } else if (lastTopHeader) { sheet.columns[i].name = lastTopHeader; } });
-                    parsedMatrix[1].forEach((n, i) => { if(n) sheet.columns[i].name2 = n; });
+                    parsedMatrix[0].forEach((n, i) => { 
+                        let subN = parsedMatrix[1][i] || "";
+                        if (n) { 
+                            sheet.columns[i].name = n; 
+                            // 하단(2행)이 비어있다면 단일 세로 병합 컬럼으로 처리, 하단이 있다면 상위 병합 그룹 시작
+                            lastTopHeader = subN ? n : ""; 
+                        } else if (lastTopHeader && subN) { 
+                            sheet.columns[i].name = lastTopHeader; 
+                        }
+                        sheet.columns[i].name2 = subN;
+                    });
                     parsedMatrix = parsedMatrix.slice(2);
                 }
             }
@@ -793,108 +1517,135 @@
             let multiActions = [];
             parsedMatrix.forEach((rowData, rOffset) => {
                 let tr = startR + rOffset;
-                if (tr >= sheet.rows.length) {
-                    let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", memo: "" }));
-                    if (!isPrivilegedRole(currentAccount.role)) newR[1].v = currentAccount.role;
+                while (tr >= sheet.rows.length) {
+                    let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", color: "", memo: "" }));
                     sheet.rows.push(newR);
                 }
-                if (!isPrivilegedRole(currentAccount.role)) { let rCol = sheet.columns.findIndex(c=>c.name.includes("지역")); if (rCol>-1 && !sheet.rows[tr][rCol].v.includes(currentAccount.role)) return; }
-                
                 rowData.forEach((val, cOffset) => { 
                     let tc = startC + cOffset; 
                     if (tc < sheet.columns.length) {
                         let col = sheet.columns[tc];
-                        if (!val.startsWith('=')) { if (col.type === 'date') val = formatDateString(val); else if (col.type === 'number') val = formatNumberString(val); }
-                        
+                        // 날짜나 숫자로 명백히 보이는 항목 자동 감지 및 포맷팅
+                        if (!val.startsWith('=')) { 
+                            if (col.type === 'date' || col.name.includes('일') || col.name2.includes('일')) val = formatDateString(val); 
+                            else if (col.type === 'number') val = formatNumberString(val); 
+                        }
                         let oldC = JSON.parse(JSON.stringify(sheet.rows[tr][tc]));
                         sheet.rows[tr][tc].v = val; 
+                        sheet.rows[tr][tc].align = "center";
                         multiActions.push({r: tr, c: tc, oldData: oldC, newData: JSON.parse(JSON.stringify(sheet.rows[tr][tc]))});
                     }
                 });
             });
             if(multiActions.length > 0) pushMultiUndoState(multiActions);
             
-            const estimate = (str) => { let len = 0; str = (str||"").toString(); for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 13 : 8; return len + 35; };
-            sheet.columns.forEach((col, cIdx) => {
-                let maxLen = Math.max(estimate(col.name), estimate(col.name2));
-                sheet.rows.forEach(r => { if(r[cIdx]) maxLen = Math.max(maxLen, estimate(r[cIdx].v)); });
-                col.width = Math.max(50, Math.min(400, maxLen));
-            });
+            // 붙여넣기 후 글자수에 맞춰 모든 열 너비 최소 자동 맞춤
+            sheet.columns.forEach((col, cIdx) => { col.width = calcOptimalColWidth(sheet, cIdx); });
             
-            saveSheetsToFirebase(); renderGrid(); e.preventDefault();
-        });
+            saveSheetsToFirebase(); renderGrid();
+        }
 
+        // 시트 탭 및 순서 제어
         function renderSheetTabs() {
             const c = document.getElementById('sheet-tabs'); c.innerHTML = '';
             Object.keys(sheetsData).forEach(sName => {
                 const isActive = sName === activeSheet;
                 const btn = document.createElement('div');
-                btn.className = `flex items-center px-3 py-1.5 rounded-t-lg text-xs font-semibold cursor-pointer border-t border-x ${isActive ? 'bg-white text-blue-600 border-slate-300 shadow-sm' : 'bg-slate-200 text-slate-500 border-transparent hover:bg-slate-300'}`;
-                btn.innerHTML = `<i class="fa-solid fa-table-cells mr-1.5"></i><span onclick="switchSheet('${sName}')">${sName}</span>${isPrivilegedRole(currentAccount?.role) ? `<i class="fa-solid fa-xmark ml-2 hover:text-red-500 text-slate-300" onclick="deleteSheet('${sName}')"></i>` : ''}`;
+                btn.className = `flex items-center px-3 py-1 rounded-t-lg text-xs font-bold cursor-pointer border-t border-x shrink-0 transition ${isActive ? 'bg-white text-blue-600 border-slate-300 shadow-sm' : 'bg-slate-200 text-slate-500 border-transparent hover:bg-slate-300'}`;
+                btn.innerHTML = `<i class="fa-solid fa-table-cells mr-1.5"></i><span onclick="switchSheet('${sName}')">${sName}</span>${isPrivilegedRole(currentAccount?.role) ? `<i class="fa-solid fa-xmark ml-2 hover:text-red-500 text-slate-400" onclick="event.stopPropagation(); deleteSheet('${sName}')"></i>` : ''}`;
                 c.appendChild(btn);
             });
         }
         function moveSheetOrder(direction) {
             let keys = Object.keys(sheetsData); let idx = keys.indexOf(activeSheet);
-            if ((direction === -1 && idx === 0) || (direction === 1 && idx === keys.length - 1)) return;
+            if ((direction === -1 && idx <= 0) || (direction === 1 && idx >= keys.length - 1)) return;
             let temp = keys[idx]; keys[idx] = keys[idx + direction]; keys[idx + direction] = temp;
             let newData = {}; keys.forEach(k => newData[k] = sheetsData[k]);
             sheetsData = newData; saveSheetsToFirebase(); renderSheetTabs();
         }
 
-        function switchSheet(sName) { activeSheet = sName; selectCell(0,0); renderSheetTabs(); renderGrid(); }
+        function switchSheet(sName) { activeSheet = sName; myFilters = {}; if (currentAccount && !isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role; selectCell(0,0); renderSheetTabs(); renderGrid(); }
+        
+        // 신규 시트 생성 (요청사항 3: 1개 열, 1개 빈 행, 1줄 헤더 고정)
         function addNewSheet() {
-            let sName = prompt("새 시트 이름:");
+            let sName = prompt("새 시트 이름을 입력하세요:");
             if (sName && !sheetsData[sName]) { 
-                sheetsData[sName] = { headerRows: 1, rowHeights: {}, columns: [{ name: "항목1", name2: "", type: "text", width: 80 }], rows: [ [{v: "", b: false, bg: "", align: "center", memo: ""}] ] }; 
+                sheetsData[sName] = { 
+                    headerRows: 1, 
+                    rowHeights: {}, 
+                    columns: [{ name: "항목1", name2: "", type: "text", width: 85 }], 
+                    rows: [ [{v: "", b: false, bg: "", color: "", align: "center", memo: ""}] ] 
+                }; 
                 saveSheetsToFirebase(); switchSheet(sName); 
             }
         }
         function deleteSheet(sName) {
-            if (!isPrivilegedRole(currentAccount.role) || Object.keys(sheetsData).length <= 1) return;
-            if (confirm(`'${sName}' 시트를 삭제하시겠습니까?`)) { delete sheetsData[sName]; activeSheet = Object.keys(sheetsData)[0]; saveSheetsToFirebase(); }
+            if (!isPrivilegedRole(currentAccount.role) || Object.keys(sheetsData).length <= 1) return alert("마지막 시트는 삭제할 수 없습니다.");
+            if (confirm(`'${sName}' 시트를 정말 삭제하시겠습니까?`)) { delete sheetsData[sName]; activeSheet = Object.keys(sheetsData)[0]; saveSheetsToFirebase(); renderSheetTabs(); renderGrid(); }
         }
         
         function insertRow(rIdx) {
-            let sheet = sheetsData[activeSheet]; let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", memo: "" }));
-            if (!isPrivilegedRole(currentAccount.role)) { let roleCol = sheet.columns.findIndex(c=>c.name.includes("지역")); if(roleCol > -1) newR[roleCol].v = currentAccount.role; }
+            let sheet = sheetsData[activeSheet]; 
+            let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", color: "", memo: "" }));
             sheet.rows.splice(rIdx, 0, newR); saveSheetsToFirebase(); renderGrid();
         }
-        function deleteRow(rIdx) { if(confirm(`${rIdx+1}행 삭제?`)) { sheetsData[activeSheet].rows.splice(rIdx, 1); saveSheetsToFirebase(); renderGrid(); } }
+        function deleteRow(rIdx) { 
+            let sheet = sheetsData[activeSheet];
+            if (sheet.rows.length <= 1) { sheet.rows[0].forEach(c => c.v = ""); }
+            else { sheet.rows.splice(rIdx, 1); }
+            saveSheetsToFirebase(); renderGrid(); 
+        }
+        function deleteSelectedRows() {
+            if (selection.startR === null) return alert("삭제할 행의 셀을 먼저 선택하세요.");
+            let rMin = Math.min(selection.startR, selection.endR), rMax = Math.max(selection.startR, selection.endR);
+            let cnt = rMax - rMin + 1;
+            if (!confirm(`선택한 ${rMin+1}행부터 ${cnt}개의 행을 삭제하시겠습니까?`)) return;
+            let sheet = sheetsData[activeSheet];
+            sheet.rows.splice(rMin, cnt);
+            if (sheet.rows.length === 0) sheet.rows.push(Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", color: "", memo: "" })));
+            saveSheetsToFirebase(); renderGrid();
+        }
         function addNewRow() {
-            let sheet = sheetsData[activeSheet]; let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", memo: "" }));
-            if (!isPrivilegedRole(currentAccount.role)) { let roleCol = sheet.columns.findIndex(c=>c.name.includes("지역")); if(roleCol > -1) newR[roleCol].v = currentAccount.role; }
-            sheet.rows.push(newR); saveSheetsToFirebase();
-            setTimeout(() => { const container = document.getElementById('grid-container'); container.scrollTop = container.scrollHeight; }, 100);
+            let sheet = sheetsData[activeSheet]; 
+            let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", color: "", memo: "" }));
+            sheet.rows.push(newR); saveSheetsToFirebase(); renderGrid();
+            setTimeout(() => { const container = document.getElementById('grid-container'); container.scrollTop = container.scrollHeight; }, 50);
         }
 
+        // 인터랙티브 피벗 대시보드 (모든 열에 대해 합계/평균/건수 및 막대/도넛/선 차트 지원)
         function openDashboard() {
             document.getElementById('dashboard-modal').classList.remove('hidden'); document.getElementById('dashboard-modal').classList.add('flex');
             let sheet = sheetsData[activeSheet];
             let gSel = document.getElementById('dash-group-col'); let vSel = document.getElementById('dash-val-col');
             gSel.innerHTML = ''; vSel.innerHTML = '';
             sheet.columns.forEach((col, i) => {
-                let opt = `<option value="${i}">${col.name}</option>`;
-                gSel.innerHTML += opt;
-                if(col.type === 'number') vSel.innerHTML += opt;
+                let label = col.name2 ? `${col.name} (${col.name2})` : col.name;
+                let opt = `<option value="${i}">${label}</option>`;
+                gSel.innerHTML += opt; vSel.innerHTML += opt;
             });
-            if(vSel.options.length === 0) vSel.innerHTML = `<option value="-1">(계산할 숫자 항목이 없습니다)</option>`;
+            if (sheet.columns.length > 1) gSel.value = "1"; // 보통 2번째 열(실행팀/지역)을 기본 그룹으로 선택
             renderDashboard();
         }
         function closeDashboard() { document.getElementById('dashboard-modal').classList.add('hidden'); document.getElementById('dashboard-modal').classList.remove('flex'); }
         function renderDashboard() {
             let sheet = sheetsData[activeSheet];
-            let gIdx = parseInt(document.getElementById('dash-group-col').value);
-            let vIdx = parseInt(document.getElementById('dash-val-col').value);
+            let gIdx = parseInt(document.getElementById('dash-group-col').value) || 0;
+            let vIdx = parseInt(document.getElementById('dash-val-col').value) || 0;
             let aggType = document.getElementById('dash-agg-type').value;
+            let chartType = document.getElementById('dash-chart-type').value;
 
-            document.getElementById('dash-th-group').innerText = sheet.columns[gIdx].name;
-            document.getElementById('dash-th-val').innerText = (aggType==='sum'?'합계':aggType==='avg'?'평균':'개수') + (vIdx>=0 ? ` (${sheet.columns[vIdx].name})` : '');
+            let gName = sheet.columns[gIdx].name2 || sheet.columns[gIdx].name;
+            let vName = sheet.columns[vIdx].name2 || sheet.columns[vIdx].name;
+            document.getElementById('dash-th-group').innerText = gName;
+            document.getElementById('dash-th-val').innerText = `${vName} (${aggType==='sum'?'합계':aggType==='avg'?'평균':'건수'})`;
 
             let pivot = {}; 
-            sheet.rows.forEach(r => {
-                let gVal = r[gIdx]?.v || "(공백)";
-                let vVal = vIdx >= 0 ? parseFloat(r[vIdx]?.v.replace(/,/g, '')) : 0;
+            sheet.rows.forEach((r, rIdx) => {
+                let gVal = (r[gIdx]?.v || "").toString().trim();
+                if (!gVal) gVal = "(미입력)";
+                let rawV = (r[vIdx]?.v || "").toString();
+                if (rawV.startsWith('=')) rawV = evaluateFormula(rawV, rIdx, vIdx).toString();
+                let vVal = parseFloat(rawV.replace(/,/g, ''));
                 if(isNaN(vVal)) vVal = 0;
                 
                 if(!pivot[gVal]) pivot[gVal] = { sum: 0, count: 0 };
@@ -905,63 +1656,104 @@
             let labels = Object.keys(pivot);
             let dataArr = labels.map(l => {
                 if(aggType === 'sum') return pivot[l].sum;
-                if(aggType === 'avg') return pivot[l].sum / pivot[l].count;
+                if(aggType === 'avg') return pivot[l].count ? (pivot[l].sum / pivot[l].count) : 0;
                 return pivot[l].count;
             });
 
+            let totalSum = dataArr.reduce((a, b) => a + b, 0);
+            document.getElementById('dash-total-badge').innerText = `총합: ${totalSum.toLocaleString(undefined, {maximumFractionDigits:1})}`;
+
             let tbody = document.getElementById('dash-table-body'); tbody.innerHTML = '';
             labels.forEach((l, i) => {
-                let displayVal = aggType==='count' ? dataArr[i] : dataArr[i].toLocaleString(undefined, {maximumFractionDigits:1});
-                tbody.innerHTML += `<tr><td class="px-4 py-2 font-semibold text-slate-700">${l}</td><td class="px-4 py-2 text-right text-blue-600 font-bold">${displayVal}</td></tr>`;
+                let displayVal = aggType==='count' ? dataArr[i].toLocaleString() + '건' : dataArr[i].toLocaleString(undefined, {maximumFractionDigits:1});
+                let ratio = totalSum > 0 ? ((dataArr[i] / totalSum) * 100).toFixed(1) + '%' : '0%';
+                tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2 font-bold text-slate-700">${l}</td><td class="px-4 py-2 text-right text-blue-600 font-bold">${displayVal}</td><td class="px-4 py-2 text-right text-slate-500">${ratio}</td></tr>`;
             });
 
             let ctx = document.getElementById('dashboard-chart').getContext('2d');
             if (chartObj) chartObj.destroy();
+            const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
             chartObj = new Chart(ctx, {
-                type: 'bar',
-                data: { labels: labels, datasets: [{ label: document.getElementById('dash-th-val').innerText, data: dataArr, backgroundColor: '#3b82f6', borderRadius: 4 }] },
-                options: { responsive: true, plugins: { legend: { display: false } } }
+                type: chartType,
+                data: { 
+                    labels: labels, 
+                    datasets: [{ 
+                        label: document.getElementById('dash-th-val').innerText, 
+                        data: dataArr, 
+                        backgroundColor: chartType === 'doughnut' ? palette : '#3b82f6', 
+                        borderColor: chartType === 'line' ? '#2563eb' : '#ffffff',
+                        borderRadius: chartType === 'bar' ? 5 : 0 
+                    }] 
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: chartType === 'doughnut' } } }
             });
         }
 
+        // 시트 설정 및 항목별 셀 서식 지정 모달
         function openColumnManager() {
             document.getElementById('column-modal').classList.remove('hidden'); document.getElementById('column-modal').classList.add('flex');
-            let sheet = sheetsData[activeSheet]; document.getElementById('sheet-rename-input').value = activeSheet; document.getElementById('header-rows-select').value = sheet.headerRows || 1;
+            let sheet = sheetsData[activeSheet]; 
+            document.getElementById('sheet-rename-input').value = activeSheet; 
+            document.getElementById('header-rows-select').value = sheet.headerRows || 1;
+            renderColumnEditList();
+        }
+        function saveTempColsAndRender() {
+            let sheet = sheetsData[activeSheet];
+            sheet.headerRows = parseInt(document.getElementById('header-rows-select').value);
+            renderColumnEditList();
+        }
+        function renderColumnEditList() {
+            let sheet = sheetsData[activeSheet];
             let list = document.getElementById('column-edit-list'); list.innerHTML = '';
             sheet.columns.forEach((col, i) => {
-                list.innerHTML += `<div class="flex items-center space-x-2 bg-white shadow-sm p-2 border rounded-lg border-slate-200">
-                    <span class="w-4 font-bold text-xs text-slate-400">${i+1}</span>
-                    <div class="flex flex-col w-1/4 space-y-1">
-                        <input type="text" id="col-n-${i}" value="${col.name}" class="border rounded px-2 py-1 text-xs w-full" placeholder="1단 헤더명">
-                        ${sheet.headerRows == 2 ? `<input type="text" id="col-n2-${i}" value="${col.name2||''}" class="border rounded px-2 py-1 text-xs w-full bg-slate-50" placeholder="2단 헤더명">` : ''}
+                list.innerHTML += `<div class="flex items-center space-x-2 bg-white shadow-sm p-2.5 border rounded-lg border-slate-200">
+                    <span class="w-6 font-bold text-xs text-slate-400 text-center">${getColLetter(i)}</span>
+                    <div class="flex flex-col w-1/3 space-y-1">
+                        <input type="text" id="col-n-${i}" value="${col.name}" class="border rounded px-2 py-1 text-xs w-full font-semibold" placeholder="1행 상위 헤더명">
+                        ${sheet.headerRows == 2 ? `<input type="text" id="col-n2-${i}" value="${col.name2||''}" class="border rounded px-2 py-1 text-xs w-full bg-blue-50/50" placeholder="2행 하위 헤더명 (비우면 세로병합)">` : ''}
                     </div>
-                    <select id="col-t-${i}" onchange="document.getElementById('col-o-${i}').classList.toggle('hidden', this.value !== 'select')" class="border rounded px-2 py-1 text-xs w-1/4 font-bold text-slate-700 outline-none">
-                        <option value="text" ${col.type==='text'?'selected':''}>텍스트 (일반)</option>
-                        <option value="number" ${col.type==='number'?'selected':''}>숫자 (콤마자동)</option>
-                        <option value="date" ${col.type==='date'?'selected':''}>날짜 (월일자동)</option>
-                        <option value="select" ${col.type==='select'?'selected':''}>선택목록</option>
+                    <select id="col-t-${i}" onchange="document.getElementById('col-o-${i}').classList.toggle('hidden', this.value !== 'select')" class="border rounded px-2 py-1.5 text-xs w-44 font-bold text-slate-700 outline-none bg-slate-50">
+                        <option value="text" ${col.type==='text'?'selected':''}>📝 텍스트 (일반)</option>
+                        <option value="number" ${col.type==='number'?'selected':''}>🔢 숫자 (천단위 콤마)</option>
+                        <option value="date" ${col.type==='date'?'selected':''}>📅 날짜 ("10월01일" 표기)</option>
+                        <option value="select" ${col.type==='select'?'selected':''}>📋 선택목록 (드롭다운)</option>
                     </select>
-                    <input type="text" id="col-o-${i}" value="${col.options||''}" class="border rounded px-2 py-1 text-xs flex-1 outline-none ${col.type!=='select' ? 'hidden' : ''}" placeholder="항목 (콤마구분)">
-                    <button onclick="sheetsData[activeSheet].columns.splice(${i},1); openColumnManager();" class="text-red-400 hover:text-red-600 px-2 transition"><i class="fa-solid fa-trash"></i></button>
+                    <input type="text" id="col-o-${i}" value="${col.options||''}" class="border rounded px-2 py-1.5 text-xs flex-1 outline-none ${col.type!=='select' ? 'hidden' : ''}" placeholder="선택항목 콤마로 구분 (예: 대기,진행중,완료)">
+                    <button onclick="sheetsData[activeSheet].columns.splice(${i},1); sheetsData[activeSheet].rows.forEach(r=>r.splice(${i},1)); renderColumnEditList();" class="text-red-400 hover:text-red-600 px-2 transition" title="항목 삭제"><i class="fa-solid fa-trash"></i></button>
                 </div>`;
             });
         }
-        function addColumnField() { sheetsData[activeSheet].columns.push({name:"새항목", name2:"", type:"text", width:80}); sheetsData[activeSheet].rows.forEach(r=>r.push({v:"", b:false, bg:"", align:"center", memo:""})); openColumnManager(); }
+        function addColumnField() { 
+            sheetsData[activeSheet].columns.push({name:"새항목", name2:"", type:"text", width:85}); 
+            sheetsData[activeSheet].rows.forEach(r=>r.push({v:"", b:false, bg:"", color:"", align:"center", memo:""})); 
+            renderColumnEditList(); 
+        }
         function closeColumnManager() { document.getElementById('column-modal').classList.add('hidden'); document.getElementById('column-modal').classList.remove('flex'); }
         async function saveColumnChanges() {
-            let sheet = sheetsData[activeSheet]; let newSheetName = document.getElementById('sheet-rename-input').value.trim(); sheet.headerRows = parseInt(document.getElementById('header-rows-select').value);
+            let sheet = sheetsData[activeSheet]; 
+            let newSheetName = document.getElementById('sheet-rename-input').value.trim(); 
+            sheet.headerRows = parseInt(document.getElementById('header-rows-select').value);
             sheet.columns.forEach((col, i) => {
-                col.name = document.getElementById(`col-n-${i}`).value;
-                if(sheet.headerRows == 2) col.name2 = document.getElementById(`col-n2-${i}`) ? document.getElementById(`col-n2-${i}`).value : "";
-                col.type = document.getElementById(`col-t-${i}`).value; col.options = document.getElementById(`col-o-${i}`) ? document.getElementById(`col-o-${i}`).value : "";
+                if (document.getElementById(`col-n-${i}`)) col.name = document.getElementById(`col-n-${i}`).value;
+                if (sheet.headerRows == 2 && document.getElementById(`col-n2-${i}`)) col.name2 = document.getElementById(`col-n2-${i}`).value;
+                if (document.getElementById(`col-t-${i}`)) col.type = document.getElementById(`col-t-${i}`).value; 
+                if (document.getElementById(`col-o-${i}`)) col.options = document.getElementById(`col-o-${i}`).value;
+                // 날짜/숫자로 서식 변경 시 기존 열 데이터 즉시 일괄 포맷팅
+                sheet.rows.forEach(r => {
+                    if (r[i] && r[i].v && !r[i].v.toString().startsWith('=')) {
+                        if (col.type === 'date') r[i].v = formatDateString(r[i].v);
+                        if (col.type === 'number') r[i].v = formatNumberString(r[i].v);
+                    }
+                });
             });
             if (newSheetName && newSheetName !== activeSheet) {
-                if (sheetsData[newSheetName]) { alert("이미 존재하는 시트 이름입니다."); return; }
+                if (sheetsData[newSheetName]) return alert("이미 존재하는 시트 이름입니다.");
                 sheetsData[newSheetName] = sheet; delete sheetsData[activeSheet]; activeSheet = newSheetName;
             }
             await saveSheetsToFirebase(); closeColumnManager(); renderSheetTabs(); renderGrid();
         }
 
+        // 권한 및 계정 관리 모달
         function openAccountManager() { document.getElementById('account-modal').classList.remove('hidden'); document.getElementById('account-modal').classList.add('flex'); renderAccountList(); }
         function closeAccountManager() { document.getElementById('account-modal').classList.add('hidden'); document.getElementById('account-modal').classList.remove('flex'); }
         
@@ -970,13 +1762,13 @@
             accountsData.forEach((a, i) => {
                 list.innerHTML += `
                 <div class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 transition">
-                    <div class="flex items-center space-x-3 w-1/2">
+                    <div class="flex items-center space-x-2 w-1/2">
                         <span class="font-bold text-sm text-slate-800">${a.name}</span>
                         <span class="text-xs text-slate-500">(${a.userId})</span>
                         <span class="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-semibold">${a.role}</span>
                     </div>
                     <div class="flex items-center space-x-2 w-1/2 justify-end">
-                        <input type="password" id="acc-pw-${i}" placeholder="새 비번" class="border border-slate-300 px-2 py-1 text-xs rounded w-28 outline-none focus:border-blue-500">
+                        <input type="password" id="acc-pw-${i}" placeholder="새 비번 입력" class="border border-slate-300 px-2 py-1 text-xs rounded w-28 outline-none focus:border-blue-500">
                         <button onclick="changeAccountPassword(${i})" class="bg-slate-700 text-white px-3 py-1 text-xs font-bold rounded hover:bg-slate-800 transition">비번변경</button>
                         ${(a.userId==='suby20'||a.userId==='abcd9420') ? '<span class="text-xs text-red-500 font-bold ml-2 px-2">마스터</span>' : `<button onclick="deleteAccount(${i})" class="text-red-400 hover:text-red-600 px-2 ml-1 transition" title="계정 삭제"><i class="fa-solid fa-trash"></i></button>`}
                     </div>
@@ -985,11 +1777,11 @@
         }
 
         async function addNewAccount() {
-            let id = document.getElementById('new-acc-id').value.trim();
+            let id = document.getElementById('new-acc-id').value.trim().toLowerCase();
             let name = document.getElementById('new-acc-name').value.trim();
             let role = document.getElementById('new-acc-role').value;
             let pw = document.getElementById('new-acc-pw').value.trim();
-            if(!id || !name || !pw) return alert("정보를 모두 입력해주세요.");
+            if(!id || !name || !pw) return alert("아이디, 이름, 초기 비밀번호를 모두 입력해주세요.");
             if(accountsData.find(a => a.userId === id)) return alert("이미 존재하는 아이디입니다.");
             let hash = await hashPassword(pw);
             accountsData.push({userId: id, name: name, role: role, passwordHash: hash});
@@ -999,11 +1791,11 @@
         }
         async function changeAccountPassword(idx) {
             let newPw = document.getElementById(`acc-pw-${idx}`).value.trim();
-            if(!newPw) return alert("새 비밀번호를 입력해주세요.");
+            if(!newPw) return alert("변경할 새 비밀번호를 입력해주세요.");
             accountsData[idx].passwordHash = await hashPassword(newPw);
             await saveAccountsToFirebase();
             document.getElementById(`acc-pw-${idx}`).value = '';
-            alert(`${accountsData[idx].name} 님의 비밀번호가 변경되었습니다.`);
+            alert(`${accountsData[idx].name} (${accountsData[idx].userId}) 님의 비밀번호가 성공적으로 변경되었습니다.`);
         }
         async function deleteAccount(idx) {
             if(confirm(`정말 ${accountsData[idx].name} 계정을 삭제하시겠습니까?`)) {
@@ -1020,44 +1812,108 @@
             if(typeof unsubPresence === 'function') unsubPresence(); 
         }
 
-        // 🌟 엑셀/파이어베이스 인증 에러 원천 차단형 모바일 최적화 로그인 검증
+        // 모바일/PC 통합 안정화 로그인 핸들러 (Firebase 이메일 인증 정석 복구)
         async function handleLoginSubmit(e) {
             e.preventDefault(); 
+            const btn = document.getElementById('login-submit-btn');
+            btn.disabled = true; btn.innerText = "인증 확인 중...";
+
             let rawId = document.getElementById('login-id').value.trim().toLowerCase(); 
-            let id = rawId.split('@')[0];
+            let id = rawId.split('@')[0].replace(/\s+/g, '');
             let pw = document.getElementById('login-pw').value.trim();
             
-            const { db, getDoc, doc } = window.fb;
+            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc, setPersistence, browserLocalPersistence } = window.fb;
             
             try {
-                let snap = await getDoc(doc(db, "config", "accountsDoc")); 
+                try { await setPersistence(auth, browserLocalPersistence); } catch(pErr) {}
+
+                const email = id + "@helloconnectn.com";
+                const sysPass = "SYS!" + id;
+
+                try { 
+                    await signInWithEmailAndPassword(auth, email, sysPass); 
+                } catch(authErr) { 
+                    if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential' || authErr.code === 'auth/invalid-login-credentials') {
+                        try { await createUserWithEmailAndPassword(auth, email, sysPass); } catch(createErr) {}
+                    }
+                }
+                
+                const snap = await getDoc(doc(db, "config", "accountsDoc")); 
                 if (snap.exists()) accountsData = snap.data().accounts || []; 
                 ensureMasterAdmins(); 
 
                 const user = accountsData.find(a => a.userId === id); 
-                if (!user) { alert("시스템에 등록되지 않은 계정입니다."); return; }
+                if (!user) { 
+                    btn.disabled = false; btn.innerText = "시스템 접속";
+                    return alert("시스템에 등록되지 않은 계정입니다."); 
+                }
                 
                 let hash = await hashPassword(pw);
-                if (id !== "suby20" && id !== "abcd9420") { 
-                    if (pw !== "1470" && user.passwordHash !== hash) { alert("비밀번호가 일치하지 않습니다."); return; }
-                } else if (pw !== "wpswkd20") { alert("마스터 계정 비밀번호가 일치하지 않습니다."); return; }
+                // 마스터 계정은 변경된 해시값 또는 기본 마스터 비번(wpswkd20) 모두 허용
+                if (id === "suby20" || id === "abcd9420") {
+                    if (pw !== "wpswkd20" && user.passwordHash !== hash) {
+                        btn.disabled = false; btn.innerText = "시스템 접속";
+                        return alert("마스터 계정 비밀번호가 일치하지 않습니다.");
+                    }
+                } else { 
+                    if (pw !== "1470" && user.passwordHash !== hash) { 
+                        btn.disabled = false; btn.innerText = "시스템 접속";
+                        return alert("비밀번호가 일치하지 않습니다."); 
+                    }
+                }
                 
                 localStorage.setItem("hellocn_auth_userid", id); 
-                location.reload();
-            } catch(e) { 
-                alert("로그인 처리 중 오류가 발생했습니다. 네트워크 상태를 확인해 주세요.");
-                console.error("Login Error:", e);
+                currentAccount = user;
+                if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
+                
+                clearTimeout(failSafeTimer);
+                document.getElementById('login-modal').classList.add('hidden');
+                document.getElementById('login-modal').classList.remove('flex');
+                document.getElementById('initial-loader').classList.add('hidden');
+                updateUserInterface();
+                startDatabaseSync();
+            } catch(err) { 
+                alert("로그인 오류: " + (err.code || err.message));
+                console.error("Login Error:", err);
+            } finally {
+                btn.disabled = false; btn.innerText = "시스템 접속";
             }
         }
 
-        function handleLogout() { if(confirm("로그아웃 하시겠습니까?")) { localStorage.removeItem("hellocn_auth_userid"); location.reload(); } }
-        function updateUserInterface() {
-            document.getElementById('current-user-badge').innerText = `👤 ${currentAccount.name} (${currentAccount.role})`; document.getElementById('logout-btn').classList.remove('hidden'); document.getElementById('logout-btn').classList.add('flex');
-            if (isPrivilegedRole(currentAccount.role)) { document.getElementById('admin-col-btn').classList.remove('hidden'); document.getElementById('admin-col-btn').classList.add('flex'); document.getElementById('admin-acc-btn').classList.remove('hidden'); document.getElementById('admin-acc-btn').classList.add('flex'); document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-shield-halved text-blue-500"></i> ${currentAccount.role}`; } else { document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-user-check text-amber-500"></i> ${currentAccount.role}`; }
+        function handleLogout() { 
+            if(confirm("로그아웃 하시겠습니까?")) { 
+                localStorage.removeItem("hellocn_auth_userid"); 
+                window.fb.signOut(window.fb.auth).finally(()=>location.reload()); 
+            } 
         }
         
-        function exportPDF() { html2pdf().set({margin: 0.5, filename: `헬로CN_${activeSheet}.pdf`, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }}).from(document.getElementById('printable-area')).save(); }
-        function exportExcel() { let wb = XLSX.utils.book_new(); Object.keys(sheetsData).forEach(s => { let sheet = sheetsData[s]; let h = sheet.headerRows == 2 ? [sheet.columns.map(c=>c.name), sheet.columns.map(c=>c.name2)] : [sheet.columns.map(c=>c.name)]; let aoa = [...h, ...sheet.rows.map(r=>r.map(c=>c.v))]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), s); }); XLSX.writeFile(wb, "헬로CN_데이터.xlsx"); }
+        function updateUserInterface() {
+            document.getElementById('current-user-badge').innerText = `👤 ${currentAccount.name} (${currentAccount.role})`; 
+            document.getElementById('logout-btn').classList.remove('hidden'); 
+            document.getElementById('logout-btn').classList.add('flex');
+            if (isPrivilegedRole(currentAccount.role)) { 
+                document.getElementById('admin-col-btn').classList.remove('hidden'); document.getElementById('admin-col-btn').classList.add('flex'); 
+                document.getElementById('admin-acc-btn').classList.remove('hidden'); document.getElementById('admin-acc-btn').classList.add('flex'); 
+                document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-shield-halved text-blue-500"></i> ${currentAccount.role}`; 
+            } else { 
+                document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-user-check text-amber-500"></i> ${currentAccount.role}`; 
+            }
+        }
+        
+        function exportPDF() { 
+            html2pdf().set({margin: 0.3, filename: `헬로CN_${activeSheet}.pdf`, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }}).from(document.getElementById('printable-area')).save(); 
+        }
+        
+        function exportExcel() { 
+            let wb = XLSX.utils.book_new(); 
+            Object.keys(sheetsData).forEach(s => { 
+                let sheet = sheetsData[s]; 
+                let h = sheet.headerRows == 2 ? [sheet.columns.map(c=>c.name), sheet.columns.map(c=>c.name2)] : [sheet.columns.map(c=>c.name)]; 
+                let aoa = [...h, ...sheet.rows.map((r, rIdx)=>r.map((c, cIdx)=> (c.v||"").toString().startsWith('=') ? evaluateFormula(c.v, rIdx, cIdx) : c.v))]; 
+                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), s); 
+            }); 
+            XLSX.writeFile(wb, "헬로CN_데이터.xlsx"); 
+        }
     </script>
 </body>
 </html>
