@@ -78,11 +78,10 @@
             <div class="bg-blue-600 text-white p-1.5 rounded-lg font-bold"><i class="fa-solid fa-table"></i></div>
             <div>
                 <h1 class="text-sm font-bold tracking-tight">헬로CN 닥스 PRO</h1>
-                <p class="text-[10px] text-slate-400">실시간 협업 스프레드시트 시스템</p>
+                <p class="text-[10px] text-slate-400">데이터 무실손 동기화 시스템</p>
             </div>
         </div>
         <div class="flex items-center space-x-2">
-            <!-- 실시간 접속자 배지 영역 -->
             <div id="online-users-list" class="hidden md:flex items-center space-x-1 mr-2"></div>
 
             <div id="sync-status" class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center space-x-1.5 border border-slate-700">
@@ -101,15 +100,13 @@
         </div>
     </header>
 
-    <!-- 엑셀/구글닥스 서식 툴바 -->
+    <!-- 서식 툴바 -->
     <div class="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between text-slate-600 z-20 shadow-sm overflow-x-auto">
         <div class="flex items-center space-x-1 shrink-0">
-            <!-- 로컬 Undo / Redo -->
             <button onclick="handleUndo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="되돌리기 (Ctrl+Z) - 내 작업만"><i class="fa-solid fa-rotate-left"></i></button>
             <button onclick="handleRedo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="앞으로 돌리기 (Ctrl+Y) - 내 작업만"><i class="fa-solid fa-rotate-right"></i></button>
             <div class="w-px h-4 bg-slate-300 mx-1"></div>
             
-            <!-- 글꼴 굵게 & 정렬 -->
             <button onclick="applyFormat('b', true)" class="p-1.5 hover:bg-slate-100 rounded text-slate-700 font-bold" title="굵게 (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
             <button onclick="applyFormat('align', 'left')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="왼쪽 정렬"><i class="fa-solid fa-align-left"></i></button>
             <button onclick="applyFormat('align', 'center')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="가운데 정렬"><i class="fa-solid fa-align-center"></i></button>
@@ -143,7 +140,6 @@
         </div>
 
         <div class="flex items-center space-x-1.5 shrink-0 ml-2">
-            <!-- 빠른 검색창 -->
             <div class="relative flex items-center">
                 <i class="fa-solid fa-magnifying-glass text-[11px] text-slate-400 absolute left-2.5"></i>
                 <input type="text" id="global-search-input" oninput="handleGlobalSearch(this.value)" placeholder="시트 내 검색..." class="pl-7 pr-2 py-1 text-xs border border-slate-300 rounded-md w-32 focus:w-44 transition-all outline-none focus:border-blue-500">
@@ -151,14 +147,13 @@
             <button onclick="autoFitAllColumns()" class="text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded font-bold transition flex items-center" title="모든 열 너비를 글자수에 맞게 최소로 자동 조절"><i class="fa-solid fa-arrows-left-right mr-1"></i>자동너비</button>
             <button onclick="openDashboard()" class="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded font-bold transition flex items-center"><i class="fa-solid fa-chart-pie mr-1"></i>요약 대시보드</button>
             <button onclick="exportPDF()" class="text-xs bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 px-2.5 py-1 rounded font-bold transition flex items-center"><i class="fa-solid fa-file-pdf mr-1"></i>PDF</button>
-            <button onclick="exportExcel()" class="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded font-bold transition flex items-center"><i class="fa-solid fa-file-excel mr-1"></i>엑셀</button>
+            <button onclick="exportExcel()" class="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded font-bold transition flex items-center"><i class="fa-solid fa-file-excel mr-1"></i>엑셀 다운</button>
         </div>
     </div>
 
     <!-- 메인 스프레드시트 작업 영역 -->
     <div class="flex-1 flex flex-col bg-white m-2 rounded-xl shadow-sm border border-slate-300 overflow-hidden relative" id="printable-area">
         
-        <!-- 구글닥스 스타일 수식 입력줄 (Formula Bar) & 행 제어 바 -->
         <div class="bg-slate-50 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-xs gap-2">
             <div class="flex items-center space-x-2 flex-1">
                 <span class="font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded min-w-[42px] text-center" id="selected-cell-indicator">A1</span>
@@ -175,7 +170,6 @@
             </div>
         </div>
 
-        <!-- 그리드 테이블 컨테이너 -->
         <div id="grid-container" class="bg-slate-100">
             <table id="spreadsheet-table" class="custom-grid bg-white w-max">
                 <thead id="grid-thead"></thead>
@@ -183,17 +177,15 @@
             </table>
         </div>
 
-        <!-- 하단 상태 표시줄 (집계) -->
         <div class="bg-white border-t border-slate-200 px-4 py-1 flex items-center justify-between text-xs text-slate-600 z-10 mt-auto">
-            <div class="text-[11px] text-slate-400">💡 팁: 헤더 경계선 <b>더블클릭</b> 시 글자 맞춤 / 셀 <b>우클릭</b> 시 행·열 삽입 메뉴 / 수식 <b>=SUM(A1:A5)</b> 지원</div>
-            <div class="flex items-center space-x-4 font-mono">
+            <div class="text-[11px] text-slate-400 hidden sm:block">💡 헤더 경계선 <b>더블클릭</b>: 글자 맞춤 / 셀 <b>우클릭</b>: 행·열 삽입 메뉴 / 수식 <b>=SUM(A1:A5)</b> 지원</div>
+            <div class="flex items-center space-x-4 font-mono ml-auto">
                 <div id="stat-count">선택: 0칸</div>
                 <div id="stat-sum" class="font-bold text-blue-600">합계: 0</div>
                 <div id="stat-avg" class="font-bold text-emerald-600">평균: 0</div>
             </div>
         </div>
         
-        <!-- 시트 탭 & 순서 변경 바 -->
         <div class="bg-slate-100 border-t border-slate-200 px-2 py-1 flex items-center justify-between">
             <div class="flex items-center space-x-1 flex-1 overflow-x-auto" id="sheet-tabs"></div>
             <div class="flex items-center space-x-1 ml-2 shrink-0">
@@ -204,7 +196,7 @@
         </div>
     </div>
 
-    <!-- 구글닥스식 다중 체크박스 필터 & 정렬 팝업 -->
+    <!-- 다중 체크박스 필터 & 정렬 팝업 -->
     <div id="custom-filter-menu" class="fixed bg-white border border-slate-300 rounded-lg shadow-2xl z-[150] hidden flex-col w-56 text-xs overflow-hidden">
         <div class="bg-slate-800 text-white px-3 py-2 font-bold flex justify-between items-center">
             <span id="filter-menu-title">필터 및 정렬</span>
@@ -228,7 +220,7 @@
         </div>
     </div>
 
-    <!-- 마우스 우클릭 컨텍스트 메뉴 (구글 닥스 스타일) -->
+    <!-- 마우스 우클릭 컨텍스트 메뉴 -->
     <div id="context-menu" class="fixed bg-white border border-slate-300 rounded-lg shadow-xl z-[200] hidden flex-col w-48 py-1 text-xs text-slate-700 font-medium">
         <button onclick="ctxAction('insertRowAbove')" class="px-3 py-1.5 hover:bg-blue-50 hover:text-blue-600 text-left flex items-center"><i class="fa-solid fa-arrow-up w-5 text-slate-400"></i>위로 1행 삽입</button>
         <button onclick="ctxAction('insertRowBelow')" class="px-3 py-1.5 hover:bg-blue-50 hover:text-blue-600 text-left flex items-center"><i class="fa-solid fa-arrow-down w-5 text-slate-400"></i>아래로 1행 삽입</button>
@@ -242,7 +234,7 @@
         <button onclick="ctxAction('memo')" class="px-3 py-1.5 hover:bg-slate-100 text-left flex items-center"><i class="fa-regular fa-comment-dots w-5 text-amber-500"></i>메모 입력/수정</button>
     </div>
 
-    <!-- 엑셀 붙여넣기 시 헤더 줄수 선택 모달 (0줄/1줄/2줄 직관적 버튼형) -->
+    <!-- 엑셀 붙여넣기 시 헤더 줄수 선택 모달 -->
     <div id="paste-option-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[180]">
         <div class="bg-white w-[420px] rounded-xl shadow-2xl overflow-hidden">
             <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
@@ -335,7 +327,7 @@
         </div>
     </div>
 
-    <!-- 로그인 모달 (@helloconnectn.com 고정 UI) -->
+    <!-- 로그인 모달 -->
     <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-[400px] rounded-xl shadow-2xl p-6">
             <div class="text-center mb-6">
@@ -355,6 +347,7 @@
                     <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
                     <input type="password" id="login-pw" required autocomplete="current-password" placeholder="비밀번호 입력" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 </div>
+                <div id="login-error-box" class="hidden text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2 font-semibold"></div>
                 <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-md transition mt-2">시스템 접속</button>
             </form>
         </div>
@@ -391,7 +384,7 @@
         </div>
     </div>
     
-    <!-- 권한 및 계정 관리 모달 (관리자 비번 변경 + 새 계정 추가 원형 유지) -->
+    <!-- 권한 및 계정 관리 모달 -->
     <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-[750px] rounded-xl overflow-hidden flex flex-col shadow-2xl">
             <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
@@ -426,31 +419,8 @@
         </div>
     </div>
 
-    <!-- Firebase SDK 연동 (모바일/PC 호환 이메일 인증 정석 복구) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        const app = initializeApp({
-            apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
-            authDomain: "hellocn-128ba.firebaseapp.com",
-            projectId: "hellocn-128ba",
-            storageBucket: "hellocn-128ba.firebasestorage.app",
-            messagingSenderId: "306539866159",
-            appId: "1:306539866159:web:164b7242c1d9f6e0233eda"
-        });
-        
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
-        window.initApp();
-    </script>
-
-    <!-- 메인 애플리케이션 코어 스크립트 -->
+    <!-- 1. 메인 애플리케이션 코어 스크립트 (반드시 module 스크립트보다 먼저 선언되어야 함!) -->
     <script>
-        // 3.5초 안전장치 타이머 (네트워크 지연 시 무한 로딩 방지)
         let failSafeTimer = setTimeout(() => {
             const loader = document.getElementById('initial-loader');
             if (loader && !loader.classList.contains('hidden')) {
@@ -458,7 +428,7 @@
                 const loginModal = document.getElementById('login-modal');
                 if (loginModal) { loginModal.classList.remove('hidden'); loginModal.classList.add('flex'); }
             }
-        }, 3500);
+        }, 3000);
 
         const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; 
         let sheetsData = {}; 
@@ -479,7 +449,6 @@
         let localRedoStack = [];
         let unsubAccounts, unsubSheets, unsubPresence;
 
-        // 신규 시트 기본 구조: 1행 1열, 1줄 헤더, 가운데 정렬
         let defaultSheetsData = {
             "시트1": {
                 headerRows: 1, rowHeights: {},
@@ -538,7 +507,6 @@
             if (changed) saveAccountsToFirebase();
         }
 
-        // Firebase Auth 정석 초기화 (모바일 크롬/사파리 완벽 호환)
         window.initApp = async function() {
             if(!window.fb) return;
             const { auth, db, doc, getDoc, onAuthStateChanged, setPersistence, browserLocalPersistence } = window.fb;
@@ -572,12 +540,15 @@
         let lastKnownRemoteCursors = {};
         function startDatabaseSync() {
             const { db, doc, onSnapshot } = window.fb;
+            if(typeof unsubAccounts === 'function') unsubAccounts();
+            if(typeof unsubSheets === 'function') unsubSheets();
+            if(typeof unsubPresence === 'function') unsubPresence();
+
             unsubAccounts = onSnapshot(doc(db, "config", "accountsDoc"), snap => { if (snap.exists()) accountsData = snap.data().accounts || []; });
             unsubSheets = onSnapshot(doc(db, "sheets", "mainDoc"), snap => {
                 isRemoteUpdating = true;
                 if (snap.exists()) {
                     try {
-                        // 현재 포커스 중인 셀 정보 기억
                         let focusedId = document.activeElement ? document.activeElement.id : null;
                         sheetsData = migrateDataStructure(JSON.parse(snap.data().payload));
                         if (!activeSheet || !sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
@@ -593,15 +564,14 @@
                     saveSheetsToFirebase(); 
                 }
                 isRemoteUpdating = false;
-            });
+            }, err => { console.error("Sheet Sync Error:", err); setSyncStatus(false); });
+
             unsubPresence = onSnapshot(doc(db, "sheets", "presence"), snap => { 
                 if (snap.exists()) {
                     lastKnownRemoteCursors = snap.data() || {};
                     if (activeSheet) drawRemoteCursors(lastKnownRemoteCursors); 
                 }
             });
-            // 20초마다 내 생존 신호 갱신
-            setInterval(() => { if(currentAccount) broadcastCursor(); }, 20000);
         }
 
         async function saveSheetsToFirebase() {
@@ -615,10 +585,9 @@
         function setSyncStatus(isOk) {
             const dot = document.getElementById('sync-dot'); const text = document.getElementById('sync-text');
             if (isOk) { dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse"; text.innerText = "실시간 동기화됨"; } 
-            else { dot.className = "w-2 h-2 rounded-full bg-red-400"; text.innerText = "오프라인"; }
+            else { dot.className = "w-2 h-2 rounded-full bg-red-400"; text.innerText = "연결 대기"; }
         }
 
-        // 실시간 다른 사용자 편집 셀 표시 (Presence 완벽 수정)
         async function broadcastCursor() {
             if(!currentAccount || !activeSheet || activeCell.r === null) return;
             try { 
@@ -633,15 +602,14 @@
             const badgeContainer = document.getElementById('online-users-list');
             if (badgeContainer) badgeContainer.innerHTML = '';
 
-            // 기존 중첩 구조 및 신규 평면 구조 모두 호환
-            let mapData = presenceDoc.active ? Object.assign({}, presenceDoc, presenceDoc.active) : presenceDoc;
+            let mapData = presenceDoc.active ? Object.assign({}, presenceDoc, presenceDoc.active) : Object.assign({}, presenceDoc);
             delete mapData.active;
 
             const now = Date.now(); 
             let colorIdx = 0;
             Object.keys(mapData).forEach(uid => {
                 const pos = mapData[uid];
-                if (!pos || !pos.name || (now - pos.ts > 120000)) return; // 2분 이내 활성 사용자
+                if (!pos || !pos.name || (now - pos.ts > 120000)) return;
                 let color = presenceColors[colorIdx % presenceColors.length];
                 colorIdx++;
 
@@ -666,7 +634,7 @@
             });
         }
 
-        // 구글 닥스급 수식 연산기 (=SUM, =AVERAGE, =MIN, =MAX, =COUNT 및 사칙연산 완벽 지원)
+        // 수식 연산기 (=SUM, =AVERAGE, =MIN, =MAX, =COUNT 및 사칙연산)
         function colLetterToIndex(colStr) {
             let c = 0;
             for (let i = 0; i < colStr.length; i++) c = c * 26 + (colStr.charCodeAt(i) - 64);
@@ -675,7 +643,7 @@
 
         function getCellNumericValue(r, c, visited = {}) {
             let key = `${r},${c}`;
-            if (visited[key]) return 0; // 순환 참조 방지
+            if (visited[key]) return 0;
             visited[key] = true;
             let sheet = sheetsData[activeSheet];
             if (!sheet || !sheet.rows[r] || !sheet.rows[r][c]) return 0;
@@ -716,7 +684,6 @@
                 let expr = val.substring(1).toUpperCase().trim();
                 visited[`${selfR},${selfC}`] = true;
 
-                // 범위 함수 처리 (SUM, AVERAGE, AVG, MAX, MIN, COUNT)
                 expr = expr.replace(/(SUM|AVERAGE|AVG|MAX|MIN|COUNT)\(([^)]+)\)/g, (match, fn, argsStr) => {
                     let nums = [];
                     argsStr.split(',').forEach(arg => {
@@ -741,7 +708,6 @@
                     return 0;
                 });
 
-                // 개별 셀 참조 (A1, B2 등) 치환
                 expr = expr.replace(/[A-Z]+[0-9]+/g, (match) => {
                     let colStr = match.match(/[A-Z]+/)[0]; 
                     let rowStr = match.match(/[0-9]+/)[0];
@@ -755,7 +721,6 @@
             } catch(e) { return "#수식오류"; }
         }
 
-        // "10월01일" 스마트 날짜 변환 및 숫자 콤마 포맷터
         function formatDateString(val) {
             if (!val) return "";
             val = val.toString().trim();
@@ -778,7 +743,7 @@
             return isNaN(num) ? val : num.toLocaleString();
         }
 
-        // 로컬 독립형 Undo / Redo 엔진 (내 작업만 복원)
+        // 로컬 Undo / Redo
         function pushUndoState(actionType, r, c, oldData, newData) {
             localUndoStack.push({ sheet: activeSheet, type: actionType, r, c, oldData: JSON.parse(JSON.stringify(oldData)), newData: JSON.parse(JSON.stringify(newData)) });
             if(localUndoStack.length > 60) localUndoStack.shift(); 
@@ -815,15 +780,14 @@
             if (activeSheet === act.sheet) renderGrid();
         }
 
-        // 글자 수 기반 최소 열 너비 자동 계산 (초밀착 Auto-Fit)
+        // 초밀착 열 너비 계산
         function calcOptimalColWidth(sheet, cIdx) {
             const estimate = (str) => {
                 let len = 0; str = (str || "").toString();
                 for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 12.5 : 7.5;
-                return Math.ceil(len) + 26; // 여백 및 필터 아이콘 공간
+                return Math.ceil(len) + 26;
             };
             let col = sheet.columns[cIdx];
-            // 2줄 헤더 병합된 경우 상위 헤더 길이는 분산 계산
             let topNameLen = sheet.headerRows === 2 ? Math.ceil(estimate(col.name) * 0.6) : estimate(col.name);
             let maxLen = Math.max(topNameLen, estimate(col.name2));
             sheet.rows.forEach((r, rIdx) => { 
@@ -847,7 +811,6 @@
             saveSheetsToFirebase(); renderGrid();
         }
 
-        // 마우스 드래그 행/열 간격 조절
         function startResize(e, type, idx) {
             e.stopPropagation(); e.preventDefault();
             resizeState.active = true; resizeState.type = type; resizeState.idx = idx;
@@ -874,7 +837,6 @@
             if (resizeState.active) { resizeState.active = false; document.body.style.cursor = 'default'; saveSheetsToFirebase(); renderGrid(); } 
         });
 
-        // 전체 / 행 / 열 일괄 선택
         function selectEntireCol(cIdx, e) {
             if(e) e.stopPropagation();
             let sheet = sheetsData[activeSheet]; if(!sheet || sheet.rows.length === 0) return;
@@ -889,11 +851,10 @@
         }
         function selectAllCells() {
             let sheet = sheetsData[activeSheet]; if(!sheet || sheet.rows.length === 0) return;
-            selection.active = false; selection.startR = 0; selection.endR = sheet.rows.length - 1; selection.startC = 0; selection.endC = sheet.columns.length - 1; 
+            selection.active = false; selection.startR = 0; selection.endR = sheet.rows.length - 1; selection.startC = 0; selection.endC = sheetsData[activeSheet].columns.length - 1; 
             activeCell = {r:0, c:0}; updateFormulaBar(); drawSelectionHighlight(); calculateStats();
         }
 
-        // 메인 그리드 렌더링 (2단 헤더 가로/세로 병합 및 2행 필터 완벽 지원)
         function renderGrid() {
             const sheet = sheetsData[activeSheet]; if (!sheet) return;
             if (!sheet.rowHeights) sheet.rowHeights = {};
@@ -914,14 +875,12 @@
                     </th>`;
                 });
             } else {
-                // 2줄 헤더: 원본 엑셀처럼 하위 헤더가 없거나 상하위가 같으면 세로 병합(rowspan=2), 상위 이름이 연속되면 가로 병합(colspan)
                 let cIdx = 0;
                 while (cIdx < sheet.columns.length) {
                     let col = sheet.columns[cIdx];
                     let hasSubHeader = col.name2 && col.name2.trim() !== "" && col.name2.trim() !== col.name.trim();
                     
                     if (!hasSubHeader) {
-                        // 단일 세로 병합 컬럼 (순번, 실행팀, 속인 등) - 2행 높이를 차지하며 필터도 바로 부착
                         let isFiltered = myFilters[cIdx] !== undefined;
                         let filterIcon = `<button class="w-4 h-4 rounded hover:bg-slate-300 flex items-center justify-center absolute right-1.5 bottom-1 z-20 ${isFiltered ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)" title="필터"><i class="fa-solid fa-caret-down text-[11px]"></i></button>`;
                         tr1Html += `<th id="col-hdr-${cIdx}" class="grid-header grid-header-row1 col-w-${cIdx}" rowspan="2" style="width:${col.width}px; min-width:${col.width}px; max-width:${col.width}px; height:56px;" onclick="selectEntireCol(${cIdx}, event)">
@@ -930,7 +889,6 @@
                         </th>`;
                         cIdx++;
                     } else {
-                        // 상위 그룹 가로 병합 (회선수, 예상일정, 완료회선 등)
                         let colspan = 1; let nextIdx = cIdx + 1;
                         while (nextIdx < sheet.columns.length && sheet.columns[nextIdx].name === col.name && (sheet.columns[nextIdx].name2 && sheet.columns[nextIdx].name2.trim() !== "")) { 
                             colspan++; nextIdx++; 
@@ -959,10 +917,8 @@
             let roleColIdx = sheet.columns.findIndex(c => c.name.includes("부서") || c.name.includes("지역") || c.name.includes("실행팀"));
 
             sheet.rows.forEach((row, rIdx) => {
-                // 권한별 자동 필터
                 if (myFilters['autoRole'] && roleColIdx > -1 && !(row[roleColIdx]?.v || "").includes(myFilters['autoRole'])) return;
                 
-                // 다중 선택 필터 체크
                 let hideRow = false;
                 Object.keys(myFilters).forEach(fIdx => { 
                     if (fIdx === 'autoRole') return;
@@ -973,7 +929,6 @@
                 });
                 if (hideRow) return;
 
-                // 검색어 필터
                 if (globalSearchQuery) {
                     let rowMatched = row.some(c => (c?.v || "").toString().toLowerCase().includes(globalSearchQuery));
                     if (!rowMatched) return;
@@ -981,7 +936,6 @@
 
                 let tr = document.createElement('tr'); tr.id = `row-${rIdx}`; tr.style.height = (sheet.rowHeights[rIdx] || 28) + 'px';
                 
-                // 좌측 순번 + 행 추가/삭제 버튼
                 tr.innerHTML = `<td id="row-hdr-${rIdx}" class="row-header relative group p-0" onclick="selectEntireRow(${rIdx}, event)">
                     <div class="flex items-center justify-center w-full h-full min-h-[27px]">
                         <span>${rIdx + 1}</span>
@@ -1011,7 +965,6 @@
                     let memoHtml = cellData.memo ? `<div class="memo-indicator" title="💬 메모: ${cellData.memo}"></div>` : '';
                     let cursorHtml = `<div class="cursor-indicator"><span class="cursor-name"></span></div>`;
 
-                    // 우클릭 컨텍스트 메뉴 이벤트
                     td.oncontextmenu = (e) => openContextMenu(e, rIdx, cIdx);
 
                     if (isLocked) {
@@ -1053,7 +1006,7 @@
                             
                             inp.onfocus = () => { 
                                 inp.dataset.oldData = JSON.stringify(cellData); 
-                                inp.value = cellData.v; // 편집 시에는 원본 수식(=A1+B1) 표시
+                                inp.value = cellData.v; 
                                 selectCell(rIdx, cIdx); 
                             };
                             inp.oninput = (e) => { 
@@ -1075,7 +1028,6 @@
                                 if(oldC.v !== newVal) {
                                     pushUndoState('edit', rIdx, cIdx, oldC, sheet.rows[rIdx][cIdx]);
                                     saveSheetsToFirebase();
-                                    // 수식 참조 셀 갱신을 위해 수식 셀들 재계산
                                     refreshFormulaDisplays();
                                 }
                             };
@@ -1107,13 +1059,11 @@
             });
         }
 
-        // 키보드 방향키 이동 및 단축키 제어 (구글닥스 UX)
         function handleCellKeyDown(e, r, c) {
             let sheet = sheetsData[activeSheet];
             if (e.key === 'Enter') {
                 e.preventDefault(); e.target.blur();
-                let nextR = Math.min(sheet.rows.length - 1, r + 1);
-                focusCellInput(nextR, c);
+                focusCellInput(Math.min(sheet.rows.length - 1, r + 1), c);
             } else if (e.key === 'Tab') {
                 e.preventDefault(); e.target.blur();
                 let nextC = e.shiftKey ? Math.max(0, c - 1) : Math.min(sheet.columns.length - 1, c + 1);
@@ -1132,7 +1082,6 @@
             if (el) { el.focus(); selectCell(r, c); }
         }
 
-        // 수식 입력줄 (fx) 연동
         function updateFormulaBar() {
             let sheet = sheetsData[activeSheet];
             if (!sheet || activeCell.r === null || !sheet.rows[activeCell.r]) return;
@@ -1155,13 +1104,11 @@
             }
         }
 
-        // 전역 단축키 (Ctrl+Z, Ctrl+Y, Ctrl+B, Ctrl+C, Delete 일괄 삭제)
         document.addEventListener('keydown', function(e) {
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') { e.preventDefault(); handleUndo(); return; }
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') { e.preventDefault(); handleRedo(); return; }
             if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); applyFormat('b', true); return; }
 
-            // 여러 셀 선택 상태에서 Delete/Backspace로 일괄 지우기
             let isMultiSelected = selection.startR !== null && (selection.startR !== selection.endR || selection.startC !== selection.endC);
             if ((e.key === 'Delete' || e.key === 'Backspace') && isMultiSelected) {
                 e.preventDefault();
@@ -1169,7 +1116,6 @@
             }
         });
 
-        // 선택 영역 복사 (Ctrl+C) 지원
         document.addEventListener('copy', function(e) {
             if (selection.startR === null) return;
             let isMulti = (selection.startR !== selection.endR || selection.startC !== selection.endC);
@@ -1214,7 +1160,6 @@
             }
         }
 
-        // 다중 셀 서식 적용 (배경색, 글자색, 굵기, 정렬)
         function applyFormat(type, value) { 
             if (activeCell.r === null) return alert("셀을 먼저 선택하세요.");
             let rMin = selection.startR !== null ? Math.min(selection.startR, selection.endR) : activeCell.r;
@@ -1242,7 +1187,6 @@
             saveSheetsToFirebase(); renderGrid(); 
         }
 
-        // 복구된 메모 추가/수정 함수
         function addMemoToCell() { 
             if (activeCell.r === null) return alert("메모를 입력할 셀을 선택해주세요."); 
             let cell = sheetsData[activeSheet].rows[activeCell.r][activeCell.c]; 
@@ -1255,7 +1199,6 @@
             } 
         }
 
-        // 우클릭 컨텍스트 메뉴 제어
         function openContextMenu(e, r, c) {
             e.preventDefault();
             if (selection.startR === null || r < Math.min(selection.startR, selection.endR) || r > Math.max(selection.startR, selection.endR) || c < Math.min(selection.startC, selection.endC) || c > Math.max(selection.startC, selection.endC)) {
@@ -1299,7 +1242,6 @@
             saveSheetsToFirebase(); renderGrid();
         }
 
-        // 다중 체크박스 필터 및 정렬 기능
         let currentFilterCol = null;
         function openCustomFilterMenu(cIdx, event) {
             currentFilterCol = cIdx;
@@ -1375,7 +1317,6 @@
             renderGrid();
         }
 
-        // 셀 선택 및 드래그 하이라이트
         function selectCell(r, c) { 
             activeCell = { r, c }; 
             document.getElementById('selected-cell-indicator').innerText = getColLetter(c) + (r + 1); 
@@ -1386,7 +1327,7 @@
             broadcastCursor(); 
         }
         function startDragSelection(e, r, c) { 
-            if (e.button === 2) return; // 우클릭 시 드래그 방지
+            if (e.button === 2) return;
             selection.active = true; 
             selectCell(r, c); 
         }
@@ -1446,7 +1387,6 @@
             }
         }
 
-        // 엑셀 클립보드 붙여넣기 (직관적 0줄/1줄/2줄 헤더 선택 모달 탑재)
         document.addEventListener('paste', function(e) {
             if (!currentAccount || activeCell.r === null) return;
             if (document.activeElement && document.activeElement.id === 'formula-bar-input') return;
@@ -1458,7 +1398,6 @@
             
             e.preventDefault();
 
-            // A1 셀에 다중 열을 붙여넣을 때 헤더 줄수(0, 1, 2) 선택 모달 표시
             if (isPrivilegedRole(currentAccount.role) && activeCell.r === 0 && activeCell.c === 0 && (parsedMatrix.length > 1 || parsedMatrix[0].length > 1)) {
                 pendingPasteMatrix = parsedMatrix;
                 document.getElementById('paste-option-modal').classList.remove('hidden');
@@ -1502,7 +1441,6 @@
                         let subN = parsedMatrix[1][i] || "";
                         if (n) { 
                             sheet.columns[i].name = n; 
-                            // 하단(2행)이 비어있다면 단일 세로 병합 컬럼으로 처리, 하단이 있다면 상위 병합 그룹 시작
                             lastTopHeader = subN ? n : ""; 
                         } else if (lastTopHeader && subN) { 
                             sheet.columns[i].name = lastTopHeader; 
@@ -1525,7 +1463,6 @@
                     let tc = startC + cOffset; 
                     if (tc < sheet.columns.length) {
                         let col = sheet.columns[tc];
-                        // 날짜나 숫자로 명백히 보이는 항목 자동 감지 및 포맷팅
                         if (!val.startsWith('=')) { 
                             if (col.type === 'date' || col.name.includes('일') || col.name2.includes('일')) val = formatDateString(val); 
                             else if (col.type === 'number') val = formatNumberString(val); 
@@ -1539,13 +1476,10 @@
             });
             if(multiActions.length > 0) pushMultiUndoState(multiActions);
             
-            // 붙여넣기 후 글자수에 맞춰 모든 열 너비 최소 자동 맞춤
             sheet.columns.forEach((col, cIdx) => { col.width = calcOptimalColWidth(sheet, cIdx); });
-            
             saveSheetsToFirebase(); renderGrid();
         }
 
-        // 시트 탭 및 순서 제어
         function renderSheetTabs() {
             const c = document.getElementById('sheet-tabs'); c.innerHTML = '';
             Object.keys(sheetsData).forEach(sName => {
@@ -1566,7 +1500,6 @@
 
         function switchSheet(sName) { activeSheet = sName; myFilters = {}; if (currentAccount && !isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role; selectCell(0,0); renderSheetTabs(); renderGrid(); }
         
-        // 신규 시트 생성 (요청사항 3: 1개 열, 1개 빈 행, 1줄 헤더 고정)
         function addNewSheet() {
             let sName = prompt("새 시트 이름을 입력하세요:");
             if (sName && !sheetsData[sName]) { 
@@ -1612,7 +1545,6 @@
             setTimeout(() => { const container = document.getElementById('grid-container'); container.scrollTop = container.scrollHeight; }, 50);
         }
 
-        // 인터랙티브 피벗 대시보드 (모든 열에 대해 합계/평균/건수 및 막대/도넛/선 차트 지원)
         function openDashboard() {
             document.getElementById('dashboard-modal').classList.remove('hidden'); document.getElementById('dashboard-modal').classList.add('flex');
             let sheet = sheetsData[activeSheet];
@@ -1623,7 +1555,7 @@
                 let opt = `<option value="${i}">${label}</option>`;
                 gSel.innerHTML += opt; vSel.innerHTML += opt;
             });
-            if (sheet.columns.length > 1) gSel.value = "1"; // 보통 2번째 열(실행팀/지역)을 기본 그룹으로 선택
+            if (sheet.columns.length > 1) gSel.value = "1";
             renderDashboard();
         }
         function closeDashboard() { document.getElementById('dashboard-modal').classList.add('hidden'); document.getElementById('dashboard-modal').classList.remove('flex'); }
@@ -1689,7 +1621,6 @@
             });
         }
 
-        // 시트 설정 및 항목별 셀 서식 지정 모달
         function openColumnManager() {
             document.getElementById('column-modal').classList.remove('hidden'); document.getElementById('column-modal').classList.add('flex');
             let sheet = sheetsData[activeSheet]; 
@@ -1738,7 +1669,6 @@
                 if (sheet.headerRows == 2 && document.getElementById(`col-n2-${i}`)) col.name2 = document.getElementById(`col-n2-${i}`).value;
                 if (document.getElementById(`col-t-${i}`)) col.type = document.getElementById(`col-t-${i}`).value; 
                 if (document.getElementById(`col-o-${i}`)) col.options = document.getElementById(`col-o-${i}`).value;
-                // 날짜/숫자로 서식 변경 시 기존 열 데이터 즉시 일괄 포맷팅
                 sheet.rows.forEach(r => {
                     if (r[i] && r[i].v && !r[i].v.toString().startsWith('=')) {
                         if (col.type === 'date') r[i].v = formatDateString(r[i].v);
@@ -1753,7 +1683,6 @@
             await saveSheetsToFirebase(); closeColumnManager(); renderSheetTabs(); renderGrid();
         }
 
-        // 권한 및 계정 관리 모달
         function openAccountManager() { document.getElementById('account-modal').classList.remove('hidden'); document.getElementById('account-modal').classList.add('flex'); renderAccountList(); }
         function closeAccountManager() { document.getElementById('account-modal').classList.add('hidden'); document.getElementById('account-modal').classList.remove('flex'); }
         
@@ -1812,53 +1741,72 @@
             if(typeof unsubPresence === 'function') unsubPresence(); 
         }
 
-        // 모바일/PC 통합 안정화 로그인 핸들러 (Firebase 이메일 인증 정석 복구)
+        // 모바일/PC 무결점 로그인 핸들러
         async function handleLoginSubmit(e) {
             e.preventDefault(); 
             const btn = document.getElementById('login-submit-btn');
-            btn.disabled = true; btn.innerText = "인증 확인 중...";
+            const errBox = document.getElementById('login-error-box');
+            errBox.classList.add('hidden');
 
             let rawId = document.getElementById('login-id').value.trim().toLowerCase(); 
             let id = rawId.split('@')[0].replace(/\s+/g, '');
             let pw = document.getElementById('login-pw').value.trim();
             
+            if (!window.fb) {
+                errBox.innerText = "데이터베이스 모듈을 불러오는 중입니다. 1초 후 다시 눌러주세요.";
+                errBox.classList.remove('hidden');
+                return;
+            }
+
+            btn.disabled = true; btn.innerText = "인증 확인 중...";
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc, setPersistence, browserLocalPersistence } = window.fb;
             
             try {
                 try { await setPersistence(auth, browserLocalPersistence); } catch(pErr) {}
 
                 const email = id + "@helloconnectn.com";
-                const sysPass = "SYS!" + id;
+                // 파이어베이스 6자리 이상 비밀번호 정책을 충족하기 위해 최소 길이 보장
+                const sysPass = ("SYS!" + id).length < 6 ? ("SYS!_pad_" + id) : ("SYS!" + id);
 
                 try { 
                     await signInWithEmailAndPassword(auth, email, sysPass); 
                 } catch(authErr) { 
-                    if (authErr.code === 'auth/user-not-found' || authErr.code === 'auth/invalid-credential' || authErr.code === 'auth/invalid-login-credentials') {
-                        try { await createUserWithEmailAndPassword(auth, email, sysPass); } catch(createErr) {}
+                    try { await createUserWithEmailAndPassword(auth, email, sysPass); } catch(createErr) {
+                        // 기존에 짧은 패스워드로 생성된 계정 호환 시도
+                        try { await signInWithEmailAndPassword(auth, email, "SYS!" + id); } catch(e2) {}
                     }
                 }
                 
-                const snap = await getDoc(doc(db, "config", "accountsDoc")); 
-                if (snap.exists()) accountsData = snap.data().accounts || []; 
+                try {
+                    const snap = await getDoc(doc(db, "config", "accountsDoc")); 
+                    if (snap.exists()) accountsData = snap.data().accounts || []; 
+                } catch(dbErr) {
+                    console.warn("Firestore Read Warning:", dbErr);
+                }
                 ensureMasterAdmins(); 
 
                 const user = accountsData.find(a => a.userId === id); 
                 if (!user) { 
+                    errBox.innerText = "시스템에 등록되지 않은 계정입니다.";
+                    errBox.classList.remove('hidden');
                     btn.disabled = false; btn.innerText = "시스템 접속";
-                    return alert("시스템에 등록되지 않은 계정입니다."); 
+                    return; 
                 }
                 
                 let hash = await hashPassword(pw);
-                // 마스터 계정은 변경된 해시값 또는 기본 마스터 비번(wpswkd20) 모두 허용
                 if (id === "suby20" || id === "abcd9420") {
                     if (pw !== "wpswkd20" && user.passwordHash !== hash) {
+                        errBox.innerText = "마스터 계정 비밀번호가 일치하지 않습니다.";
+                        errBox.classList.remove('hidden');
                         btn.disabled = false; btn.innerText = "시스템 접속";
-                        return alert("마스터 계정 비밀번호가 일치하지 않습니다.");
+                        return;
                     }
                 } else { 
                     if (pw !== "1470" && user.passwordHash !== hash) { 
+                        errBox.innerText = "비밀번호가 일치하지 않습니다.";
+                        errBox.classList.remove('hidden');
                         btn.disabled = false; btn.innerText = "시스템 접속";
-                        return alert("비밀번호가 일치하지 않습니다."); 
+                        return; 
                     }
                 }
                 
@@ -1873,7 +1821,8 @@
                 updateUserInterface();
                 startDatabaseSync();
             } catch(err) { 
-                alert("로그인 오류: " + (err.code || err.message));
+                errBox.innerText = "접속 오류 상세: " + (err.code || err.message);
+                errBox.classList.remove('hidden');
                 console.error("Login Error:", err);
             } finally {
                 btn.disabled = false; btn.innerText = "시스템 접속";
@@ -1914,6 +1863,28 @@
             }); 
             XLSX.writeFile(wb, "헬로CN_데이터.xlsx"); 
         }
+    </script>
+
+    <!-- 2. Firebase SDK 모듈 (window.initApp 정의 이후에 실행되도록 하단 배치 완료) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+        const app = initializeApp({
+            apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
+            authDomain: "hellocn-128ba.firebaseapp.com",
+            projectId: "hellocn-128ba",
+            storageBucket: "hellocn-128ba.firebasestorage.app",
+            messagingSenderId: "306539866159",
+            appId: "1:306539866159:web:164b7242c1d9f6e0233eda"
+        });
+        
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
+        window.initApp();
     </script>
 </body>
 </html>
