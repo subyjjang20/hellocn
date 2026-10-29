@@ -260,7 +260,7 @@
         </div>
     </div>
     
-    <!-- 🌟 권한 관리 모달 (완벽하게 복구된 버전) -->
+    <!-- 권한 관리 모달 (완전 원상복구형) -->
     <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[750px] rounded-xl overflow-hidden flex flex-col shadow-2xl">
             <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
@@ -268,8 +268,6 @@
                 <button onclick="closeAccountManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
             </div>
             <div class="p-5 overflow-y-auto max-h-[70vh] bg-slate-50">
-                
-                <!-- 🌟 1. 새 계정 추가 영역 복구 -->
                 <div class="mb-5 bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
                     <h4 class="text-xs font-bold text-slate-700 mb-3"><i class="fa-solid fa-user-plus mr-1.5"></i>새 계정 추가</h4>
                     <div class="flex space-x-2">
@@ -289,10 +287,8 @@
                     </div>
                 </div>
                 
-                <!-- 🌟 2. 기존 계정 리스트 (비밀번호 변경 기능 포함) -->
                 <h4 class="text-xs font-bold text-slate-700 mb-2"><i class="fa-solid fa-users mr-1.5"></i>등록된 계정 목록</h4>
                 <div id="admin-account-list" class="space-y-2"></div>
-                
             </div>
         </div>
     </div>
@@ -955,73 +951,6 @@
                 sheetsData[newSheetName] = sheet; delete sheetsData[activeSheet]; activeSheet = newSheetName;
             }
             await saveSheetsToFirebase(); closeColumnManager(); renderSheetTabs(); renderGrid();
-        }
-
-        // 🌟 수정된 권한 관리(계정 관리) 스크립트 함수들
-        function openAccountManager() { 
-            document.getElementById('account-modal').classList.remove('hidden'); 
-            document.getElementById('account-modal').classList.add('flex'); 
-            renderAccountList(); 
-        }
-        function closeAccountManager() { 
-            document.getElementById('account-modal').classList.add('hidden'); 
-            document.getElementById('account-modal').classList.remove('flex'); 
-        }
-        
-        function renderAccountList() {
-            let list = document.getElementById('admin-account-list'); list.innerHTML = '';
-            accountsData.forEach((a, i) => {
-                list.innerHTML += `
-                <div class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 transition">
-                    <div class="flex items-center space-x-3 w-1/2">
-                        <span class="font-bold text-sm text-slate-800">${a.name}</span>
-                        <span class="text-xs text-slate-500">(${a.userId})</span>
-                        <span class="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-semibold">${a.role}</span>
-                    </div>
-                    <div class="flex items-center space-x-2 w-1/2 justify-end">
-                        <input type="password" id="acc-pw-${i}" placeholder="새 비번" class="border border-slate-300 px-2 py-1 text-xs rounded w-28 outline-none focus:border-blue-500">
-                        <button onclick="changeAccountPassword(${i})" class="bg-slate-700 text-white px-3 py-1 text-xs font-bold rounded hover:bg-slate-800 transition">비번변경</button>
-                        ${(a.userId==='suby20'||a.userId==='abcd9420') ? '<span class="text-xs text-red-500 font-bold ml-2 px-2">마스터</span>' : `<button onclick="deleteAccount(${i})" class="text-red-400 hover:text-red-600 px-2 ml-1 transition" title="계정 삭제"><i class="fa-solid fa-trash"></i></button>`}
-                    </div>
-                </div>`;
-            });
-        }
-
-        async function addNewAccount() {
-            let id = document.getElementById('new-acc-id').value.trim();
-            let name = document.getElementById('new-acc-name').value.trim();
-            let role = document.getElementById('new-acc-role').value;
-            let pw = document.getElementById('new-acc-pw').value.trim();
-            
-            if(!id || !name || !pw) return alert("정보를 모두 입력해주세요.");
-            if(accountsData.find(a => a.userId === id)) return alert("이미 존재하는 아이디입니다.");
-            
-            let hash = await hashPassword(pw);
-            accountsData.push({userId: id, name: name, role: role, passwordHash: hash});
-            await saveAccountsToFirebase();
-            renderAccountList();
-            
-            document.getElementById('new-acc-id').value = ''; 
-            document.getElementById('new-acc-name').value = ''; 
-            document.getElementById('new-acc-pw').value = '';
-            alert("새 계정이 성공적으로 추가되었습니다.");
-        }
-
-        async function changeAccountPassword(idx) {
-            let newPw = document.getElementById(`acc-pw-${idx}`).value.trim();
-            if(!newPw) return alert("새 비밀번호를 입력해주세요.");
-            accountsData[idx].passwordHash = await hashPassword(newPw);
-            await saveAccountsToFirebase();
-            document.getElementById(`acc-pw-${idx}`).value = '';
-            alert(`${accountsData[idx].name} 님의 비밀번호가 변경되었습니다.`);
-        }
-
-        async function deleteAccount(idx) {
-            if(confirm(`정말 ${accountsData[idx].name} 계정을 삭제하시겠습니까?`)) {
-                accountsData.splice(idx, 1);
-                await saveAccountsToFirebase();
-                renderAccountList();
-            }
         }
 
         function forceLogout() { 
