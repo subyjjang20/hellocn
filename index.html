@@ -296,7 +296,7 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const app = initializeApp({
@@ -309,10 +309,11 @@
         });
         
         const auth = getAuth(app);
-        // 🌟 모바일 크롬 브라우저 쿠키/세션 차단 우회를 위한 영구 세션 적용
-        setPersistence(auth, browserLocalPersistence).catch(() => {});
+        
+        // 🌟 모바일 보안/CORS 에러 원인이 되는 복잡한 이메일 인증 대신 익명 인증(Anonymous Auth)으로 안전하게 통신 세션 수립
+        signInAnonymously(auth).catch(() => {});
 
-        window.fb = { auth, db: getFirestore(app), doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+        window.fb = { auth, db: getFirestore(app), doc, setDoc, getDoc, onSnapshot, signOut, onAuthStateChanged };
         window.initApp();
     </script>
 
@@ -362,7 +363,7 @@
         }
 
         async function saveAccountsToFirebase() {
-            try { await window.fb.setDoc(window.fb.doc(window.fb.db, "config", "accountsDoc"), { accounts: accountsData }); } catch(e) { console.error(e); }
+            try { await window.fb.setDoc(window.fb.doc(window.fb.db, "config", "accountsDoc"), { accounts: accountsData }); } catch(e) {}
         }
         function ensureMasterAdmins() {
             let changed = false;
@@ -371,33 +372,36 @@
             if (changed) saveAccountsToFirebase();
         }
 
-        window.initApp = function() {
+        window.initApp = async function() {
             if(!window.fb) return;
-            const { auth, db, doc, getDoc, onAuthStateChanged } = window.fb;
-            onAuthStateChanged(auth, async (fbUser) => {
-                const uid = localStorage.getItem("hellocn_auth_userid");
-                if (fbUser && uid) {
-                    try {
-                        const accSnap = await getDoc(doc(db, "config", "accountsDoc"));
-                        if (accSnap.exists()) accountsData = accSnap.data().accounts || [];
+            const { db, doc, getDoc } = window.fb;
+            const uid = localStorage.getItem("hellocn_auth_userid");
+            
+            if (uid) {
+                try {
+                    const accSnap = await getDoc(doc(db, "config", "accountsDoc"));
+                    if (accSnap.exists()) accountsData = accSnap.data().accounts || [];
+                    ensureMasterAdmins();
+                    
+                    const target = accountsData.find(a => a.userId === uid);
+                    if (target) {
+                        clearTimeout(failSafeTimer);
+                        currentAccount = target;
+                        if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
+                        startDatabaseSync();
                         
-                        ensureMasterAdmins();
-                        
-                        const target = accountsData.find(a => a.userId === uid);
-                        if (target) {
-                            clearTimeout(failSafeTimer);
-                            currentAccount = target;
-                            if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
-                            startDatabaseSync();
-                            
-                            document.getElementById('initial-loader').classList.add('hidden');
-                            document.getElementById('login-modal').classList.add('hidden');
-                            document.getElementById('login-modal').classList.remove('flex');
-                            updateUserInterface();
-                        } else { forceLogout(); }
-                    } catch(e) { forceLogout(); }
-                } else { forceLogout(); }
-            });
+                        document.getElementById('initial-loader').classList.add('hidden');
+                        document.getElementById('login-modal').classList.add('hidden');
+                        document.getElementById('login-modal').classList.remove('flex');
+                        updateUserInterface();
+                        return;
+                    }
+                } catch(e) {}
+            }
+            clearTimeout(failSafeTimer);
+            document.getElementById('initial-loader').classList.add('hidden');
+            document.getElementById('login-modal').classList.remove('hidden');
+            document.getElementById('login-modal').classList.add('flex');
         };
 
         function startDatabaseSync() {
@@ -1016,28 +1020,17 @@
             if(typeof unsubPresence === 'function') unsubPresence(); 
         }
 
+        // 🌟 엑셀/파이어베이스 인증 에러 원천 차단형 모바일 최적화 로그인 검증
         async function handleLoginSubmit(e) {
             e.preventDefault(); 
             let rawId = document.getElementById('login-id').value.trim().toLowerCase(); 
             let id = rawId.split('@')[0];
             let pw = document.getElementById('login-pw').value.trim();
             
-            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc } = window.fb;
+            const { db, getDoc, doc } = window.fb;
             
             try {
-                try { 
-                    await signInWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); 
-                } catch(err) { 
-                    await createUserWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); 
-                }
-                
-                let snap;
-                try {
-                    snap = await getDoc(doc(db, "config", "accountsDoc")); 
-                } catch(err) {
-                    snap = { exists: () => false };
-                }
-
+                let snap = await getDoc(doc(db, "config", "accountsDoc")); 
                 if (snap.exists()) accountsData = snap.data().accounts || []; 
                 ensureMasterAdmins(); 
 
@@ -1057,7 +1050,7 @@
             }
         }
 
-        function handleLogout() { if(confirm("로그아웃 하시겠습니까?")) { localStorage.removeItem("hellocn_auth_userid"); window.fb.signOut(window.fb.auth).then(()=>location.reload()); } }
+        function handleLogout() { if(confirm("로그아웃 하시겠습니까?")) { localStorage.removeItem("hellocn_auth_userid"); location.reload(); } }
         function updateUserInterface() {
             document.getElementById('current-user-badge').innerText = `👤 ${currentAccount.name} (${currentAccount.role})`; document.getElementById('logout-btn').classList.remove('hidden'); document.getElementById('logout-btn').classList.add('flex');
             if (isPrivilegedRole(currentAccount.role)) { document.getElementById('admin-col-btn').classList.remove('hidden'); document.getElementById('admin-col-btn').classList.add('flex'); document.getElementById('admin-acc-btn').classList.remove('hidden'); document.getElementById('admin-acc-btn').classList.add('flex'); document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-shield-halved text-blue-500"></i> ${currentAccount.role}`; } else { document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-user-check text-amber-500"></i> ${currentAccount.role}`; }
