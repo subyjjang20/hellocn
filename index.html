@@ -260,7 +260,7 @@
         </div>
     </div>
     
-    <!-- 권한 관리 모달 (완전 원상복구형) -->
+    <!-- 권한 관리 모달 -->
     <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[750px] rounded-xl overflow-hidden flex flex-col shadow-2xl">
             <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
@@ -296,7 +296,7 @@
     <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
         const app = initializeApp({
@@ -307,7 +307,12 @@
             messagingSenderId: "306539866159",
             appId: "1:306539866159:web:164b7242c1d9f6e0233eda"
         });
-        window.fb = { auth: getAuth(app), db: getFirestore(app), doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
+        
+        const auth = getAuth(app);
+        // 🌟 모바일 크롬 브라우저 쿠키/세션 차단 우회를 위한 영구 세션 적용
+        setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+        window.fb = { auth, db: getFirestore(app), doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged };
         window.initApp();
     </script>
 
@@ -855,7 +860,7 @@
         function addNewRow() {
             let sheet = sheetsData[activeSheet]; let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", memo: "" }));
             if (!isPrivilegedRole(currentAccount.role)) { let roleCol = sheet.columns.findIndex(c=>c.name.includes("지역")); if(roleCol > -1) newR[roleCol].v = currentAccount.role; }
-            sheet.rows.push(newR); saveSheetsToFirebase(); renderGrid();
+            sheet.rows.push(newR); saveSheetsToFirebase();
             setTimeout(() => { const container = document.getElementById('grid-container'); container.scrollTop = container.scrollHeight; }, 100);
         }
 
@@ -953,6 +958,55 @@
             await saveSheetsToFirebase(); closeColumnManager(); renderSheetTabs(); renderGrid();
         }
 
+        function openAccountManager() { document.getElementById('account-modal').classList.remove('hidden'); document.getElementById('account-modal').classList.add('flex'); renderAccountList(); }
+        function closeAccountManager() { document.getElementById('account-modal').classList.add('hidden'); document.getElementById('account-modal').classList.remove('flex'); }
+        
+        function renderAccountList() {
+            let list = document.getElementById('admin-account-list'); list.innerHTML = '';
+            accountsData.forEach((a, i) => {
+                list.innerHTML += `
+                <div class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 transition">
+                    <div class="flex items-center space-x-3 w-1/2">
+                        <span class="font-bold text-sm text-slate-800">${a.name}</span>
+                        <span class="text-xs text-slate-500">(${a.userId})</span>
+                        <span class="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-semibold">${a.role}</span>
+                    </div>
+                    <div class="flex items-center space-x-2 w-1/2 justify-end">
+                        <input type="password" id="acc-pw-${i}" placeholder="새 비번" class="border border-slate-300 px-2 py-1 text-xs rounded w-28 outline-none focus:border-blue-500">
+                        <button onclick="changeAccountPassword(${i})" class="bg-slate-700 text-white px-3 py-1 text-xs font-bold rounded hover:bg-slate-800 transition">비번변경</button>
+                        ${(a.userId==='suby20'||a.userId==='abcd9420') ? '<span class="text-xs text-red-500 font-bold ml-2 px-2">마스터</span>' : `<button onclick="deleteAccount(${i})" class="text-red-400 hover:text-red-600 px-2 ml-1 transition" title="계정 삭제"><i class="fa-solid fa-trash"></i></button>`}
+                    </div>
+                </div>`;
+            });
+        }
+
+        async function addNewAccount() {
+            let id = document.getElementById('new-acc-id').value.trim();
+            let name = document.getElementById('new-acc-name').value.trim();
+            let role = document.getElementById('new-acc-role').value;
+            let pw = document.getElementById('new-acc-pw').value.trim();
+            if(!id || !name || !pw) return alert("정보를 모두 입력해주세요.");
+            if(accountsData.find(a => a.userId === id)) return alert("이미 존재하는 아이디입니다.");
+            let hash = await hashPassword(pw);
+            accountsData.push({userId: id, name: name, role: role, passwordHash: hash});
+            await saveAccountsToFirebase(); renderAccountList();
+            document.getElementById('new-acc-id').value = ''; document.getElementById('new-acc-name').value = ''; document.getElementById('new-acc-pw').value = '';
+            alert("새 계정이 추가되었습니다.");
+        }
+        async function changeAccountPassword(idx) {
+            let newPw = document.getElementById(`acc-pw-${idx}`).value.trim();
+            if(!newPw) return alert("새 비밀번호를 입력해주세요.");
+            accountsData[idx].passwordHash = await hashPassword(newPw);
+            await saveAccountsToFirebase();
+            document.getElementById(`acc-pw-${idx}`).value = '';
+            alert(`${accountsData[idx].name} 님의 비밀번호가 변경되었습니다.`);
+        }
+        async function deleteAccount(idx) {
+            if(confirm(`정말 ${accountsData[idx].name} 계정을 삭제하시겠습니까?`)) {
+                accountsData.splice(idx, 1); await saveAccountsToFirebase(); renderAccountList();
+            }
+        }
+
         function forceLogout() { 
             document.getElementById('initial-loader').classList.add('hidden'); 
             document.getElementById('login-modal').classList.remove('hidden'); 
@@ -977,31 +1031,28 @@
                     await createUserWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); 
                 }
                 
-                const snap = await getDoc(doc(db, "config", "accountsDoc")); 
+                let snap;
+                try {
+                    snap = await getDoc(doc(db, "config", "accountsDoc")); 
+                } catch(err) {
+                    snap = { exists: () => false };
+                }
+
                 if (snap.exists()) accountsData = snap.data().accounts || []; 
                 ensureMasterAdmins(); 
 
                 const user = accountsData.find(a => a.userId === id); 
-                if (!user) {
-                    alert("시스템에 등록되지 않은 계정입니다.\n관리자에게 문의하세요.");
-                    return;
-                }
+                if (!user) { alert("시스템에 등록되지 않은 계정입니다."); return; }
                 
                 let hash = await hashPassword(pw);
                 if (id !== "suby20" && id !== "abcd9420") { 
-                    if (pw !== "1470" && user.passwordHash !== hash) {
-                        alert("비밀번호가 일치하지 않습니다.");
-                        return;
-                    }
-                } else if (pw !== "wpswkd20") {
-                    alert("마스터 계정 비밀번호가 일치하지 않습니다.");
-                    return;
-                }
+                    if (pw !== "1470" && user.passwordHash !== hash) { alert("비밀번호가 일치하지 않습니다."); return; }
+                } else if (pw !== "wpswkd20") { alert("마스터 계정 비밀번호가 일치하지 않습니다."); return; }
                 
                 localStorage.setItem("hellocn_auth_userid", id); 
                 location.reload();
             } catch(e) { 
-                alert("서버 연결에 실패했습니다.\n사내 네트워크를 확인해 주세요.");
+                alert("로그인 처리 중 오류가 발생했습니다. 네트워크 상태를 확인해 주세요.");
                 console.error("Login Error:", e);
             }
         }
