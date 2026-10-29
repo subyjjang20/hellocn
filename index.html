@@ -53,6 +53,7 @@
 </head>
 <body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
 
+    <!-- 로딩 오버레이 -->
     <div id="initial-loader" class="fixed inset-0 bg-slate-900 z-[999] flex flex-col items-center justify-center text-white transition-opacity duration-200">
         <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-500 mb-5"></i>
         <h2 class="text-xl font-bold tracking-tight">시스템 연결 및 데이터 로딩 중...</h2>
@@ -211,18 +212,31 @@
         </div>
     </div>
 
-    <!-- 로그인, 시트설정, 계정관리 모달 -->
+    <!-- 🌟 로그인 모달 (UI 완벽 개선) -->
     <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50">
-        <div class="bg-white w-[400px] rounded-xl shadow-2xl p-6">
-            <h2 class="text-lg font-bold text-center mb-4">헬로CN 닥스 PRO</h2>
+        <div class="bg-white w-[420px] rounded-xl shadow-2xl p-7">
+            <div class="text-center mb-6">
+                <h2 class="text-2xl font-bold text-slate-800">헬로CN 닥스 PRO</h2>
+                <p class="text-xs text-slate-500 mt-1">업무망 로그인 인증</p>
+            </div>
             <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
-                <input type="text" id="login-id" required placeholder="아이디 (suby20)" class="w-full border rounded-lg px-3 py-2 text-sm">
-                <input type="password" id="login-pw" required placeholder="비밀번호" class="w-full border rounded-lg px-3 py-2 text-sm">
-                <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg text-sm">로그인</button>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">아이디</label>
+                    <div class="flex items-center border border-slate-300 rounded-lg overflow-hidden bg-white focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500 transition">
+                        <input type="text" id="login-id" required placeholder="suby20" class="flex-1 px-3 py-2 text-sm outline-none w-full">
+                        <span class="bg-slate-100 text-slate-500 px-3 py-2 text-xs font-semibold border-l border-slate-300 select-none">@helloconnectn.com</span>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
+                    <input type="password" id="login-pw" required placeholder="비밀번호를 입력하세요" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition">
+                </div>
+                <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-md transition mt-2">시스템 접속</button>
             </form>
         </div>
     </div>
 
+    <!-- 시트 및 항목 설정 모달 -->
     <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[780px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex justify-between"><h3 class="font-bold text-sm">시트 및 항목 서식 설정</h3><button onclick="closeColumnManager()"><i class="fa-solid fa-xmark"></i></button></div>
@@ -269,7 +283,7 @@
 
     <!-- 앱 로직 -->
     <script>
-        // 🌟 무한 로딩 방지 및 로그인창 겹침 해결
+        // 무한 로딩 방지 타이머
         let failSafeTimer = setTimeout(() => {
             const loader = document.getElementById('initial-loader');
             if (loader && !loader.classList.contains('hidden')) {
@@ -313,11 +327,10 @@
             return data;
         }
 
-        // 🌟 누락되었던 핵심 계정 관리 저장 함수 복구
+        // 🌟 마스터 계정 보장 로직 복구
         async function saveAccountsToFirebase() {
             try { await window.fb.setDoc(window.fb.doc(window.fb.db, "config", "accountsDoc"), { accounts: accountsData }); } catch(e) { console.error(e); }
         }
-
         function ensureMasterAdmins() {
             let changed = false;
             if (!accountsData.find(a => a.userId === 'suby20')) { accountsData.push({ userId: 'suby20', name: '심현섭', role: '최고관리자', passwordHash: ADMIN_HASH }); changed = true; }
@@ -334,13 +347,18 @@
                     try {
                         const accSnap = await getDoc(doc(db, "config", "accountsDoc"));
                         if (accSnap.exists()) accountsData = accSnap.data().accounts || [];
+                        
+                        // 🌟 빈 DB로 인한 무한 로그아웃 방지
+                        ensureMasterAdmins();
+                        
                         const target = accountsData.find(a => a.userId === uid);
                         if (target) {
-                            // 🌟 연결 성공 시 꼬임 방지를 위해 타이머 해제 및 로그인창 강제 숨김
                             clearTimeout(failSafeTimer);
                             currentAccount = target;
                             if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
                             startDatabaseSync();
+                            
+                            // 로딩 및 로그인 창 숨기기
                             document.getElementById('initial-loader').classList.add('hidden');
                             document.getElementById('login-modal').classList.add('hidden');
                             document.getElementById('login-modal').classList.remove('flex');
@@ -909,33 +927,64 @@
             await saveSheetsToFirebase(); closeColumnManager(); renderSheetTabs(); renderGrid();
         }
 
-        function forceLogout() { document.getElementById('initial-loader').classList.add('hidden'); document.getElementById('login-modal').classList.remove('hidden'); document.getElementById('login-modal').classList.add('flex'); if(typeof unsubSheets === 'function') unsubSheets(); if(typeof unsubAccounts === 'function') unsubAccounts(); if(typeof unsubPresence === 'function') unsubPresence(); }
-        
+        function forceLogout() { 
+            document.getElementById('initial-loader').classList.add('hidden'); 
+            document.getElementById('login-modal').classList.remove('hidden'); 
+            document.getElementById('login-modal').classList.add('flex'); 
+            if(typeof unsubSheets === 'function') unsubSheets(); 
+            if(typeof unsubAccounts === 'function') unsubAccounts(); 
+            if(typeof unsubPresence === 'function') unsubPresence(); 
+        }
+
+        // 🌟 강화된 로그인 검증 및 예외처리 
         async function handleLoginSubmit(e) {
             e.preventDefault(); 
-            let id = document.getElementById('login-id').value.trim().toLowerCase().replace('@helloconnectn.com', ''); 
+            
+            // @helloconnectn.com 입력 방지 및 아이디 정제
+            let rawId = document.getElementById('login-id').value.trim().toLowerCase(); 
+            let id = rawId.split('@')[0];
             let pw = document.getElementById('login-pw').value.trim();
+            
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc } = window.fb;
+            
             try {
-                try { await signInWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); } 
-                catch(err) { await createUserWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); }
+                // 1. 파이어베이스 인증 (신규면 자동 생성)
+                try { 
+                    await signInWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); 
+                } catch(err) { 
+                    await createUserWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); 
+                }
                 
+                // 2. 사내 DB 검증
                 const snap = await getDoc(doc(db, "config", "accountsDoc")); 
                 if (snap.exists()) accountsData = snap.data().accounts || []; 
-                
                 ensureMasterAdmins(); 
 
                 const user = accountsData.find(a => a.userId === id); 
-                if (!user) return alert("미등록 계정입니다.");
+                if (!user) {
+                    alert("시스템에 등록되지 않은 계정입니다.\n관리자에게 문의하세요.");
+                    return;
+                }
                 
+                // 3. 비밀번호 검증 (오류 시 정확한 팝업)
                 let hash = await hashPassword(pw);
                 if (id !== "suby20" && id !== "abcd9420") { 
-                    if (pw !== "1470" && user.passwordHash !== hash) return alert("비밀번호가 일치하지 않습니다."); 
-                } else if (pw !== "wpswkd20") return alert("마스터 비밀번호가 일치하지 않습니다.");
+                    if (pw !== "1470" && user.passwordHash !== hash) {
+                        alert("비밀번호가 일치하지 않습니다.");
+                        return;
+                    }
+                } else if (pw !== "wpswkd20") {
+                    alert("마스터 계정 비밀번호가 일치하지 않습니다.");
+                    return;
+                }
                 
+                // 4. 통과 시 접속
                 localStorage.setItem("hellocn_auth_userid", id); 
                 location.reload();
-            } catch(e) { alert("로그인 오류: " + e.message); }
+            } catch(e) { 
+                alert("서버 연결에 실패했습니다.\n사내 네트워크를 확인해 주세요.");
+                console.error("Login Error:", e);
+            }
         }
 
         function handleLogout() { if(confirm("로그아웃 하시겠습니까?")) { localStorage.removeItem("hellocn_auth_userid"); window.fb.signOut(window.fb.auth).then(()=>location.reload()); } }
