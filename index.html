@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>헬로CN 닥스 프로</title>
+    <title>헬로CN 닥스</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -13,26 +13,36 @@
         body { font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif; user-select: none; }
         input, select, textarea { user-select: auto; }
         
-        #grid-container { height: calc(100vh - 210px); overflow: auto; }
+        #grid-container { height: calc(100vh - 210px); overflow: auto; scroll-behavior: smooth; }
         table.custom-grid { border-collapse: separate; border-spacing: 0; border-top: 1px solid #cbd5e1; border-left: 1px solid #cbd5e1; }
         
-        .grid-header { background-color: #f1f5f9; color: #334155; font-weight: bold; text-align: center; font-size: 12px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; position: sticky; z-index: 10; box-sizing: border-box; }
+        /* 헤더 고정 및 레이아웃 */
+        .grid-header { background-color: #f1f5f9; color: #334155; font-weight: bold; text-align: center; font-size: 12px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; position: sticky; z-index: 10; box-sizing: border-box; cursor: pointer; }
         .grid-header-row1 { top: 0; }
         .grid-header-row2 { top: 28px; } 
-        .grid-header-corner { position: sticky; left: 0; z-index: 20; background-color: #e2e8f0; }
-        .row-header { position: sticky; left: 0; z-index: 5; background-color: #f8fafc; font-weight: bold; color: #64748b; text-align: center; font-size: 11px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; }
+        .grid-header-corner { position: sticky; left: 0; z-index: 20; background-color: #e2e8f0; cursor: pointer; }
+        .row-header { position: sticky; left: 0; z-index: 5; background-color: #f8fafc; font-weight: bold; color: #64748b; text-align: center; font-size: 11px; border-right: 1px solid #cbd5e1; border-bottom: 1px solid #cbd5e1; cursor: pointer; }
         
-        .grid-cell { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 0; position: relative; background: #ffffff; transition: background-color 0.1s; }
+        /* 셀 디자인 및 마우스오버 효과 (요청 5 반영) */
+        .grid-cell { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 0; position: relative; background: #ffffff; transition: background-color 0.1s, box-shadow 0.1s; }
+        .grid-cell:hover { box-shadow: inset 0 0 0 1px #93c5fd; z-index: 2; }
+        
         .cell-input { width: 100%; height: 100%; min-height: 28px; border: none; background: transparent; padding: 4px 6px; outline: none; font-size: 13px; }
-        .cell-input:focus { background: #eff6ff; box-shadow: inset 0 0 0 2px #3b82f6; z-index: 2; position: relative; }
+        .cell-input:focus { background: #eff6ff; box-shadow: inset 0 0 0 2px #3b82f6; z-index: 3; position: relative; }
         .cell-select { width: 100%; height: 100%; min-height: 28px; border: none; background: transparent; padding: 2px 4px; outline: none; font-size: 12px; cursor: pointer; }
         
+        /* 다중 선택 드래그 및 부가 기능 */
         .cell-selected { background-color: #e0f2fe !important; }
-        .grid-cell.locked { background-color: #f8fafc; color: #94a3b8; }
+        .grid-cell.locked { background-color: #f8fafc; color: #94a3b8; cursor: not-allowed; }
+        .grid-cell.locked:hover { box-shadow: none; }
+        
         .memo-indicator { position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 8px 8px 0; border-color: transparent #f59e0b transparent transparent; cursor: help; z-index: 1; }
-        .cursor-indicator { position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px; border: 2px solid; pointer-events: none; z-index: 5; display: none; }
-        .cursor-name { position: absolute; top: -20px; right: -2px; background: inherit; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px 4px 0px 4px; white-space: nowrap; }
+        
+        /* 🌟 실시간 커서 (요청 8 반영) */
+        .cursor-indicator { position: absolute; top: -2px; left: -2px; right: -2px; bottom: -2px; border: 2px solid; pointer-events: none; z-index: 4; display: none; }
+        .cursor-name { position: absolute; top: -20px; right: -2px; background: inherit; color: white; font-size: 10px; font-weight: bold; padding: 2px 6px; border-radius: 4px 4px 0px 4px; white-space: nowrap; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
 
+        /* 크기 조절(Resize) 핸들 */
         .resize-handle-col { position: absolute; right: -3px; top: 0; bottom: 0; width: 6px; cursor: col-resize; z-index: 15; }
         .resize-handle-col:hover { background-color: #3b82f6; }
         .resize-handle-row { position: absolute; bottom: -3px; left: 0; right: 0; height: 6px; cursor: row-resize; z-index: 15; }
@@ -51,7 +61,7 @@
     <!-- 로딩 오버레이 -->
     <div id="initial-loader" class="fixed inset-0 bg-slate-900 z-[999] flex flex-col items-center justify-center text-white transition-opacity duration-200">
         <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-500 mb-5"></i>
-        <h2 class="text-xl font-bold tracking-tight">시스템 연결 및 최적화 중...</h2>
+        <h2 class="text-xl font-bold tracking-tight">시스템 연결 및 데이터 로딩 중...</h2>
     </div>
 
     <!-- 네비게이션바 -->
@@ -85,9 +95,9 @@
         <div class="flex items-center space-x-1">
             <button onclick="applyFormat('b', true)" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="굵게"><i class="fa-solid fa-bold"></i></button>
             <div class="w-px h-5 bg-slate-300 mx-1"></div>
-            <button onclick="applyFormat('align', 'left')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700"><i class="fa-solid fa-align-left"></i></button>
-            <button onclick="applyFormat('align', 'center')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700"><i class="fa-solid fa-align-center"></i></button>
-            <button onclick="applyFormat('align', 'right')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700"><i class="fa-solid fa-align-right"></i></button>
+            <button onclick="applyFormat('align', 'left')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="왼쪽 정렬"><i class="fa-solid fa-align-left"></i></button>
+            <button onclick="applyFormat('align', 'center')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="가운데 정렬"><i class="fa-solid fa-align-center"></i></button>
+            <button onclick="applyFormat('align', 'right')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="오른쪽 정렬"><i class="fa-solid fa-align-right"></i></button>
             <div class="w-px h-5 bg-slate-300 mx-2"></div>
             
             <div class="flex items-center space-x-1 bg-slate-50 p-1 rounded border border-slate-200">
@@ -137,9 +147,15 @@
             <div id="stat-avg" class="font-bold text-emerald-600">평균: 0</div>
         </div>
         
-        <div class="bg-slate-100 border-t border-slate-200 px-2 py-1 flex items-center">
-            <div id="sheet-tabs" class="flex items-center space-x-1 overflow-x-auto flex-1"></div>
-            <button onclick="addNewSheet()" class="text-slate-500 hover:text-blue-600 px-2 py-1"><i class="fa-solid fa-plus"></i></button>
+        <!-- 하단 시트 탭 (순서 이동 버튼 포함) -->
+        <div class="bg-slate-100 border-t border-slate-200 px-2 py-1 flex items-center justify-between">
+            <div class="flex items-center space-x-1 flex-1 overflow-x-auto" id="sheet-tabs"></div>
+            <div class="flex items-center space-x-1 ml-2">
+                <button onclick="moveSheetOrder(-1)" class="text-slate-400 hover:text-blue-600 px-1" title="시트 앞으로 이동"><i class="fa-solid fa-chevron-left"></i></button>
+                <button onclick="moveSheetOrder(1)" class="text-slate-400 hover:text-blue-600 px-1 mr-2" title="시트 뒤로 이동"><i class="fa-solid fa-chevron-right"></i></button>
+                <div class="w-px h-4 bg-slate-300 mx-1"></div>
+                <button onclick="addNewSheet()" class="text-blue-600 hover:text-blue-800 font-bold px-2 py-1 flex items-center text-xs"><i class="fa-solid fa-plus mr-1"></i>시트추가</button>
+            </div>
         </div>
     </div>
 
@@ -167,7 +183,7 @@
         </div>
     </div>
 
-    <!-- 🌟 모달: 시트 설정 (셀 서식/유형 통합) -->
+    <!-- 모달: 시트 설정 -->
     <div id="column-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white w-[780px] rounded-xl shadow-2xl overflow-hidden flex flex-col">
             <div class="bg-slate-900 text-white px-5 py-4 flex justify-between"><h3 class="font-bold text-sm">시트 및 항목 서식 설정</h3><button onclick="closeColumnManager()"><i class="fa-solid fa-xmark"></i></button></div>
@@ -183,7 +199,6 @@
                     </div>
                     <select id="header-rows-select" class="border rounded px-3 py-1.5 text-xs font-bold text-blue-600 outline-none"><option value="1">1줄 헤더</option><option value="2">2줄 헤더</option></select>
                 </div>
-                <!-- 열(항목) 편집 리스트 영역 -->
                 <div id="column-edit-list" class="space-y-2"></div>
                 <button onclick="addColumnField()" class="w-full bg-white border-dashed border border-slate-400 py-2 rounded-lg text-xs font-bold text-blue-600 hover:bg-blue-50 transition">+ 새 항목 추가</button>
             </div>
@@ -219,6 +234,7 @@
         let sheetsData = {}; let accountsData = []; let currentAccount = null; let activeSheet = null; let isRemoteUpdating = false;
         let myFilters = {}; let selection = { startR: null, startC: null, endR: null, endC: null, active: false }; let activeCell = { r: null, c: null };
         let resizeState = { active: false, type: '', idx: -1, startX: 0, startY: 0, startWidth: 0, startHeight: 0 };
+        const presenceColors = ['#ef4444', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#0ea5e9'];
 
         let defaultSheetsData = {
             "월별실적": {
@@ -234,7 +250,6 @@
         function isPrivilegedRole(role) { return role === "최고관리자" || role === "서추" || role === "영추"; }
         async function hashPassword(str) { const msgBuffer = new TextEncoder().encode(str); const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer); return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join(''); }
 
-        // 🌟 마이그레이션: 기존 validation(숫자, 날짜)을 type(형식)으로 완벽 통합
         function migrateDataStructure(data) {
             Object.keys(data).forEach(sName => {
                 if(!data[sName].headerRows) data[sName].headerRows = 1;
@@ -242,12 +257,11 @@
                 data[sName].columns.forEach(c => { 
                     if(!c.width) c.width = 120; 
                     if(c.name2 === undefined) c.name2 = ""; 
-                    // 기존 데이터 호환성 보장
                     if(c.validation === 'number') c.type = 'number';
                     if(c.validation === 'date') c.type = 'date';
                     delete c.validation;
                 });
-                data[sName].rows = data[sName].rows.map(row => row.map(cell => (typeof cell === 'string' ? { v: cell, b: false, bg: "", align: "left", memo: "" } : cell)));
+                data[sName].rows = data[sName].rows.map(row => row.map(cell => (typeof cell === 'string' ? { v: cell, b: false, bg: "", align: "center", memo: "" } : cell)));
             });
             return data;
         }
@@ -273,10 +287,11 @@
             });
         };
 
+        let unsubAccounts, unsubSheets, unsubPresence;
         function startDatabaseSync() {
             const { db, doc, onSnapshot } = window.fb;
-            window.unsubAccounts = onSnapshot(doc(db, "config", "accountsDoc"), snap => { if (snap.exists()) accountsData = snap.data().accounts || []; });
-            window.unsubSheets = onSnapshot(doc(db, "sheets", "mainDoc"), snap => {
+            unsubAccounts = onSnapshot(doc(db, "config", "accountsDoc"), snap => { if (snap.exists()) accountsData = snap.data().accounts || []; });
+            unsubSheets = onSnapshot(doc(db, "sheets", "mainDoc"), snap => {
                 isRemoteUpdating = true;
                 if (snap.exists()) {
                     try {
@@ -286,6 +301,11 @@
                     } catch(e) {}
                 } else { sheetsData = migrateDataStructure(JSON.parse(JSON.stringify(defaultSheetsData))); activeSheet = Object.keys(sheetsData)[0]; saveSheetsToFirebase(); }
                 isRemoteUpdating = false;
+            });
+            
+            // 🌟 실시간 커서 리스너 연동 (요청 8)
+            unsubPresence = onSnapshot(doc(db, "sheets", "presence"), snap => {
+                if (snap.exists() && activeSheet) drawRemoteCursors(snap.data().active || {});
             });
         }
 
@@ -300,7 +320,63 @@
             else { dot.className = "w-1.5 h-1.5 rounded-full bg-red-400"; text.innerText = "연결 끊김"; }
         }
 
-        // 🌟 날짜(10월01일) 및 숫자(콤마) 스마트 포맷터
+        // 🌟 실시간 커서 방송 (요청 8)
+        async function broadcastCursor() {
+            if(!currentAccount || !activeSheet || activeCell.r === null) return;
+            try {
+                await window.fb.setDoc(window.fb.doc(window.fb.db, "sheets", "presence"), { 
+                    [`active.${currentAccount.userId}`]: { sheet: activeSheet, r: activeCell.r, c: activeCell.c, name: currentAccount.name, ts: Date.now() }
+                }, { merge: true });
+            } catch(e) {}
+        }
+        function drawRemoteCursors(activeData) {
+            document.querySelectorAll('.cursor-indicator').forEach(el => el.style.display = 'none');
+            const now = Date.now();
+            let colorIdx = 0;
+            Object.keys(activeData).forEach(uid => {
+                if (uid === currentAccount.userId) return;
+                const pos = activeData[uid];
+                if (pos.sheet === activeSheet && (now - pos.ts < 60000)) { // 1분 이내만 표시
+                    const td = document.getElementById(`cell-${pos.r}-${pos.c}`);
+                    if (td) {
+                        const cur = td.querySelector('.cursor-indicator');
+                        if (cur) {
+                            let color = presenceColors[colorIdx % presenceColors.length];
+                            cur.style.borderColor = color;
+                            let nameTag = cur.querySelector('.cursor-name');
+                            nameTag.innerText = pos.name; nameTag.style.backgroundColor = color;
+                            cur.style.display = 'block';
+                            colorIdx++;
+                        }
+                    }
+                }
+            });
+        }
+
+        // 🌟 수식 연산기 (요청 4 - 기본 사칙연산 및 A1, B2 셀 참조)
+        function evaluateFormula(val, selfR, selfC) {
+            if (typeof val !== 'string' || !val.startsWith('=')) return val;
+            try {
+                let expr = val.substring(1).toUpperCase();
+                // A1, B2 등 셀 참조 파싱
+                expr = expr.replace(/[A-Z]+[0-9]+/g, (match) => {
+                    let colStr = match.match(/[A-Z]+/)[0];
+                    let rowStr = match.match(/[0-9]+/)[0];
+                    let c = 0;
+                    for (let i = 0; i < colStr.length; i++) c = c * 26 + (colStr.charCodeAt(i) - 64);
+                    c -= 1; let r = parseInt(rowStr) - 1;
+                    if(r === selfR && c === selfC) return 0; // 순환참조 방지
+                    let cellVal = sheetsData[activeSheet].rows[r][c]?.v || "0";
+                    let num = parseFloat(cellVal.toString().replace(/,/g, ''));
+                    return isNaN(num) ? 0 : num;
+                });
+                // 안전한 수식 계산
+                let result = new Function('return ' + expr)();
+                return isNaN(result) ? "#ERROR!" : result.toLocaleString();
+            } catch(e) { return "#ERROR!"; }
+        }
+
+        // 날짜/숫자 포맷터
         function formatDateString(val) {
             if (!val) return "";
             if (/^\d{1,2}월\s*\d{1,2}일$/.test(val)) {
@@ -315,9 +391,24 @@
             return val;
         }
         function formatNumberString(val) {
-            if (!val) return "";
+            if (!val || val.toString().startsWith('=')) return val;
             let num = parseFloat(val.toString().replace(/,/g, ''));
             return isNaN(num) ? val : num.toLocaleString();
+        }
+
+        // 🌟 자동 너비 맞춤 (요청 1)
+        function autoFitColumn(cIdx) {
+            let sheet = sheetsData[activeSheet];
+            let maxLen = 0;
+            const estimate = (str) => {
+                let len = 0; str = str || "";
+                for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 14 : 8;
+                return len + 25; // padding
+            };
+            maxLen = Math.max(maxLen, estimate(sheet.columns[cIdx].name), estimate(sheet.columns[cIdx].name2));
+            sheet.rows.forEach(r => { if(r[cIdx]) maxLen = Math.max(maxLen, estimate(r[cIdx].v)); });
+            sheet.columns[cIdx].width = Math.max(50, Math.min(400, maxLen));
+            saveSheetsToFirebase(); renderGrid();
         }
 
         // 마우스 드래그 크기 조절
@@ -345,7 +436,12 @@
             if (resizeState.active) { resizeState.active = false; document.body.style.cursor = 'default'; saveSheetsToFirebase(); renderGrid(); }
         });
 
-        // 🌟 헤더 병합 및 렌더링 코어
+        // 🌟 전체/행/열 선택 맵핑 (요청 6)
+        function selectEntireCol(cIdx) { selection.active = false; selection.startR = 0; selection.endR = sheetsData[activeSheet].rows.length - 1; selection.startC = cIdx; selection.endC = cIdx; activeCell = {r:0, c:cIdx}; drawSelectionHighlight(); calculateStats(); }
+        function selectEntireRow(rIdx) { selection.active = false; selection.startR = rIdx; selection.endR = rIdx; selection.startC = 0; selection.endC = sheetsData[activeSheet].columns.length - 1; activeCell = {r:rIdx, c:0}; drawSelectionHighlight(); calculateStats(); }
+        function selectAllCells() { selection.active = false; selection.startR = 0; selection.endR = sheetsData[activeSheet].rows.length - 1; selection.startC = 0; selection.endC = sheetsData[activeSheet].columns.length - 1; activeCell = {r:0, c:0}; drawSelectionHighlight(); calculateStats(); }
+
+        // 🌟 메인 그리드 렌더링
         function renderGrid() {
             const sheet = sheetsData[activeSheet]; if (!sheet) return;
             if (!sheet.rowHeights) sheet.rowHeights = {};
@@ -353,16 +449,16 @@
             thead.innerHTML = ''; tbody.innerHTML = '';
 
             let hRows = sheet.headerRows || 1;
-            let tr1Html = `<th class="grid-header grid-header-corner grid-header-row1 w-12 bg-slate-200" ${hRows==2?'rowspan="2"':''}><i class="fa-solid fa-list-ol text-slate-400"></i></th>`;
+            let tr1Html = `<th class="grid-header grid-header-corner grid-header-row1 w-12 bg-slate-200" ${hRows==2?'rowspan="2"':''} onclick="selectAllCells()"><i class="fa-solid fa-list-ol text-slate-400"></i></th>`;
             let tr2Html = ``;
 
             if (hRows == 1) {
                 sheet.columns.forEach((col, cIdx) => {
                     let isFiltered = myFilters[cIdx] !== undefined;
-                    let filterIcon = `<i class="fa-solid fa-filter text-[10px] ${isFiltered ? 'text-blue-600' : 'text-slate-300'} hover:text-blue-600 absolute right-2 top-1/2 transform -translate-y-1/2 cursor-pointer bg-[#f1f5f9] px-0.5" onclick="openCustomFilterMenu(${cIdx}, event)"></i>`;
-                    tr1Html += `<th class="grid-header grid-header-row1 col-w-${cIdx}" style="width:${col.width}px; min-width:${col.width}px; height: 28px;">
+                    let filterIcon = `<i class="fa-solid fa-filter text-[10px] ${isFiltered ? 'text-blue-600' : 'text-slate-300'} hover:text-blue-600 absolute right-2 top-1/2 transform -translate-y-1/2 cursor-pointer bg-[#f1f5f9] px-0.5 z-20" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)"></i>`;
+                    tr1Html += `<th class="grid-header grid-header-row1 col-w-${cIdx} hover:bg-slate-200 transition" style="width:${col.width}px; min-width:${col.width}px; height: 28px;" onclick="selectEntireCol(${cIdx})">
                         <div class="relative w-full h-full flex items-center justify-center px-4"><span class="truncate text-xs">${col.name}</span>${filterIcon}</div>
-                        <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})"></div>
+                        <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${cIdx})"></div>
                     </th>`;
                 });
             } else {
@@ -370,17 +466,17 @@
                 while (cIdx < sheet.columns.length) {
                     let col = sheet.columns[cIdx]; let colspan = 1; let nextIdx = cIdx + 1;
                     while (nextIdx < sheet.columns.length && sheet.columns[nextIdx].name === col.name) { colspan++; nextIdx++; }
-                    tr1Html += `<th class="grid-header grid-header-row1 border-b-0" colspan="${colspan}" style="height: 28px;">
+                    tr1Html += `<th class="grid-header grid-header-row1 border-b-0 hover:bg-slate-200 transition" colspan="${colspan}" style="height: 28px;">
                         <div class="relative w-full h-full flex items-center justify-center px-1"><span class="truncate text-[11px] text-slate-500">${col.name}</span></div>
                     </th>`;
                     cIdx = nextIdx;
                 }
                 sheet.columns.forEach((col, cIdx) => {
                     let isFiltered = myFilters[cIdx] !== undefined;
-                    let filterIcon = `<i class="fa-solid fa-filter text-[10px] ${isFiltered ? 'text-blue-600' : 'text-slate-300'} hover:text-blue-600 absolute right-2 top-1/2 transform -translate-y-1/2 cursor-pointer bg-[#f1f5f9] px-0.5" onclick="openCustomFilterMenu(${cIdx}, event)"></i>`;
-                    tr2Html += `<th class="grid-header grid-header-row2 col-w-${cIdx}" style="width:${col.width}px; min-width:${col.width}px; height: 28px;">
+                    let filterIcon = `<i class="fa-solid fa-filter text-[10px] ${isFiltered ? 'text-blue-600' : 'text-slate-300'} hover:text-blue-600 absolute right-2 top-1/2 transform -translate-y-1/2 cursor-pointer bg-[#f1f5f9] px-0.5 z-20" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)"></i>`;
+                    tr2Html += `<th class="grid-header grid-header-row2 col-w-${cIdx} hover:bg-slate-200 transition" style="width:${col.width}px; min-width:${col.width}px; height: 28px;" onclick="selectEntireCol(${cIdx})">
                         <div class="relative w-full h-full flex items-center justify-center px-4"><span class="truncate text-xs">${col.name2 || ''}</span>${filterIcon}</div>
-                        <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})"></div>
+                        <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${cIdx})"></div>
                     </th>`;
                 });
             }
@@ -398,13 +494,13 @@
                 if (hideRow) return;
 
                 let tr = document.createElement('tr'); tr.id = `row-${rIdx}`; tr.style.height = (sheet.rowHeights[rIdx] || 28) + 'px';
-                tr.innerHTML = `<td class="row-header relative group p-0">
+                tr.innerHTML = `<td class="row-header relative group p-0 hover:bg-slate-200 transition" onclick="selectEntireRow(${rIdx})">
                     <div class="flex items-center justify-center w-full h-full min-h-[28px]">
                         <span>${rIdx + 1}</span>
                         ${isPrivilegedRole(currentAccount?.role) ? `
-                        <div class="absolute right-0 top-0 bottom-0 hidden group-hover:flex items-center shadow-md">
-                            <button onclick="insertRow(${rIdx})" class="px-1.5 h-full bg-blue-100 text-blue-600 hover:bg-blue-200 border-l border-white" title="행 삽입"><i class="fa-solid fa-plus text-[10px]"></i></button>
-                            <button onclick="deleteRow(${rIdx})" class="px-1.5 h-full bg-red-100 text-red-600 hover:bg-red-200 border-l border-white" title="행 삭제"><i class="fa-solid fa-trash text-[10px]"></i></button>
+                        <div class="absolute right-0 top-0 bottom-0 hidden group-hover:flex items-center shadow-md z-30">
+                            <button onclick="event.stopPropagation(); insertRow(${rIdx})" class="px-1.5 h-full bg-blue-100 text-blue-600 hover:bg-blue-200 border-l border-white" title="행 삽입"><i class="fa-solid fa-plus text-[10px]"></i></button>
+                            <button onclick="event.stopPropagation(); deleteRow(${rIdx})" class="px-1.5 h-full bg-red-100 text-red-600 hover:bg-red-200 border-l border-white" title="행 삭제"><i class="fa-solid fa-trash text-[10px]"></i></button>
                         </div>` : ''}
                     </div>
                     <div class="resize-handle-row" onmousedown="startResize(event, 'row', ${rIdx})"></div>
@@ -414,39 +510,48 @@
 
                 sheet.columns.forEach((col, cIdx) => {
                     let td = document.createElement('td'); td.id = `cell-${rIdx}-${cIdx}`; td.className = `grid-cell ${isLocked ? 'locked' : ''} col-w-${cIdx}`;
-                    let cellData = row[cIdx] || { v: "", b: false, align: "left", bg: "", memo: "" };
+                    let cellData = row[cIdx] || { v: "", b: false, align: "center", bg: "", memo: "" };
                     td.style.backgroundColor = cellData.bg || ''; td.style.fontWeight = cellData.b ? 'bold' : 'normal'; td.style.textAlign = cellData.align;
                     let memoHtml = cellData.memo ? `<div class="memo-indicator" title="메모: ${cellData.memo}"></div>` : '';
+                    let cursorHtml = `<div class="cursor-indicator"><span class="cursor-name"></span></div>`;
 
                     if (isLocked) {
-                        td.innerHTML = `${memoHtml}<div class="px-2 py-1.5 text-xs text-slate-500 h-full flex items-center ${cellData.align === 'center' ? 'justify-center' : (cellData.align === 'right' ? 'justify-end' : '')} truncate select-none">${cellData.v}</div>`;
+                        td.innerHTML = `${memoHtml}${cursorHtml}<div class="px-2 py-1.5 text-xs text-slate-500 h-full flex items-center ${cellData.align === 'center' ? 'justify-center' : (cellData.align === 'right' ? 'justify-end' : '')} truncate select-none">${cellData.v}</div>`;
                     } else {
+                        // 🌟 수식 평가 및 포맷팅 처리
+                        let displayVal = cellData.v;
+                        if(col.type !== 'select' && displayVal.toString().startsWith('=')) {
+                            displayVal = evaluateFormula(displayVal, rIdx, cIdx);
+                        }
+
                         if (col.type === 'select') {
                             let sel = document.createElement('select'); sel.className = 'cell-select'; sel.style.fontWeight = cellData.b ? 'bold' : 'normal'; sel.style.textAlign = cellData.align;
                             sel.innerHTML = `<option value="">--</option>` + (col.options||"").split(',').map(o=>`<option value="${o.trim()}" ${cellData.v===o.trim()?'selected':''}>${o.trim()}</option>`).join('');
                             sel.onchange = (e) => { sheet.rows[rIdx][cIdx].v = e.target.value; saveSheetsToFirebase(); };
                             sel.onmousedown = () => selectCell(rIdx, cIdx);
-                            td.innerHTML = memoHtml; td.appendChild(sel);
+                            td.innerHTML = memoHtml + cursorHtml; td.appendChild(sel);
                         } else {
-                            let inp = document.createElement('input'); inp.type = 'text'; inp.className = 'cell-input'; inp.value = cellData.v;
+                            let inp = document.createElement('input'); inp.type = 'text'; inp.className = 'cell-input'; inp.value = displayVal;
                             inp.style.fontWeight = cellData.b ? 'bold' : 'normal'; inp.style.textAlign = cellData.align;
-                            inp.onfocus = () => selectCell(rIdx, cIdx);
+                            
+                            inp.onfocus = () => { inp.value = cellData.v; selectCell(rIdx, cIdx); };
                             inp.oninput = (e) => { sheet.rows[rIdx][cIdx].v = e.target.value; };
                             inp.onkeydown = (e) => { if (e.key === 'Enter') e.target.blur(); };
                             
-                            // 🌟 입력 완료 시 서식 자동 포맷 적용 (날짜/숫자)
                             inp.onblur = (e) => {
                                 let newVal = e.target.value;
-                                if (col.type === 'date') newVal = formatDateString(newVal);
-                                if (col.type === 'number') newVal = formatNumberString(newVal);
-                                sheet.rows[rIdx][cIdx].v = newVal; 
-                                inp.value = newVal;
+                                if (!newVal.startsWith('=')) {
+                                    if (col.type === 'date') newVal = formatDateString(newVal);
+                                    if (col.type === 'number') newVal = formatNumberString(newVal);
+                                }
+                                sheet.rows[rIdx][cIdx].v = newVal;
+                                inp.value = newVal.startsWith('=') ? evaluateFormula(newVal, rIdx, cIdx) : newVal;
                                 saveSheetsToFirebase();
                             };
                             
                             td.onmousedown = (e) => startDragSelection(e, rIdx, cIdx);
                             td.onmouseenter = (e) => updateDragSelection(e, rIdx, cIdx);
-                            td.innerHTML = memoHtml; td.appendChild(inp);
+                            td.innerHTML = memoHtml + cursorHtml; td.appendChild(inp);
                         }
                     }
                     tr.appendChild(td);
@@ -457,7 +562,7 @@
             drawSelectionHighlight(); 
         }
 
-        // 🌟 다중 셀 서식 적용 함수
+        // 서식 일괄 적용 함수
         function applyFormat(type, value) { 
             if (activeCell.r === null) return alert("셀을 먼저 선택하세요.");
             let rMin = selection.startR !== null ? Math.min(selection.startR, selection.endR) : activeCell.r;
@@ -493,7 +598,11 @@
         function clearMyFilters() { let r = myFilters['autoRole']; myFilters = {}; if(r) myFilters['autoRole'] = r; renderGrid(); }
 
         // 드래그 선택 및 통계
-        function selectCell(r, c) { activeCell = { r, c }; document.getElementById('selected-cell-indicator').innerText = String.fromCharCode(65 + c) + (r + 1); selection.startR = r; selection.endR = r; selection.startC = c; selection.endC = c; drawSelectionHighlight(); }
+        function selectCell(r, c) { 
+            activeCell = { r, c }; document.getElementById('selected-cell-indicator').innerText = String.fromCharCode(65 + c) + (r + 1); 
+            selection.startR = r; selection.endR = r; selection.startC = c; selection.endC = c; 
+            drawSelectionHighlight(); broadcastCursor(); 
+        }
         function startDragSelection(e, r, c) { if (e.target.tagName === 'INPUT' && document.activeElement === e.target) return; selection.active = true; selectCell(r,c); }
         function updateDragSelection(e, r, c) { if (!selection.active) return; selection.endR = r; selection.endC = c; drawSelectionHighlight(); }
         function endDragSelection() { selection.active = false; calculateStats(); }
@@ -516,7 +625,7 @@
             }
         }
 
-        // 🌟 클립보드 파싱 및 헤더 병합 자동 채움 처리
+        // 클립보드 엑셀 연동
         document.addEventListener('paste', function(e) {
             if (!currentAccount || activeCell.r === null) return;
             if (e.target.tagName === 'INPUT' && document.activeElement === e.target && !e.clipboardData.getData('text').includes('\t')) return;
@@ -528,19 +637,15 @@
 
             if (isPrivilegedRole(currentAccount.role)) {
                 let maxCols = Math.max(...parsedMatrix.map(r => r.length));
-                while (sheet.columns.length < maxCols) { sheet.columns.push({ name: `항목${sheet.columns.length+1}`, name2: "", type: "text", width: 120 }); sheet.rows.forEach(r => r.push({ v: "", b: false, align: "left", bg: "", memo: "" })); }
+                while (sheet.columns.length < maxCols) { sheet.columns.push({ name: `항목${sheet.columns.length+1}`, name2: "", type: "text", width: 120 }); sheet.rows.forEach(r => r.push({ v: "", b: false, align: "center", bg: "", memo: "" })); }
                 
                 if (rawRows.length > hRows && activeCell.r === 0 && activeCell.c === 0) {
                     if (hRows == 1) {
                         parsedMatrix[0].forEach((n, i) => { if(n) sheet.columns[i].name = n; });
                         parsedMatrix = parsedMatrix.slice(1);
                     } else if (hRows == 2 && parsedMatrix.length >= 2) {
-                        // 엑셀 병합 셀 파싱: 빈칸일 경우 이전 텍스트로 채워서 colspan이 발동되게 유도
                         let lastTopHeader = "";
-                        parsedMatrix[0].forEach((n, i) => { 
-                            if (n) { sheet.columns[i].name = n; lastTopHeader = n; }
-                            else if (lastTopHeader) { sheet.columns[i].name = lastTopHeader; }
-                        });
+                        parsedMatrix[0].forEach((n, i) => { if (n) { sheet.columns[i].name = n; lastTopHeader = n; } else if (lastTopHeader) { sheet.columns[i].name = lastTopHeader; } });
                         parsedMatrix[1].forEach((n, i) => { if(n) sheet.columns[i].name2 = n; });
                         parsedMatrix = parsedMatrix.slice(2);
                     }
@@ -551,7 +656,7 @@
             parsedMatrix.forEach((rowData, rOffset) => {
                 let tr = startR + rOffset;
                 if (tr >= sheet.rows.length) {
-                    let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "left", bg: "", memo: "" }));
+                    let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", memo: "" }));
                     if (!isPrivilegedRole(currentAccount.role)) newR[1].v = currentAccount.role;
                     sheet.rows.push(newR);
                 }
@@ -560,10 +665,11 @@
                 rowData.forEach((val, cOffset) => { 
                     let tc = startC + cOffset; 
                     if (tc < sheet.columns.length) {
-                        // 🌟 붙여넣기 시에도 날짜/숫자 서식 포맷 자동 변환 적용
                         let col = sheet.columns[tc];
-                        if (col.type === 'date') val = formatDateString(val);
-                        else if (col.type === 'number') val = formatNumberString(val);
+                        if (!val.startsWith('=')) {
+                            if (col.type === 'date') val = formatDateString(val);
+                            else if (col.type === 'number') val = formatNumberString(val);
+                        }
                         sheet.rows[tr][tc].v = val; 
                     }
                 });
@@ -571,7 +677,7 @@
             saveSheetsToFirebase(); renderGrid(); e.preventDefault();
         });
 
-        // 시트 및 행 관리
+        // 🌟 시트 관리 및 순서 이동 (요청 7, 요청 3 반영)
         function renderSheetTabs() {
             const c = document.getElementById('sheet-tabs'); c.innerHTML = '';
             Object.keys(sheetsData).forEach(sName => {
@@ -582,10 +688,27 @@
                 c.appendChild(btn);
             });
         }
+        function moveSheetOrder(direction) {
+            let keys = Object.keys(sheetsData);
+            let idx = keys.indexOf(activeSheet);
+            if ((direction === -1 && idx === 0) || (direction === 1 && idx === keys.length - 1)) return;
+            let temp = keys[idx]; keys[idx] = keys[idx + direction]; keys[idx + direction] = temp;
+            let newData = {}; keys.forEach(k => newData[k] = sheetsData[k]);
+            sheetsData = newData; saveSheetsToFirebase(); renderSheetTabs();
+        }
+
         function switchSheet(sName) { activeSheet = sName; selectCell(0,0); renderSheetTabs(); renderGrid(); }
         function addNewSheet() {
             let sName = prompt("새 시트 이름:");
-            if (sName && !sheetsData[sName]) { sheetsData[sName] = JSON.parse(JSON.stringify(defaultSheetsData["월별실적"])); saveSheetsToFirebase(); switchSheet(sName); }
+            if (sName && !sheetsData[sName]) { 
+                // 빈 시트 포맷(1행 1열, 가운데 정렬 적용)
+                sheetsData[sName] = {
+                    headerRows: 1, rowHeights: {},
+                    columns: [{ name: "항목1", name2: "", type: "text", width: 120 }],
+                    rows: [ [{v: "", b: false, bg: "", align: "center", memo: ""}] ]
+                }; 
+                saveSheetsToFirebase(); switchSheet(sName); 
+            }
         }
         function deleteSheet(sName) {
             if (!isPrivilegedRole(currentAccount.role) || Object.keys(sheetsData).length <= 1) return;
@@ -593,19 +716,19 @@
         }
         
         function insertRow(rIdx) {
-            let sheet = sheetsData[activeSheet]; let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "left", bg: "", memo: "" }));
+            let sheet = sheetsData[activeSheet]; let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", memo: "" }));
             if (!isPrivilegedRole(currentAccount.role)) { let roleCol = sheet.columns.findIndex(c=>c.name.includes("지역")); if(roleCol > -1) newR[roleCol].v = currentAccount.role; }
             sheet.rows.splice(rIdx, 0, newR); saveSheetsToFirebase(); renderGrid();
         }
         function deleteRow(rIdx) { if(confirm(`${rIdx+1}행 삭제?`)) { sheetsData[activeSheet].rows.splice(rIdx, 1); saveSheetsToFirebase(); renderGrid(); } }
         function addNewRow() {
-            let sheet = sheetsData[activeSheet]; let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "left", bg: "", memo: "" }));
+            let sheet = sheetsData[activeSheet]; let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", memo: "" }));
             if (!isPrivilegedRole(currentAccount.role)) { let roleCol = sheet.columns.findIndex(c=>c.name.includes("지역")); if(roleCol > -1) newR[roleCol].v = currentAccount.role; }
             sheet.rows.push(newR); saveSheetsToFirebase(); renderGrid();
             setTimeout(() => { const container = document.getElementById('grid-container'); container.scrollTop = container.scrollHeight; }, 100);
         }
 
-        // 🌟 모달: 시트(서식) 설정 
+        // 모달: 시트(서식) 설정 
         function openColumnManager() {
             document.getElementById('column-modal').classList.remove('hidden'); document.getElementById('column-modal').classList.add('flex');
             let sheet = sheetsData[activeSheet];
@@ -630,7 +753,7 @@
                 </div>`;
             });
         }
-        function addColumnField() { sheetsData[activeSheet].columns.push({name:"새항목", name2:"", type:"text", width:120}); sheetsData[activeSheet].rows.forEach(r=>r.push({v:"", b:false, bg:"", align:"left", memo:""})); openColumnManager(); }
+        function addColumnField() { sheetsData[activeSheet].columns.push({name:"새항목", name2:"", type:"text", width:120}); sheetsData[activeSheet].rows.forEach(r=>r.push({v:"", b:false, bg:"", align:"center", memo:""})); openColumnManager(); }
         function closeColumnManager() { document.getElementById('column-modal').classList.add('hidden'); document.getElementById('column-modal').classList.remove('flex'); }
         async function saveColumnChanges() {
             let sheet = sheetsData[activeSheet];
@@ -651,7 +774,7 @@
             await saveSheetsToFirebase(); closeColumnManager(); renderSheetTabs(); renderGrid();
         }
 
-        function forceLogout() { document.getElementById('initial-loader').classList.add('hidden'); document.getElementById('login-modal').classList.remove('hidden'); document.getElementById('login-modal').classList.add('flex'); if(window.unsubSheets) window.unsubSheets(); if(window.unsubAccounts) window.unsubAccounts(); }
+        function forceLogout() { document.getElementById('initial-loader').classList.add('hidden'); document.getElementById('login-modal').classList.remove('hidden'); document.getElementById('login-modal').classList.add('flex'); if(window.unsubSheets) window.unsubSheets(); if(window.unsubAccounts) window.unsubAccounts(); if(window.unsubPresence) window.unsubPresence(); }
         async function handleLoginSubmit(e) {
             e.preventDefault(); let id = document.getElementById('login-id').value.trim().toLowerCase().replace('@helloconnectn.com', ''); let pw = document.getElementById('login-pw').value.trim();
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc, setDoc } = window.fb;
