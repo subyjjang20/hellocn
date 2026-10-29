@@ -32,11 +32,11 @@
 
         /* 데이터 셀 & 마우스 오버 시인성 강화 */
         .grid-cell { border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0; padding: 0; position: relative; background: #ffffff; box-sizing: border-box; cursor: cell; }
-        .grid-cell:hover { outline: 1.5px dashed #60a5fa; outline-offset: -1.5px; z-index: 2; }
+        .grid-cell:hover { outline: 1.5px dashed #3b82f6; outline-offset: -1.5px; z-index: 2; }
         
-        .cell-input { width: 100%; height: 100%; min-height: 27px; border: none; background: transparent; padding: 2px 5px; outline: none; font-size: 12.5px; cursor: cell; box-sizing: border-box; }
+        .cell-input { width: 100%; height: 100%; min-height: 27px; border: none; background: transparent; padding: 2px 4px; outline: none; font-size: 12px; cursor: cell; box-sizing: border-box; }
         .cell-input:focus { background: #ffffff; box-shadow: inset 0 0 0 2px #2563eb; z-index: 5; position: relative; cursor: text; }
-        .cell-select { width: 100%; height: 100%; min-height: 27px; border: none; background: transparent; padding: 1px 3px; outline: none; font-size: 12px; cursor: pointer; }
+        .cell-select { width: 100%; height: 100%; min-height: 27px; border: none; background: transparent; padding: 1px 2px; outline: none; font-size: 12px; cursor: pointer; }
         
         /* 셀 선택 및 잠금 표시 */
         .cell-selected { background-color: rgba(191, 219, 254, 0.45) !important; box-shadow: inset 0 0 0 1px #60a5fa; }
@@ -68,8 +68,8 @@
     <!-- 초기 로딩 오버레이 -->
     <div id="initial-loader" class="fixed inset-0 bg-slate-900 z-[999] flex flex-col items-center justify-center text-white transition-opacity duration-200">
         <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-500 mb-5"></i>
-        <h2 class="text-xl font-bold tracking-tight">헬로CN 닥스 PRO 연결 중...</h2>
-        <p class="text-xs text-slate-400 mt-2">잠시만 기다려 주세요</p>
+        <h2 class="text-xl font-bold tracking-tight">헬로CN 닥스 PRO 동기화 중...</h2>
+        <p class="text-xs text-slate-400 mt-2">데이터베이스 보안 터널 연결 중</p>
     </div>
 
     <!-- 상단 네비게이션바 -->
@@ -82,11 +82,13 @@
             </div>
         </div>
         <div class="flex items-center space-x-2">
+            <!-- 실시간 동시 접속자 표시 -->
             <div id="online-users-list" class="hidden md:flex items-center space-x-1 mr-2"></div>
 
-            <div id="sync-status" class="bg-slate-800 text-slate-300 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center space-x-1.5 border border-slate-700">
-                <span id="sync-dot" class="w-2 h-2 rounded-full bg-slate-400"></span><span id="sync-text">연결 대기</span>
-            </div>
+            <!-- DB 상태 표시줄 (클릭 시 상세 진단 및 재연결) -->
+            <button onclick="manualReconnectDB()" id="sync-status" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded text-[10px] font-semibold flex items-center space-x-1.5 border border-slate-700 transition" title="클릭 시 DB 강제 재동기화">
+                <span id="sync-dot" class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span><span id="sync-text">DB 연결 중...</span>
+            </button>
             <button id="admin-col-btn" onclick="openColumnManager()" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1.5 rounded text-xs font-semibold transition items-center space-x-1">
                 <i class="fa-solid fa-sliders"></i><span class="hidden sm:inline">시트 설정</span>
             </button>
@@ -103,8 +105,9 @@
     <!-- 서식 툴바 -->
     <div class="bg-white border-b border-slate-200 px-3 py-1.5 flex items-center justify-between text-slate-600 z-20 shadow-sm overflow-x-auto">
         <div class="flex items-center space-x-1 shrink-0">
-            <button onclick="handleUndo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="되돌리기 (Ctrl+Z) - 내 작업만"><i class="fa-solid fa-rotate-left"></i></button>
-            <button onclick="handleRedo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="앞으로 돌리기 (Ctrl+Y) - 내 작업만"><i class="fa-solid fa-rotate-right"></i></button>
+            <!-- 내 작업만 되돌리기 / 앞으로 돌리기 -->
+            <button onclick="handleUndo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="되돌리기 (Ctrl+Z) - 내 수정사항만"><i class="fa-solid fa-rotate-left"></i></button>
+            <button onclick="handleRedo()" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="앞으로 돌리기 (Ctrl+Y) - 내 수정사항만"><i class="fa-solid fa-rotate-right"></i></button>
             <div class="w-px h-4 bg-slate-300 mx-1"></div>
             
             <button onclick="applyFormat('b', true)" class="p-1.5 hover:bg-slate-100 rounded text-slate-700 font-bold" title="굵게 (Ctrl+B)"><i class="fa-solid fa-bold"></i></button>
@@ -113,7 +116,7 @@
             <button onclick="applyFormat('align', 'right')" class="p-1.5 hover:bg-slate-100 rounded text-slate-700" title="오른쪽 정렬"><i class="fa-solid fa-align-right"></i></button>
             <div class="w-px h-4 bg-slate-300 mx-1"></div>
 
-            <!-- 글자색 퀵 선택 -->
+            <!-- 글자색 퀵 팔레트 -->
             <div class="flex items-center space-x-1 bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200" title="글자 색상">
                 <i class="fa-solid fa-font text-[11px] text-slate-500 mr-0.5"></i>
                 <button onclick="applyFormat('color', '#0f172a')" class="w-4 h-4 rounded-full bg-slate-900 hover:scale-110 transition" title="검정 글자"></button>
@@ -142,7 +145,7 @@
         <div class="flex items-center space-x-1.5 shrink-0 ml-2">
             <div class="relative flex items-center">
                 <i class="fa-solid fa-magnifying-glass text-[11px] text-slate-400 absolute left-2.5"></i>
-                <input type="text" id="global-search-input" oninput="handleGlobalSearch(this.value)" placeholder="시트 내 검색..." class="pl-7 pr-2 py-1 text-xs border border-slate-300 rounded-md w-32 focus:w-44 transition-all outline-none focus:border-blue-500">
+                <input type="text" id="global-search-input" oninput="handleGlobalSearch(this.value)" placeholder="시트 내 검색..." class="pl-7 pr-2 py-1 text-xs border border-slate-300 rounded-md w-28 focus:w-40 transition-all outline-none focus:border-blue-500">
             </div>
             <button onclick="autoFitAllColumns()" class="text-xs bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300 px-2.5 py-1 rounded font-bold transition flex items-center" title="모든 열 너비를 글자수에 맞게 최소로 자동 조절"><i class="fa-solid fa-arrows-left-right mr-1"></i>자동너비</button>
             <button onclick="openDashboard()" class="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 px-2.5 py-1 rounded font-bold transition flex items-center"><i class="fa-solid fa-chart-pie mr-1"></i>요약 대시보드</button>
@@ -154,19 +157,22 @@
     <!-- 메인 스프레드시트 작업 영역 -->
     <div class="flex-1 flex flex-col bg-white m-2 rounded-xl shadow-sm border border-slate-300 overflow-hidden relative" id="printable-area">
         
+        <!-- 수식 입력줄(fx) & 행 추가/삭제 버튼 영역 (요청사항: 새행추가 왼쪽에 행삭제/추가 버튼 배치) -->
         <div class="bg-slate-50 px-3 py-1.5 border-b border-slate-200 flex items-center justify-between text-xs gap-2">
             <div class="flex items-center space-x-2 flex-1">
                 <span class="font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded min-w-[42px] text-center" id="selected-cell-indicator">A1</span>
-                <div class="flex items-center flex-1 bg-white border border-slate-300 rounded px-2 py-0.5 focus-within:border-blue-500">
+                <span id="edit-permission-status" class="text-slate-500 font-semibold hidden md:inline"><i class="fa-solid fa-lock mr-1"></i>로그인 대기</span>
+                <span class="text-slate-300 hidden md:inline">|</span>
+                <button onclick="clearMyFilters()" class="text-blue-600 hover:underline font-semibold shrink-0"><i class="fa-solid fa-filter-circle-xmark mr-1"></i>내 필터 초기화</button>
+                <div class="flex items-center flex-1 bg-white border border-slate-300 rounded px-2 py-0.5 focus-within:border-blue-500 ml-2">
                     <span class="text-slate-400 font-serif italic font-bold mr-2 select-none">fx</span>
                     <input type="text" id="formula-bar-input" placeholder="값 또는 수식 입력 (예: =A1+B1, =SUM(A1:A10), =AVERAGE(B1:B5))" class="w-full text-xs outline-none bg-transparent" onkeydown="handleFormulaBarKey(event)" oninput="handleFormulaBarInput(this.value)">
                 </div>
             </div>
+            <!-- 요청사항 3: 새 행 추가 버튼과 왼쪽 행 삭제 버튼 -->
             <div class="flex items-center space-x-1.5 shrink-0">
-                <button onclick="addNewRow()" class="bg-blue-600 hover:bg-blue-700 text-white px-2.5 py-1 rounded text-[11px] font-bold shadow-sm transition flex items-center"><i class="fa-solid fa-plus mr-1"></i>새 행 추가</button>
-                <button onclick="deleteSelectedRows()" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2.5 py-1 rounded text-[11px] font-bold transition flex items-center"><i class="fa-solid fa-trash-can mr-1"></i>선택 행 삭제</button>
-                <button onclick="clearMyFilters()" class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-300 px-2 py-1 rounded text-[11px] font-semibold transition flex items-center"><i class="fa-solid fa-filter-circle-xmark mr-1 text-blue-500"></i>필터 초기화</button>
-                <span id="edit-permission-status" class="text-slate-500 font-semibold pl-1 hidden sm:inline"><i class="fa-solid fa-lock mr-1"></i>로그인 대기</span>
+                <button onclick="deleteSelectedRows()" class="bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 px-2.5 py-1 rounded text-[11px] font-bold shadow-sm transition flex items-center" title="현재 선택된 행 삭제"><i class="fa-solid fa-minus mr-1"></i>선택 행 삭제</button>
+                <button onclick="addNewRow()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-[11px] font-bold shadow-sm transition flex items-center"><i class="fa-solid fa-plus mr-1"></i>새 행 추가</button>
             </div>
         </div>
 
@@ -178,7 +184,7 @@
         </div>
 
         <div class="bg-white border-t border-slate-200 px-4 py-1 flex items-center justify-between text-xs text-slate-600 z-10 mt-auto">
-            <div class="text-[11px] text-slate-400 hidden sm:block">💡 헤더 경계선 <b>더블클릭</b>: 글자 맞춤 / 셀 <b>우클릭</b>: 행·열 삽입 메뉴 / 수식 <b>=SUM(A1:A5)</b> 지원</div>
+            <div class="text-[11px] text-slate-400 hidden sm:block">💡 구분선 <b>더블클릭</b>: 글자수 맞춤 / 셀 <b>우클릭</b>: 행·열 삽입 메뉴 / 좌측 상단 모서리 클릭: <b>전체 선택</b></div>
             <div class="flex items-center space-x-4 font-mono ml-auto">
                 <div id="stat-count">선택: 0칸</div>
                 <div id="stat-sum" class="font-bold text-blue-600">합계: 0</div>
@@ -234,7 +240,7 @@
         <button onclick="ctxAction('memo')" class="px-3 py-1.5 hover:bg-slate-100 text-left flex items-center"><i class="fa-regular fa-comment-dots w-5 text-amber-500"></i>메모 입력/수정</button>
     </div>
 
-    <!-- 엑셀 붙여넣기 시 헤더 줄수 선택 모달 -->
+    <!-- 엑셀 붙여넣기 시 헤더 줄수 선택 모달 (0줄/1줄/2줄) -->
     <div id="paste-option-modal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-[180]">
         <div class="bg-white w-[420px] rounded-xl shadow-2xl overflow-hidden">
             <div class="bg-slate-900 text-white px-5 py-3.5 flex justify-between items-center">
@@ -260,7 +266,7 @@
                 <button onclick="executePasteWithOption(2)" class="w-full p-3 border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 rounded-lg text-left transition flex items-center justify-between group">
                     <div>
                         <div class="font-bold text-sm text-slate-800 group-hover:text-blue-700">2줄 헤더 (상위 병합 + 하위 필터 자동 설정)</div>
-                        <div class="text-[11px] text-slate-500">엑셀의 2단 병합 헤더 구조(예: 예상일정 등)를 그대로 재현합니다.</div>
+                        <div class="text-[11px] text-slate-500">엑셀의 2단 병합 헤더 구조(예: 회선수, 예상일정 등)를 그대로 재현합니다.</div>
                     </div>
                     <i class="fa-solid fa-chevron-right text-slate-400 group-hover:text-blue-600"></i>
                 </button>
@@ -327,7 +333,7 @@
         </div>
     </div>
 
-    <!-- 로그인 모달 -->
+    <!-- 로그인 모달 (@helloconnectn.com 고정 UI) -->
     <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-[400px] rounded-xl shadow-2xl p-6">
             <div class="text-center mb-6">
@@ -347,7 +353,7 @@
                     <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호</label>
                     <input type="password" id="login-pw" required autocomplete="current-password" placeholder="비밀번호 입력" class="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
                 </div>
-                <div id="login-error-box" class="hidden text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2 font-semibold"></div>
+                <div id="login-error-box" class="hidden text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2.5 font-semibold"></div>
                 <button type="submit" id="login-submit-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-sm shadow-md transition mt-2">시스템 접속</button>
             </form>
         </div>
@@ -384,7 +390,7 @@
         </div>
     </div>
     
-    <!-- 권한 및 계정 관리 모달 -->
+    <!-- 권한 및 계정 관리 모달 (관리자 비번 변경 + 새 계정 추가 원형 유지) -->
     <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 p-4">
         <div class="bg-white w-full max-w-[750px] rounded-xl overflow-hidden flex flex-col shadow-2xl">
             <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
@@ -419,16 +425,18 @@
         </div>
     </div>
 
-    <!-- 1. 메인 애플리케이션 코어 스크립트 (반드시 module 스크립트보다 먼저 선언되어야 함!) -->
+    <!-- 1. 메인 애플리케이션 코어 스크립트 -->
     <script>
         let failSafeTimer = setTimeout(() => {
             const loader = document.getElementById('initial-loader');
             if (loader && !loader.classList.contains('hidden')) {
                 loader.classList.add('hidden');
-                const loginModal = document.getElementById('login-modal');
-                if (loginModal) { loginModal.classList.remove('hidden'); loginModal.classList.add('flex'); }
+                if (!currentAccount) {
+                    const loginModal = document.getElementById('login-modal');
+                    if (loginModal) { loginModal.classList.remove('hidden'); loginModal.classList.add('flex'); }
+                }
             }
-        }, 3000);
+        }, 3500);
 
         const ADMIN_HASH = "a259c0f997cb2f43cb12a554fb91dbefb28a2a979ce755b72166a0662d559868"; 
         let sheetsData = {}; 
@@ -444,13 +452,15 @@
         const presenceColors = ['#ef4444', '#f97316', '#8b5cf6', '#ec4899', '#14b8a6', '#0ea5e9'];
         let chartObj = null;
         let pendingPasteMatrix = null;
+        let lastSyncErrorMsg = "";
 
         let localUndoStack = []; 
         let localRedoStack = [];
         let unsubAccounts, unsubSheets, unsubPresence;
 
+        // 요청사항 3: 신규 시트 기본값은 1개 열(항목1) + 1개 빈 행 + 1줄 헤더 고정
         let defaultSheetsData = {
-            "시트1": {
+            "월별실적": {
                 headerRows: 1, rowHeights: {},
                 columns: [{ name: "항목1", name2: "", type: "text", width: 85 }],
                 rows: [ [{v:"", b:false, bg:"", color:"", align:"center", memo:""}] ]
@@ -504,7 +514,24 @@
             let changed = false;
             if (!accountsData.find(a => a.userId === 'suby20')) { accountsData.push({ userId: 'suby20', name: '심현섭', role: '최고관리자', passwordHash: ADMIN_HASH }); changed = true; }
             if (!accountsData.find(a => a.userId === 'abcd9420')) { accountsData.push({ userId: 'abcd9420', name: '이영주', role: '최고관리자', passwordHash: ADMIN_HASH }); changed = true; }
-            if (changed) saveAccountsToFirebase();
+            if (changed && window.fb?.auth?.currentUser) saveAccountsToFirebase();
+        }
+
+        // 파이어베이스 Auth 토큰 보장 헬퍼 (DB 연결대기 현상 원천 차단)
+        async function ensureFirebaseAuthSession(uid) {
+            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } = window.fb;
+            if (auth.currentUser) return true;
+            const email = uid + "@helloconnectn.com";
+            const pass1 = "SYS!" + uid;
+            const pass2 = "SYS!_pad_" + uid;
+            try { await signInWithEmailAndPassword(auth, email, pass1); return true; } catch(e1) {
+                try { await signInWithEmailAndPassword(auth, email, pass2); return true; } catch(e2) {
+                    try { await createUserWithEmailAndPassword(auth, email, pass1.length >= 6 ? pass1 : pass2); return true; } catch(e3) {
+                        console.error("Auth Session Error:", e3);
+                        return false;
+                    }
+                }
+            }
         }
 
         window.initApp = async function() {
@@ -514,8 +541,9 @@
 
             onAuthStateChanged(auth, async (fbUser) => {
                 const uid = localStorage.getItem("hellocn_auth_userid");
-                if (fbUser && uid) {
+                if (uid) {
                     try {
+                        if (!fbUser) await ensureFirebaseAuthSession(uid);
                         const accSnap = await getDoc(doc(db, "config", "accountsDoc"));
                         if (accSnap.exists()) accountsData = accSnap.data().accounts || [];
                         ensureMasterAdmins();
@@ -525,26 +553,56 @@
                             clearTimeout(failSafeTimer);
                             currentAccount = target;
                             if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
-                            startDatabaseSync();
                             
                             document.getElementById('initial-loader').classList.add('hidden');
                             document.getElementById('login-modal').classList.add('hidden');
                             document.getElementById('login-modal').classList.remove('flex');
                             updateUserInterface();
+                            await startDatabaseSync();
                         } else { forceLogout(); }
-                    } catch(e) { console.error(e); forceLogout(); }
-                } else { forceLogout(); }
+                    } catch(e) { 
+                        console.error("Init Error:", e); 
+                        forceLogout(); 
+                    }
+                } else { 
+                    forceLogout(); 
+                }
             });
         };
 
         let lastKnownRemoteCursors = {};
-        function startDatabaseSync() {
-            const { db, doc, onSnapshot } = window.fb;
+        async function startDatabaseSync() {
+            const { db, doc, getDoc, onSnapshot } = window.fb;
             if(typeof unsubAccounts === 'function') unsubAccounts();
             if(typeof unsubSheets === 'function') unsubSheets();
             if(typeof unsubPresence === 'function') unsubPresence();
 
-            unsubAccounts = onSnapshot(doc(db, "config", "accountsDoc"), snap => { if (snap.exists()) accountsData = snap.data().accounts || []; });
+            setSyncStatus('connecting');
+
+            // 1단계: 즉시 1회 강제 로드(getDoc)로 '연결 대기' 없이 화면 즉시 렌더링
+            try {
+                const initialSnap = await getDoc(doc(db, "sheets", "mainDoc"));
+                if (initialSnap.exists()) {
+                    sheetsData = migrateDataStructure(JSON.parse(initialSnap.data().payload));
+                    if (!activeSheet || !sheetsData[activeSheet]) activeSheet = Object.keys(sheetsData)[0];
+                    renderSheetTabs(); renderGrid(); setSyncStatus('ok');
+                } else {
+                    sheetsData = migrateDataStructure(JSON.parse(JSON.stringify(defaultSheetsData)));
+                    activeSheet = Object.keys(sheetsData)[0];
+                    await saveSheetsToFirebase();
+                    renderSheetTabs(); renderGrid(); setSyncStatus('ok');
+                }
+            } catch(initErr) {
+                console.error("Initial Fetch Error:", initErr);
+                lastSyncErrorMsg = initErr.code || initErr.message;
+                setSyncStatus('error', lastSyncErrorMsg);
+            }
+
+            // 2단계: 실시간 리스너(onSnapshot) 연결
+            unsubAccounts = onSnapshot(doc(db, "config", "accountsDoc"), snap => { 
+                if (snap.exists()) accountsData = snap.data().accounts || []; 
+            });
+
             unsubSheets = onSnapshot(doc(db, "sheets", "mainDoc"), snap => {
                 isRemoteUpdating = true;
                 if (snap.exists()) {
@@ -555,16 +613,16 @@
                         renderSheetTabs(); 
                         renderGrid(); 
                         drawRemoteCursors(lastKnownRemoteCursors);
-                        setSyncStatus(true);
+                        setSyncStatus('ok');
                         if (focusedId && document.getElementById(focusedId)) document.getElementById(focusedId).focus();
                     } catch(e) { console.error(e); }
-                } else { 
-                    sheetsData = migrateDataStructure(JSON.parse(JSON.stringify(defaultSheetsData))); 
-                    activeSheet = Object.keys(sheetsData)[0]; 
-                    saveSheetsToFirebase(); 
                 }
                 isRemoteUpdating = false;
-            }, err => { console.error("Sheet Sync Error:", err); setSyncStatus(false); });
+            }, err => { 
+                console.error("Realtime Sync Error:", err); 
+                lastSyncErrorMsg = err.code || err.message;
+                setSyncStatus('error', lastSyncErrorMsg); 
+            });
 
             unsubPresence = onSnapshot(doc(db, "sheets", "presence"), snap => { 
                 if (snap.exists()) {
@@ -574,18 +632,40 @@
             });
         }
 
+        async function manualReconnectDB() {
+            if (lastSyncErrorMsg) {
+                alert("현재 DB 연결 상태 진단 메시지:\n" + lastSyncErrorMsg + "\n\n지금 즉시 재연결을 시도합니다.");
+            }
+            if (currentAccount) {
+                await ensureFirebaseAuthSession(currentAccount.userId);
+                await startDatabaseSync();
+            }
+        }
+
         async function saveSheetsToFirebase() {
             if (isRemoteUpdating) return;
             try { 
                 await window.fb.setDoc(window.fb.doc(window.fb.db, "sheets", "mainDoc"), { payload: JSON.stringify(sheetsData), ts: Date.now() }); 
-                setSyncStatus(true); 
-            } catch(e) { setSyncStatus(false); }
+                setSyncStatus('ok'); 
+            } catch(e) { 
+                lastSyncErrorMsg = e.code || e.message;
+                setSyncStatus('error', lastSyncErrorMsg); 
+            }
         }
 
-        function setSyncStatus(isOk) {
+        function setSyncStatus(state, errCode = "") {
             const dot = document.getElementById('sync-dot'); const text = document.getElementById('sync-text');
-            if (isOk) { dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse"; text.innerText = "실시간 동기화됨"; } 
-            else { dot.className = "w-2 h-2 rounded-full bg-red-400"; text.innerText = "연결 대기"; }
+            if (state === 'ok' || state === true) { 
+                lastSyncErrorMsg = "";
+                dot.className = "w-2 h-2 rounded-full bg-emerald-400 animate-pulse"; 
+                text.innerText = "동기화됨"; 
+            } else if (state === 'connecting') {
+                dot.className = "w-2 h-2 rounded-full bg-amber-400 animate-ping"; 
+                text.innerText = "DB 연결중.."; 
+            } else { 
+                dot.className = "w-2 h-2 rounded-full bg-red-500"; 
+                text.innerText = errCode ? `오류(${errCode})` : "연결 끊김(클릭)"; 
+            }
         }
 
         async function broadcastCursor() {
@@ -780,15 +860,16 @@
             if (activeSheet === act.sheet) renderGrid();
         }
 
-        // 초밀착 열 너비 계산
+        // 요청사항 1 & 2: 글자 수 기반 최소 열 너비 자동 조절 (초밀착 Auto-Fit)
         function calcOptimalColWidth(sheet, cIdx) {
             const estimate = (str) => {
                 let len = 0; str = (str || "").toString();
-                for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 12.5 : 7.5;
-                return Math.ceil(len) + 26;
+                for(let i=0; i<str.length; i++) len += str.charCodeAt(i) > 255 ? 12 : 7;
+                return Math.ceil(len) + 22;
             };
             let col = sheet.columns[cIdx];
-            let topNameLen = sheet.headerRows === 2 ? Math.ceil(estimate(col.name) * 0.6) : estimate(col.name);
+            let hasSub = sheet.headerRows === 2 && col.name2 && col.name2.trim() !== "";
+            let topNameLen = hasSub ? Math.ceil(estimate(col.name) * 0.5) : estimate(col.name);
             let maxLen = Math.max(topNameLen, estimate(col.name2));
             sheet.rows.forEach((r, rIdx) => { 
                 if(r[cIdx]) {
@@ -797,7 +878,7 @@
                     maxLen = Math.max(maxLen, estimate(v)); 
                 }
             });
-            return Math.max(46, Math.min(360, maxLen));
+            return Math.max(44, Math.min(340, maxLen));
         }
 
         function autoFitAllColumns() {
@@ -824,7 +905,7 @@
             if (!resizeState.active) return;
             let sheet = sheetsData[activeSheet];
             if (resizeState.type === 'col') {
-                let newW = Math.max(42, resizeState.startWidth + (e.clientX - resizeState.startX));
+                let newW = Math.max(40, resizeState.startWidth + (e.clientX - resizeState.startX));
                 sheet.columns[resizeState.idx].width = newW;
                 document.querySelectorAll(`.col-w-${resizeState.idx}`).forEach(el => { el.style.width = newW+'px'; el.style.minWidth = newW+'px'; el.style.maxWidth = newW+'px'; });
             } else {
@@ -855,6 +936,7 @@
             activeCell = {r:0, c:0}; updateFormulaBar(); drawSelectionHighlight(); calculateStats();
         }
 
+        // 그리드 렌더링 (2줄 헤더 시 1행 병합 + 2행 필터 완벽 적용)
         function renderGrid() {
             const sheet = sheetsData[activeSheet]; if (!sheet) return;
             if (!sheet.rowHeights) sheet.rowHeights = {};
@@ -862,52 +944,42 @@
             thead.innerHTML = ''; tbody.innerHTML = '';
 
             let hRows = sheet.headerRows || 1;
-            let tr1Html = `<th class="grid-header grid-header-corner w-12" ${hRows==2?'rowspan="2"':''} onclick="selectAllCells()" title="시트 전체 선택"><i class="fa-solid fa-border-all text-slate-600"></i></th>`;
+            let tr1Html = `<th class="grid-header grid-header-corner w-11" ${hRows==2?'rowspan="2"':''} onclick="selectAllCells()" title="시트 전체 선택"><i class="fa-solid fa-border-all text-slate-600"></i></th>`;
             let tr2Html = ``;
 
             if (hRows == 1) {
                 sheet.columns.forEach((col, cIdx) => {
                     let isFiltered = myFilters[cIdx] !== undefined;
-                    let filterIcon = `<button class="w-4 h-4 rounded hover:bg-slate-300 flex items-center justify-center absolute right-1.5 top-1/2 -translate-y-1/2 z-20 ${isFiltered ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)" title="필터 및 정렬"><i class="fa-solid fa-caret-down text-[11px]"></i></button>`;
+                    let filterIcon = `<button class="w-4 h-4 rounded hover:bg-slate-300 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 z-20 ${isFiltered ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)" title="필터 및 정렬"><i class="fa-solid fa-caret-down text-[10px]"></i></button>`;
                     tr1Html += `<th id="col-hdr-${cIdx}" class="grid-header grid-header-row1 col-w-${cIdx}" style="width:${col.width}px; min-width:${col.width}px; max-width:${col.width}px;" onclick="selectEntireCol(${cIdx}, event)">
-                        <div class="relative w-full h-full flex items-center justify-center pl-1.5 pr-5"><span class="truncate text-xs">${col.name}</span>${filterIcon}</div>
+                        <div class="relative w-full h-full flex items-center justify-center pl-1 pr-4"><span class="truncate text-xs">${col.name}</span>${filterIcon}</div>
                         <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${cIdx})" title="드래그: 너비조절 / 더블클릭: 자동맞춤"></div>
                     </th>`;
                 });
             } else {
+                // 2줄 헤더: 1행은 상위 병합(Colspan), 2행은 하위 항목명 + 필터 아이콘 배치
                 let cIdx = 0;
                 while (cIdx < sheet.columns.length) {
                     let col = sheet.columns[cIdx];
-                    let hasSubHeader = col.name2 && col.name2.trim() !== "" && col.name2.trim() !== col.name.trim();
-                    
-                    if (!hasSubHeader) {
-                        let isFiltered = myFilters[cIdx] !== undefined;
-                        let filterIcon = `<button class="w-4 h-4 rounded hover:bg-slate-300 flex items-center justify-center absolute right-1.5 bottom-1 z-20 ${isFiltered ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}" onclick="event.stopPropagation(); openCustomFilterMenu(${cIdx}, event)" title="필터"><i class="fa-solid fa-caret-down text-[11px]"></i></button>`;
-                        tr1Html += `<th id="col-hdr-${cIdx}" class="grid-header grid-header-row1 col-w-${cIdx}" rowspan="2" style="width:${col.width}px; min-width:${col.width}px; max-width:${col.width}px; height:56px;" onclick="selectEntireCol(${cIdx}, event)">
-                            <div class="relative w-full h-full flex items-center justify-center pl-1.5 pr-5"><span class="truncate text-xs">${col.name}</span>${filterIcon}</div>
-                            <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${cIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${cIdx})"></div>
-                        </th>`;
-                        cIdx++;
-                    } else {
-                        let colspan = 1; let nextIdx = cIdx + 1;
-                        while (nextIdx < sheet.columns.length && sheet.columns[nextIdx].name === col.name && (sheet.columns[nextIdx].name2 && sheet.columns[nextIdx].name2.trim() !== "")) { 
-                            colspan++; nextIdx++; 
-                        }
-                        tr1Html += `<th class="grid-header grid-header-row1 bg-slate-200/80 text-slate-700" colspan="${colspan}">
-                            <div class="w-full h-full flex items-center justify-center px-1"><span class="truncate text-[11.5px]">${col.name}</span></div>
-                        </th>`;
-                        for (let subIdx = cIdx; subIdx < nextIdx; subIdx++) {
-                            let subCol = sheet.columns[subIdx];
-                            let isFiltered = myFilters[subIdx] !== undefined;
-                            let filterIcon = `<button class="w-4 h-4 rounded hover:bg-slate-300 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 z-20 ${isFiltered ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}" onclick="event.stopPropagation(); openCustomFilterMenu(${subIdx}, event)" title="필터"><i class="fa-solid fa-caret-down text-[11px]"></i></button>`;
-                            tr2Html += `<th id="col-hdr-${subIdx}" class="grid-header grid-header-row2 col-w-${subIdx}" style="width:${subCol.width}px; min-width:${subCol.width}px; max-width:${subCol.width}px;" onclick="selectEntireCol(${subIdx}, event)">
-                                <div class="relative w-full h-full flex items-center justify-center pl-1 pr-4"><span class="truncate text-[11.5px]">${subCol.name2}</span>${filterIcon}</div>
-                                <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${subIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${subIdx})"></div>
-                            </th>`;
-                        }
-                        cIdx = nextIdx;
+                    let colspan = 1; let nextIdx = cIdx + 1;
+                    while (nextIdx < sheet.columns.length && sheet.columns[nextIdx].name === col.name) { 
+                        colspan++; nextIdx++; 
                     }
+                    tr1Html += `<th class="grid-header grid-header-row1 bg-slate-200/80 text-slate-800" colspan="${colspan}">
+                        <div class="w-full h-full flex items-center justify-center px-1"><span class="truncate text-xs">${col.name}</span></div>
+                    </th>`;
+                    cIdx = nextIdx;
                 }
+                // 2행: 모든 열의 2행에 필터 아이콘 배치 (하위 이름이 없으면 상위 이름을 표시하거나 깔끔하게 필터 제공)
+                sheet.columns.forEach((col, subIdx) => {
+                    let isFiltered = myFilters[subIdx] !== undefined;
+                    let subLabel = (col.name2 && col.name2.trim() !== "") ? col.name2 : "";
+                    let filterIcon = `<button class="w-4 h-4 rounded hover:bg-slate-300 flex items-center justify-center absolute right-1 top-1/2 -translate-y-1/2 z-20 ${isFiltered ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}" onclick="event.stopPropagation(); openCustomFilterMenu(${subIdx}, event)" title="필터 및 정렬"><i class="fa-solid fa-caret-down text-[10px]"></i></button>`;
+                    tr2Html += `<th id="col-hdr-${subIdx}" class="grid-header grid-header-row2 col-w-${subIdx}" style="width:${col.width}px; min-width:${col.width}px; max-width:${col.width}px;" onclick="selectEntireCol(${subIdx}, event)">
+                        <div class="relative w-full h-full flex items-center justify-center pl-1 pr-4"><span class="truncate text-[11.5px]">${subLabel}</span>${filterIcon}</div>
+                        <div class="resize-handle-col" onmousedown="startResize(event, 'col', ${subIdx})" ondblclick="event.stopPropagation(); autoFitColumn(${subIdx})"></div>
+                    </th>`;
+                });
             }
 
             let tr1 = document.createElement('tr'); tr1.innerHTML = tr1Html; thead.appendChild(tr1);
@@ -1336,555 +1408,4 @@
             if (selection.endR !== r || selection.endC !== c) {
                 if (document.activeElement && document.activeElement.tagName === 'INPUT') document.activeElement.blur();
                 selection.endR = r; selection.endC = c; 
-                drawSelectionHighlight(); 
-            }
-        }
-        function endDragSelection() { if(selection.active) { selection.active = false; calculateStats(); } }
-        window.addEventListener('mouseup', endDragSelection);
-
-        function drawSelectionHighlight() {
-            document.querySelectorAll('.grid-cell').forEach(td => td.classList.remove('cell-selected', 'cell-active'));
-            document.querySelectorAll('.selected-hdr').forEach(th => th.classList.remove('selected-hdr'));
-            if (selection.startR === null) return;
-            
-            let rMin = Math.min(selection.startR, selection.endR), rMax = Math.max(selection.startR, selection.endR);
-            let cMin = Math.min(selection.startC, selection.endC), cMax = Math.max(selection.startC, selection.endC);
-            
-            for (let c = cMin; c <= cMax; c++) { let th = document.getElementById(`col-hdr-${c}`); if (th) th.classList.add('selected-hdr'); }
-            for (let r = rMin; r <= rMax; r++) {
-                let rh = document.getElementById(`row-hdr-${r}`); if (rh) rh.classList.add('selected-hdr');
-                for (let c = cMin; c <= cMax; c++) { 
-                    let td = document.getElementById(`cell-${r}-${c}`); 
-                    if (td) td.classList.add('cell-selected'); 
-                } 
-            }
-            if (activeCell.r !== null) {
-                let actTd = document.getElementById(`cell-${activeCell.r}-${activeCell.c}`);
-                if (actTd) actTd.classList.add('cell-active');
-            }
-        }
-
-        function calculateStats() {
-            if (selection.startR !== null) {
-                let rMin = Math.min(selection.startR, selection.endR), rMax = Math.max(selection.startR, selection.endR);
-                let cMin = Math.min(selection.startC, selection.endC), cMax = Math.max(selection.startC, selection.endC);
-                let sum = 0, count = 0, numCount = 0; let sheet = sheetsData[activeSheet];
-                if (!sheet) return;
-                for (let r = rMin; r <= rMax; r++) { 
-                    for (let c = cMin; c <= cMax; c++) { 
-                        if(sheet.rows[r] && sheet.rows[r][c]) { 
-                            count++; 
-                            let raw = (sheet.rows[r][c].v || "").toString();
-                            if (raw.startsWith('=')) raw = evaluateFormula(raw, r, c).toString();
-                            let val = raw.replace(/,/g, ''); 
-                            if (!isNaN(parseFloat(val)) && val.trim() !== '') { sum += parseFloat(val); numCount++; } 
-                        } 
-                    } 
-                }
-                document.getElementById('stat-count').innerText = `선택: ${count}칸`; 
-                document.getElementById('stat-sum').innerText = `합계: ${sum.toLocaleString()}`; 
-                document.getElementById('stat-avg').innerText = `평균: ${numCount > 0 ? (sum/numCount).toLocaleString(undefined, {maximumFractionDigits:2}) : 0}`;
-            }
-        }
-
-        document.addEventListener('paste', function(e) {
-            if (!currentAccount || activeCell.r === null) return;
-            if (document.activeElement && document.activeElement.id === 'formula-bar-input') return;
-            if (e.target.tagName === 'INPUT' && document.activeElement === e.target && !e.clipboardData.getData('text').includes('\t') && !e.clipboardData.getData('text').includes('\n')) return;
-
-            let clipText = (e.clipboardData || window.clipboardData).getData('text'); if (!clipText) return;
-            let rawRows = clipText.split(/\r\n|\n|\r/); if (rawRows[rawRows.length - 1] === '') rawRows.pop(); if (rawRows.length === 0) return;
-            let parsedMatrix = rawRows.map(r => r.split('\t').map(v => v.trim()));
-            
-            e.preventDefault();
-
-            if (isPrivilegedRole(currentAccount.role) && activeCell.r === 0 && activeCell.c === 0 && (parsedMatrix.length > 1 || parsedMatrix[0].length > 1)) {
-                pendingPasteMatrix = parsedMatrix;
-                document.getElementById('paste-option-modal').classList.remove('hidden');
-                document.getElementById('paste-option-modal').classList.add('flex');
-            } else {
-                applyMatrixPaste(parsedMatrix, 0);
-            }
-        });
-
-        function closePasteModal() {
-            pendingPasteMatrix = null;
-            document.getElementById('paste-option-modal').classList.add('hidden');
-            document.getElementById('paste-option-modal').classList.remove('flex');
-        }
-
-        function executePasteWithOption(hRowsInClip) {
-            if (!pendingPasteMatrix) return;
-            let matrix = pendingPasteMatrix;
-            closePasteModal();
-            applyMatrixPaste(matrix, hRowsInClip);
-        }
-
-        function applyMatrixPaste(parsedMatrix, hRowsInClip) {
-            let sheet = sheetsData[activeSheet];
-            let maxCols = Math.max(...parsedMatrix.map(r => r.length)) + activeCell.c;
-
-            if (isPrivilegedRole(currentAccount.role)) {
-                while (sheet.columns.length < maxCols) { 
-                    sheet.columns.push({ name: `항목${sheet.columns.length+1}`, name2: "", type: "text", width: 85 }); 
-                    sheet.rows.forEach(r => r.push({ v: "", b: false, align: "center", bg: "", color: "", memo: "" })); 
-                }
                 
-                if (hRowsInClip === 1 && parsedMatrix.length >= 1) {
-                    sheet.headerRows = 1;
-                    parsedMatrix[0].forEach((n, i) => { if(n) { sheet.columns[i].name = n; sheet.columns[i].name2 = ""; } });
-                    parsedMatrix = parsedMatrix.slice(1);
-                } else if (hRowsInClip === 2 && parsedMatrix.length >= 2) {
-                    sheet.headerRows = 2;
-                    let lastTopHeader = "";
-                    parsedMatrix[0].forEach((n, i) => { 
-                        let subN = parsedMatrix[1][i] || "";
-                        if (n) { 
-                            sheet.columns[i].name = n; 
-                            lastTopHeader = subN ? n : ""; 
-                        } else if (lastTopHeader && subN) { 
-                            sheet.columns[i].name = lastTopHeader; 
-                        }
-                        sheet.columns[i].name2 = subN;
-                    });
-                    parsedMatrix = parsedMatrix.slice(2);
-                }
-            }
-
-            let startR = activeCell.r, startC = activeCell.c;
-            let multiActions = [];
-            parsedMatrix.forEach((rowData, rOffset) => {
-                let tr = startR + rOffset;
-                while (tr >= sheet.rows.length) {
-                    let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", color: "", memo: "" }));
-                    sheet.rows.push(newR);
-                }
-                rowData.forEach((val, cOffset) => { 
-                    let tc = startC + cOffset; 
-                    if (tc < sheet.columns.length) {
-                        let col = sheet.columns[tc];
-                        if (!val.startsWith('=')) { 
-                            if (col.type === 'date' || col.name.includes('일') || col.name2.includes('일')) val = formatDateString(val); 
-                            else if (col.type === 'number') val = formatNumberString(val); 
-                        }
-                        let oldC = JSON.parse(JSON.stringify(sheet.rows[tr][tc]));
-                        sheet.rows[tr][tc].v = val; 
-                        sheet.rows[tr][tc].align = "center";
-                        multiActions.push({r: tr, c: tc, oldData: oldC, newData: JSON.parse(JSON.stringify(sheet.rows[tr][tc]))});
-                    }
-                });
-            });
-            if(multiActions.length > 0) pushMultiUndoState(multiActions);
-            
-            sheet.columns.forEach((col, cIdx) => { col.width = calcOptimalColWidth(sheet, cIdx); });
-            saveSheetsToFirebase(); renderGrid();
-        }
-
-        function renderSheetTabs() {
-            const c = document.getElementById('sheet-tabs'); c.innerHTML = '';
-            Object.keys(sheetsData).forEach(sName => {
-                const isActive = sName === activeSheet;
-                const btn = document.createElement('div');
-                btn.className = `flex items-center px-3 py-1 rounded-t-lg text-xs font-bold cursor-pointer border-t border-x shrink-0 transition ${isActive ? 'bg-white text-blue-600 border-slate-300 shadow-sm' : 'bg-slate-200 text-slate-500 border-transparent hover:bg-slate-300'}`;
-                btn.innerHTML = `<i class="fa-solid fa-table-cells mr-1.5"></i><span onclick="switchSheet('${sName}')">${sName}</span>${isPrivilegedRole(currentAccount?.role) ? `<i class="fa-solid fa-xmark ml-2 hover:text-red-500 text-slate-400" onclick="event.stopPropagation(); deleteSheet('${sName}')"></i>` : ''}`;
-                c.appendChild(btn);
-            });
-        }
-        function moveSheetOrder(direction) {
-            let keys = Object.keys(sheetsData); let idx = keys.indexOf(activeSheet);
-            if ((direction === -1 && idx <= 0) || (direction === 1 && idx >= keys.length - 1)) return;
-            let temp = keys[idx]; keys[idx] = keys[idx + direction]; keys[idx + direction] = temp;
-            let newData = {}; keys.forEach(k => newData[k] = sheetsData[k]);
-            sheetsData = newData; saveSheetsToFirebase(); renderSheetTabs();
-        }
-
-        function switchSheet(sName) { activeSheet = sName; myFilters = {}; if (currentAccount && !isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role; selectCell(0,0); renderSheetTabs(); renderGrid(); }
-        
-        function addNewSheet() {
-            let sName = prompt("새 시트 이름을 입력하세요:");
-            if (sName && !sheetsData[sName]) { 
-                sheetsData[sName] = { 
-                    headerRows: 1, 
-                    rowHeights: {}, 
-                    columns: [{ name: "항목1", name2: "", type: "text", width: 85 }], 
-                    rows: [ [{v: "", b: false, bg: "", color: "", align: "center", memo: ""}] ] 
-                }; 
-                saveSheetsToFirebase(); switchSheet(sName); 
-            }
-        }
-        function deleteSheet(sName) {
-            if (!isPrivilegedRole(currentAccount.role) || Object.keys(sheetsData).length <= 1) return alert("마지막 시트는 삭제할 수 없습니다.");
-            if (confirm(`'${sName}' 시트를 정말 삭제하시겠습니까?`)) { delete sheetsData[sName]; activeSheet = Object.keys(sheetsData)[0]; saveSheetsToFirebase(); renderSheetTabs(); renderGrid(); }
-        }
-        
-        function insertRow(rIdx) {
-            let sheet = sheetsData[activeSheet]; 
-            let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", color: "", memo: "" }));
-            sheet.rows.splice(rIdx, 0, newR); saveSheetsToFirebase(); renderGrid();
-        }
-        function deleteRow(rIdx) { 
-            let sheet = sheetsData[activeSheet];
-            if (sheet.rows.length <= 1) { sheet.rows[0].forEach(c => c.v = ""); }
-            else { sheet.rows.splice(rIdx, 1); }
-            saveSheetsToFirebase(); renderGrid(); 
-        }
-        function deleteSelectedRows() {
-            if (selection.startR === null) return alert("삭제할 행의 셀을 먼저 선택하세요.");
-            let rMin = Math.min(selection.startR, selection.endR), rMax = Math.max(selection.startR, selection.endR);
-            let cnt = rMax - rMin + 1;
-            if (!confirm(`선택한 ${rMin+1}행부터 ${cnt}개의 행을 삭제하시겠습니까?`)) return;
-            let sheet = sheetsData[activeSheet];
-            sheet.rows.splice(rMin, cnt);
-            if (sheet.rows.length === 0) sheet.rows.push(Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", color: "", memo: "" })));
-            saveSheetsToFirebase(); renderGrid();
-        }
-        function addNewRow() {
-            let sheet = sheetsData[activeSheet]; 
-            let newR = Array(sheet.columns.length).fill().map(()=>({ v: "", b: false, align: "center", bg: "", color: "", memo: "" }));
-            sheet.rows.push(newR); saveSheetsToFirebase(); renderGrid();
-            setTimeout(() => { const container = document.getElementById('grid-container'); container.scrollTop = container.scrollHeight; }, 50);
-        }
-
-        function openDashboard() {
-            document.getElementById('dashboard-modal').classList.remove('hidden'); document.getElementById('dashboard-modal').classList.add('flex');
-            let sheet = sheetsData[activeSheet];
-            let gSel = document.getElementById('dash-group-col'); let vSel = document.getElementById('dash-val-col');
-            gSel.innerHTML = ''; vSel.innerHTML = '';
-            sheet.columns.forEach((col, i) => {
-                let label = col.name2 ? `${col.name} (${col.name2})` : col.name;
-                let opt = `<option value="${i}">${label}</option>`;
-                gSel.innerHTML += opt; vSel.innerHTML += opt;
-            });
-            if (sheet.columns.length > 1) gSel.value = "1";
-            renderDashboard();
-        }
-        function closeDashboard() { document.getElementById('dashboard-modal').classList.add('hidden'); document.getElementById('dashboard-modal').classList.remove('flex'); }
-        function renderDashboard() {
-            let sheet = sheetsData[activeSheet];
-            let gIdx = parseInt(document.getElementById('dash-group-col').value) || 0;
-            let vIdx = parseInt(document.getElementById('dash-val-col').value) || 0;
-            let aggType = document.getElementById('dash-agg-type').value;
-            let chartType = document.getElementById('dash-chart-type').value;
-
-            let gName = sheet.columns[gIdx].name2 || sheet.columns[gIdx].name;
-            let vName = sheet.columns[vIdx].name2 || sheet.columns[vIdx].name;
-            document.getElementById('dash-th-group').innerText = gName;
-            document.getElementById('dash-th-val').innerText = `${vName} (${aggType==='sum'?'합계':aggType==='avg'?'평균':'건수'})`;
-
-            let pivot = {}; 
-            sheet.rows.forEach((r, rIdx) => {
-                let gVal = (r[gIdx]?.v || "").toString().trim();
-                if (!gVal) gVal = "(미입력)";
-                let rawV = (r[vIdx]?.v || "").toString();
-                if (rawV.startsWith('=')) rawV = evaluateFormula(rawV, rIdx, vIdx).toString();
-                let vVal = parseFloat(rawV.replace(/,/g, ''));
-                if(isNaN(vVal)) vVal = 0;
-                
-                if(!pivot[gVal]) pivot[gVal] = { sum: 0, count: 0 };
-                pivot[gVal].sum += vVal;
-                pivot[gVal].count += 1;
-            });
-
-            let labels = Object.keys(pivot);
-            let dataArr = labels.map(l => {
-                if(aggType === 'sum') return pivot[l].sum;
-                if(aggType === 'avg') return pivot[l].count ? (pivot[l].sum / pivot[l].count) : 0;
-                return pivot[l].count;
-            });
-
-            let totalSum = dataArr.reduce((a, b) => a + b, 0);
-            document.getElementById('dash-total-badge').innerText = `총합: ${totalSum.toLocaleString(undefined, {maximumFractionDigits:1})}`;
-
-            let tbody = document.getElementById('dash-table-body'); tbody.innerHTML = '';
-            labels.forEach((l, i) => {
-                let displayVal = aggType==='count' ? dataArr[i].toLocaleString() + '건' : dataArr[i].toLocaleString(undefined, {maximumFractionDigits:1});
-                let ratio = totalSum > 0 ? ((dataArr[i] / totalSum) * 100).toFixed(1) + '%' : '0%';
-                tbody.innerHTML += `<tr class="hover:bg-slate-50"><td class="px-4 py-2 font-bold text-slate-700">${l}</td><td class="px-4 py-2 text-right text-blue-600 font-bold">${displayVal}</td><td class="px-4 py-2 text-right text-slate-500">${ratio}</td></tr>`;
-            });
-
-            let ctx = document.getElementById('dashboard-chart').getContext('2d');
-            if (chartObj) chartObj.destroy();
-            const palette = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#64748b'];
-            chartObj = new Chart(ctx, {
-                type: chartType,
-                data: { 
-                    labels: labels, 
-                    datasets: [{ 
-                        label: document.getElementById('dash-th-val').innerText, 
-                        data: dataArr, 
-                        backgroundColor: chartType === 'doughnut' ? palette : '#3b82f6', 
-                        borderColor: chartType === 'line' ? '#2563eb' : '#ffffff',
-                        borderRadius: chartType === 'bar' ? 5 : 0 
-                    }] 
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: chartType === 'doughnut' } } }
-            });
-        }
-
-        function openColumnManager() {
-            document.getElementById('column-modal').classList.remove('hidden'); document.getElementById('column-modal').classList.add('flex');
-            let sheet = sheetsData[activeSheet]; 
-            document.getElementById('sheet-rename-input').value = activeSheet; 
-            document.getElementById('header-rows-select').value = sheet.headerRows || 1;
-            renderColumnEditList();
-        }
-        function saveTempColsAndRender() {
-            let sheet = sheetsData[activeSheet];
-            sheet.headerRows = parseInt(document.getElementById('header-rows-select').value);
-            renderColumnEditList();
-        }
-        function renderColumnEditList() {
-            let sheet = sheetsData[activeSheet];
-            let list = document.getElementById('column-edit-list'); list.innerHTML = '';
-            sheet.columns.forEach((col, i) => {
-                list.innerHTML += `<div class="flex items-center space-x-2 bg-white shadow-sm p-2.5 border rounded-lg border-slate-200">
-                    <span class="w-6 font-bold text-xs text-slate-400 text-center">${getColLetter(i)}</span>
-                    <div class="flex flex-col w-1/3 space-y-1">
-                        <input type="text" id="col-n-${i}" value="${col.name}" class="border rounded px-2 py-1 text-xs w-full font-semibold" placeholder="1행 상위 헤더명">
-                        ${sheet.headerRows == 2 ? `<input type="text" id="col-n2-${i}" value="${col.name2||''}" class="border rounded px-2 py-1 text-xs w-full bg-blue-50/50" placeholder="2행 하위 헤더명 (비우면 세로병합)">` : ''}
-                    </div>
-                    <select id="col-t-${i}" onchange="document.getElementById('col-o-${i}').classList.toggle('hidden', this.value !== 'select')" class="border rounded px-2 py-1.5 text-xs w-44 font-bold text-slate-700 outline-none bg-slate-50">
-                        <option value="text" ${col.type==='text'?'selected':''}>📝 텍스트 (일반)</option>
-                        <option value="number" ${col.type==='number'?'selected':''}>🔢 숫자 (천단위 콤마)</option>
-                        <option value="date" ${col.type==='date'?'selected':''}>📅 날짜 ("10월01일" 표기)</option>
-                        <option value="select" ${col.type==='select'?'selected':''}>📋 선택목록 (드롭다운)</option>
-                    </select>
-                    <input type="text" id="col-o-${i}" value="${col.options||''}" class="border rounded px-2 py-1.5 text-xs flex-1 outline-none ${col.type!=='select' ? 'hidden' : ''}" placeholder="선택항목 콤마로 구분 (예: 대기,진행중,완료)">
-                    <button onclick="sheetsData[activeSheet].columns.splice(${i},1); sheetsData[activeSheet].rows.forEach(r=>r.splice(${i},1)); renderColumnEditList();" class="text-red-400 hover:text-red-600 px-2 transition" title="항목 삭제"><i class="fa-solid fa-trash"></i></button>
-                </div>`;
-            });
-        }
-        function addColumnField() { 
-            sheetsData[activeSheet].columns.push({name:"새항목", name2:"", type:"text", width:85}); 
-            sheetsData[activeSheet].rows.forEach(r=>r.push({v:"", b:false, bg:"", color:"", align:"center", memo:""})); 
-            renderColumnEditList(); 
-        }
-        function closeColumnManager() { document.getElementById('column-modal').classList.add('hidden'); document.getElementById('column-modal').classList.remove('flex'); }
-        async function saveColumnChanges() {
-            let sheet = sheetsData[activeSheet]; 
-            let newSheetName = document.getElementById('sheet-rename-input').value.trim(); 
-            sheet.headerRows = parseInt(document.getElementById('header-rows-select').value);
-            sheet.columns.forEach((col, i) => {
-                if (document.getElementById(`col-n-${i}`)) col.name = document.getElementById(`col-n-${i}`).value;
-                if (sheet.headerRows == 2 && document.getElementById(`col-n2-${i}`)) col.name2 = document.getElementById(`col-n2-${i}`).value;
-                if (document.getElementById(`col-t-${i}`)) col.type = document.getElementById(`col-t-${i}`).value; 
-                if (document.getElementById(`col-o-${i}`)) col.options = document.getElementById(`col-o-${i}`).value;
-                sheet.rows.forEach(r => {
-                    if (r[i] && r[i].v && !r[i].v.toString().startsWith('=')) {
-                        if (col.type === 'date') r[i].v = formatDateString(r[i].v);
-                        if (col.type === 'number') r[i].v = formatNumberString(r[i].v);
-                    }
-                });
-            });
-            if (newSheetName && newSheetName !== activeSheet) {
-                if (sheetsData[newSheetName]) return alert("이미 존재하는 시트 이름입니다.");
-                sheetsData[newSheetName] = sheet; delete sheetsData[activeSheet]; activeSheet = newSheetName;
-            }
-            await saveSheetsToFirebase(); closeColumnManager(); renderSheetTabs(); renderGrid();
-        }
-
-        function openAccountManager() { document.getElementById('account-modal').classList.remove('hidden'); document.getElementById('account-modal').classList.add('flex'); renderAccountList(); }
-        function closeAccountManager() { document.getElementById('account-modal').classList.add('hidden'); document.getElementById('account-modal').classList.remove('flex'); }
-        
-        function renderAccountList() {
-            let list = document.getElementById('admin-account-list'); list.innerHTML = '';
-            accountsData.forEach((a, i) => {
-                list.innerHTML += `
-                <div class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 transition">
-                    <div class="flex items-center space-x-2 w-1/2">
-                        <span class="font-bold text-sm text-slate-800">${a.name}</span>
-                        <span class="text-xs text-slate-500">(${a.userId})</span>
-                        <span class="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-semibold">${a.role}</span>
-                    </div>
-                    <div class="flex items-center space-x-2 w-1/2 justify-end">
-                        <input type="password" id="acc-pw-${i}" placeholder="새 비번 입력" class="border border-slate-300 px-2 py-1 text-xs rounded w-28 outline-none focus:border-blue-500">
-                        <button onclick="changeAccountPassword(${i})" class="bg-slate-700 text-white px-3 py-1 text-xs font-bold rounded hover:bg-slate-800 transition">비번변경</button>
-                        ${(a.userId==='suby20'||a.userId==='abcd9420') ? '<span class="text-xs text-red-500 font-bold ml-2 px-2">마스터</span>' : `<button onclick="deleteAccount(${i})" class="text-red-400 hover:text-red-600 px-2 ml-1 transition" title="계정 삭제"><i class="fa-solid fa-trash"></i></button>`}
-                    </div>
-                </div>`;
-            });
-        }
-
-        async function addNewAccount() {
-            let id = document.getElementById('new-acc-id').value.trim().toLowerCase();
-            let name = document.getElementById('new-acc-name').value.trim();
-            let role = document.getElementById('new-acc-role').value;
-            let pw = document.getElementById('new-acc-pw').value.trim();
-            if(!id || !name || !pw) return alert("아이디, 이름, 초기 비밀번호를 모두 입력해주세요.");
-            if(accountsData.find(a => a.userId === id)) return alert("이미 존재하는 아이디입니다.");
-            let hash = await hashPassword(pw);
-            accountsData.push({userId: id, name: name, role: role, passwordHash: hash});
-            await saveAccountsToFirebase(); renderAccountList();
-            document.getElementById('new-acc-id').value = ''; document.getElementById('new-acc-name').value = ''; document.getElementById('new-acc-pw').value = '';
-            alert("새 계정이 추가되었습니다.");
-        }
-        async function changeAccountPassword(idx) {
-            let newPw = document.getElementById(`acc-pw-${idx}`).value.trim();
-            if(!newPw) return alert("변경할 새 비밀번호를 입력해주세요.");
-            accountsData[idx].passwordHash = await hashPassword(newPw);
-            await saveAccountsToFirebase();
-            document.getElementById(`acc-pw-${idx}`).value = '';
-            alert(`${accountsData[idx].name} (${accountsData[idx].userId}) 님의 비밀번호가 성공적으로 변경되었습니다.`);
-        }
-        async function deleteAccount(idx) {
-            if(confirm(`정말 ${accountsData[idx].name} 계정을 삭제하시겠습니까?`)) {
-                accountsData.splice(idx, 1); await saveAccountsToFirebase(); renderAccountList();
-            }
-        }
-
-        function forceLogout() { 
-            document.getElementById('initial-loader').classList.add('hidden'); 
-            document.getElementById('login-modal').classList.remove('hidden'); 
-            document.getElementById('login-modal').classList.add('flex'); 
-            if(typeof unsubSheets === 'function') unsubSheets(); 
-            if(typeof unsubAccounts === 'function') unsubAccounts(); 
-            if(typeof unsubPresence === 'function') unsubPresence(); 
-        }
-
-        // 모바일/PC 무결점 로그인 핸들러
-        async function handleLoginSubmit(e) {
-            e.preventDefault(); 
-            const btn = document.getElementById('login-submit-btn');
-            const errBox = document.getElementById('login-error-box');
-            errBox.classList.add('hidden');
-
-            let rawId = document.getElementById('login-id').value.trim().toLowerCase(); 
-            let id = rawId.split('@')[0].replace(/\s+/g, '');
-            let pw = document.getElementById('login-pw').value.trim();
-            
-            if (!window.fb) {
-                errBox.innerText = "데이터베이스 모듈을 불러오는 중입니다. 1초 후 다시 눌러주세요.";
-                errBox.classList.remove('hidden');
-                return;
-            }
-
-            btn.disabled = true; btn.innerText = "인증 확인 중...";
-            const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc, setPersistence, browserLocalPersistence } = window.fb;
-            
-            try {
-                try { await setPersistence(auth, browserLocalPersistence); } catch(pErr) {}
-
-                const email = id + "@helloconnectn.com";
-                // 파이어베이스 6자리 이상 비밀번호 정책을 충족하기 위해 최소 길이 보장
-                const sysPass = ("SYS!" + id).length < 6 ? ("SYS!_pad_" + id) : ("SYS!" + id);
-
-                try { 
-                    await signInWithEmailAndPassword(auth, email, sysPass); 
-                } catch(authErr) { 
-                    try { await createUserWithEmailAndPassword(auth, email, sysPass); } catch(createErr) {
-                        // 기존에 짧은 패스워드로 생성된 계정 호환 시도
-                        try { await signInWithEmailAndPassword(auth, email, "SYS!" + id); } catch(e2) {}
-                    }
-                }
-                
-                try {
-                    const snap = await getDoc(doc(db, "config", "accountsDoc")); 
-                    if (snap.exists()) accountsData = snap.data().accounts || []; 
-                } catch(dbErr) {
-                    console.warn("Firestore Read Warning:", dbErr);
-                }
-                ensureMasterAdmins(); 
-
-                const user = accountsData.find(a => a.userId === id); 
-                if (!user) { 
-                    errBox.innerText = "시스템에 등록되지 않은 계정입니다.";
-                    errBox.classList.remove('hidden');
-                    btn.disabled = false; btn.innerText = "시스템 접속";
-                    return; 
-                }
-                
-                let hash = await hashPassword(pw);
-                if (id === "suby20" || id === "abcd9420") {
-                    if (pw !== "wpswkd20" && user.passwordHash !== hash) {
-                        errBox.innerText = "마스터 계정 비밀번호가 일치하지 않습니다.";
-                        errBox.classList.remove('hidden');
-                        btn.disabled = false; btn.innerText = "시스템 접속";
-                        return;
-                    }
-                } else { 
-                    if (pw !== "1470" && user.passwordHash !== hash) { 
-                        errBox.innerText = "비밀번호가 일치하지 않습니다.";
-                        errBox.classList.remove('hidden');
-                        btn.disabled = false; btn.innerText = "시스템 접속";
-                        return; 
-                    }
-                }
-                
-                localStorage.setItem("hellocn_auth_userid", id); 
-                currentAccount = user;
-                if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
-                
-                clearTimeout(failSafeTimer);
-                document.getElementById('login-modal').classList.add('hidden');
-                document.getElementById('login-modal').classList.remove('flex');
-                document.getElementById('initial-loader').classList.add('hidden');
-                updateUserInterface();
-                startDatabaseSync();
-            } catch(err) { 
-                errBox.innerText = "접속 오류 상세: " + (err.code || err.message);
-                errBox.classList.remove('hidden');
-                console.error("Login Error:", err);
-            } finally {
-                btn.disabled = false; btn.innerText = "시스템 접속";
-            }
-        }
-
-        function handleLogout() { 
-            if(confirm("로그아웃 하시겠습니까?")) { 
-                localStorage.removeItem("hellocn_auth_userid"); 
-                window.fb.signOut(window.fb.auth).finally(()=>location.reload()); 
-            } 
-        }
-        
-        function updateUserInterface() {
-            document.getElementById('current-user-badge').innerText = `👤 ${currentAccount.name} (${currentAccount.role})`; 
-            document.getElementById('logout-btn').classList.remove('hidden'); 
-            document.getElementById('logout-btn').classList.add('flex');
-            if (isPrivilegedRole(currentAccount.role)) { 
-                document.getElementById('admin-col-btn').classList.remove('hidden'); document.getElementById('admin-col-btn').classList.add('flex'); 
-                document.getElementById('admin-acc-btn').classList.remove('hidden'); document.getElementById('admin-acc-btn').classList.add('flex'); 
-                document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-shield-halved text-blue-500"></i> ${currentAccount.role}`; 
-            } else { 
-                document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-user-check text-amber-500"></i> ${currentAccount.role}`; 
-            }
-        }
-        
-        function exportPDF() { 
-            html2pdf().set({margin: 0.3, filename: `헬로CN_${activeSheet}.pdf`, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }}).from(document.getElementById('printable-area')).save(); 
-        }
-        
-        function exportExcel() { 
-            let wb = XLSX.utils.book_new(); 
-            Object.keys(sheetsData).forEach(s => { 
-                let sheet = sheetsData[s]; 
-                let h = sheet.headerRows == 2 ? [sheet.columns.map(c=>c.name), sheet.columns.map(c=>c.name2)] : [sheet.columns.map(c=>c.name)]; 
-                let aoa = [...h, ...sheet.rows.map((r, rIdx)=>r.map((c, cIdx)=> (c.v||"").toString().startsWith('=') ? evaluateFormula(c.v, rIdx, cIdx) : c.v))]; 
-                XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), s); 
-            }); 
-            XLSX.writeFile(wb, "헬로CN_데이터.xlsx"); 
-        }
-    </script>
-
-    <!-- 2. Firebase SDK 모듈 (window.initApp 정의 이후에 실행되도록 하단 배치 완료) -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut, setPersistence, browserLocalPersistence } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-        const app = initializeApp({
-            apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
-            authDomain: "hellocn-128ba.firebaseapp.com",
-            projectId: "hellocn-128ba",
-            storageBucket: "hellocn-128ba.firebasestorage.app",
-            messagingSenderId: "306539866159",
-            appId: "1:306539866159:web:164b7242c1d9f6e0233eda"
-        });
-        
-        const auth = getAuth(app);
-        const db = getFirestore(app);
-
-        window.fb = { auth, db, doc, setDoc, getDoc, onSnapshot, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, setPersistence, browserLocalPersistence };
-        window.initApp();
-    </script>
-</body>
-</html>
