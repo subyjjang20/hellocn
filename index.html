@@ -53,7 +53,6 @@
 </head>
 <body class="bg-slate-100 h-screen flex flex-col overflow-hidden">
 
-    <!-- 로딩 오버레이 -->
     <div id="initial-loader" class="fixed inset-0 bg-slate-900 z-[999] flex flex-col items-center justify-center text-white transition-opacity duration-200">
         <i class="fa-solid fa-circle-notch fa-spin text-5xl text-blue-500 mb-5"></i>
         <h2 class="text-xl font-bold tracking-tight">시스템 연결 및 데이터 로딩 중...</h2>
@@ -212,7 +211,7 @@
         </div>
     </div>
 
-    <!-- 🌟 로그인 모달 (UI 완벽 개선) -->
+    <!-- 로그인 모달 -->
     <div id="login-modal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm hidden items-center justify-center z-50">
         <div class="bg-white w-[420px] rounded-xl shadow-2xl p-7">
             <div class="text-center mb-6">
@@ -261,7 +260,42 @@
         </div>
     </div>
     
-    <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50"><div class="bg-white w-[600px] rounded-xl overflow-hidden"><div class="bg-slate-900 text-white px-5 py-4 flex justify-between"><h3 class="text-sm font-bold">권한 관리</h3><button onclick="closeAccountManager()"><i class="fa-solid fa-xmark"></i></button></div><div class="p-5 max-h-[60vh] overflow-y-auto"><div id="admin-account-list" class="space-y-2"></div></div></div></div>
+    <!-- 🌟 권한 관리 모달 (완벽하게 복구된 버전) -->
+    <div id="account-modal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white w-[750px] rounded-xl overflow-hidden flex flex-col shadow-2xl">
+            <div class="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
+                <h3 class="text-sm font-bold">권한 및 계정 관리</h3>
+                <button onclick="closeAccountManager()" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark text-lg"></i></button>
+            </div>
+            <div class="p-5 overflow-y-auto max-h-[70vh] bg-slate-50">
+                
+                <!-- 🌟 1. 새 계정 추가 영역 복구 -->
+                <div class="mb-5 bg-white p-4 border border-slate-200 rounded-lg shadow-sm">
+                    <h4 class="text-xs font-bold text-slate-700 mb-3"><i class="fa-solid fa-user-plus mr-1.5"></i>새 계정 추가</h4>
+                    <div class="flex space-x-2">
+                        <input type="text" id="new-acc-id" placeholder="아이디 (예: abc01)" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-1/4 outline-none focus:border-blue-500">
+                        <input type="text" id="new-acc-name" placeholder="이름 (예: 홍길동)" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-1/4 outline-none focus:border-blue-500">
+                        <select id="new-acc-role" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-1/4 outline-none focus:border-blue-500">
+                            <option value="플래너">플래너</option>
+                            <option value="영업매니저">영업매니저</option>
+                            <option value="센터장">센터장</option>
+                            <option value="CS파트장">CS파트장</option>
+                            <option value="신사업추진단">신사업추진단</option>
+                            <option value="사업추진실장">사업추진실장</option>
+                            <option value="최고관리자">최고관리자</option>
+                        </select>
+                        <input type="password" id="new-acc-pw" placeholder="초기 비밀번호" class="border border-slate-300 px-3 py-1.5 text-xs rounded w-1/4 outline-none focus:border-blue-500">
+                        <button onclick="addNewAccount()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 text-xs font-bold rounded transition">추가</button>
+                    </div>
+                </div>
+                
+                <!-- 🌟 2. 기존 계정 리스트 (비밀번호 변경 기능 포함) -->
+                <h4 class="text-xs font-bold text-slate-700 mb-2"><i class="fa-solid fa-users mr-1.5"></i>등록된 계정 목록</h4>
+                <div id="admin-account-list" class="space-y-2"></div>
+                
+            </div>
+        </div>
+    </div>
 
     <!-- Firebase SDK -->
     <script type="module">
@@ -283,7 +317,6 @@
 
     <!-- 앱 로직 -->
     <script>
-        // 무한 로딩 방지 타이머
         let failSafeTimer = setTimeout(() => {
             const loader = document.getElementById('initial-loader');
             if (loader && !loader.classList.contains('hidden')) {
@@ -327,7 +360,6 @@
             return data;
         }
 
-        // 🌟 마스터 계정 보장 로직 복구
         async function saveAccountsToFirebase() {
             try { await window.fb.setDoc(window.fb.doc(window.fb.db, "config", "accountsDoc"), { accounts: accountsData }); } catch(e) { console.error(e); }
         }
@@ -348,7 +380,6 @@
                         const accSnap = await getDoc(doc(db, "config", "accountsDoc"));
                         if (accSnap.exists()) accountsData = accSnap.data().accounts || [];
                         
-                        // 🌟 빈 DB로 인한 무한 로그아웃 방지
                         ensureMasterAdmins();
                         
                         const target = accountsData.find(a => a.userId === uid);
@@ -358,7 +389,6 @@
                             if (!isPrivilegedRole(currentAccount.role)) myFilters['autoRole'] = currentAccount.role;
                             startDatabaseSync();
                             
-                            // 로딩 및 로그인 창 숨기기
                             document.getElementById('initial-loader').classList.add('hidden');
                             document.getElementById('login-modal').classList.add('hidden');
                             document.getElementById('login-modal').classList.remove('flex');
@@ -927,6 +957,73 @@
             await saveSheetsToFirebase(); closeColumnManager(); renderSheetTabs(); renderGrid();
         }
 
+        // 🌟 수정된 권한 관리(계정 관리) 스크립트 함수들
+        function openAccountManager() { 
+            document.getElementById('account-modal').classList.remove('hidden'); 
+            document.getElementById('account-modal').classList.add('flex'); 
+            renderAccountList(); 
+        }
+        function closeAccountManager() { 
+            document.getElementById('account-modal').classList.add('hidden'); 
+            document.getElementById('account-modal').classList.remove('flex'); 
+        }
+        
+        function renderAccountList() {
+            let list = document.getElementById('admin-account-list'); list.innerHTML = '';
+            accountsData.forEach((a, i) => {
+                list.innerHTML += `
+                <div class="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-lg shadow-sm hover:border-blue-300 transition">
+                    <div class="flex items-center space-x-3 w-1/2">
+                        <span class="font-bold text-sm text-slate-800">${a.name}</span>
+                        <span class="text-xs text-slate-500">(${a.userId})</span>
+                        <span class="text-xs bg-slate-100 border border-slate-200 px-2 py-0.5 rounded text-slate-600 font-semibold">${a.role}</span>
+                    </div>
+                    <div class="flex items-center space-x-2 w-1/2 justify-end">
+                        <input type="password" id="acc-pw-${i}" placeholder="새 비번" class="border border-slate-300 px-2 py-1 text-xs rounded w-28 outline-none focus:border-blue-500">
+                        <button onclick="changeAccountPassword(${i})" class="bg-slate-700 text-white px-3 py-1 text-xs font-bold rounded hover:bg-slate-800 transition">비번변경</button>
+                        ${(a.userId==='suby20'||a.userId==='abcd9420') ? '<span class="text-xs text-red-500 font-bold ml-2 px-2">마스터</span>' : `<button onclick="deleteAccount(${i})" class="text-red-400 hover:text-red-600 px-2 ml-1 transition" title="계정 삭제"><i class="fa-solid fa-trash"></i></button>`}
+                    </div>
+                </div>`;
+            });
+        }
+
+        async function addNewAccount() {
+            let id = document.getElementById('new-acc-id').value.trim();
+            let name = document.getElementById('new-acc-name').value.trim();
+            let role = document.getElementById('new-acc-role').value;
+            let pw = document.getElementById('new-acc-pw').value.trim();
+            
+            if(!id || !name || !pw) return alert("정보를 모두 입력해주세요.");
+            if(accountsData.find(a => a.userId === id)) return alert("이미 존재하는 아이디입니다.");
+            
+            let hash = await hashPassword(pw);
+            accountsData.push({userId: id, name: name, role: role, passwordHash: hash});
+            await saveAccountsToFirebase();
+            renderAccountList();
+            
+            document.getElementById('new-acc-id').value = ''; 
+            document.getElementById('new-acc-name').value = ''; 
+            document.getElementById('new-acc-pw').value = '';
+            alert("새 계정이 성공적으로 추가되었습니다.");
+        }
+
+        async function changeAccountPassword(idx) {
+            let newPw = document.getElementById(`acc-pw-${idx}`).value.trim();
+            if(!newPw) return alert("새 비밀번호를 입력해주세요.");
+            accountsData[idx].passwordHash = await hashPassword(newPw);
+            await saveAccountsToFirebase();
+            document.getElementById(`acc-pw-${idx}`).value = '';
+            alert(`${accountsData[idx].name} 님의 비밀번호가 변경되었습니다.`);
+        }
+
+        async function deleteAccount(idx) {
+            if(confirm(`정말 ${accountsData[idx].name} 계정을 삭제하시겠습니까?`)) {
+                accountsData.splice(idx, 1);
+                await saveAccountsToFirebase();
+                renderAccountList();
+            }
+        }
+
         function forceLogout() { 
             document.getElementById('initial-loader').classList.add('hidden'); 
             document.getElementById('login-modal').classList.remove('hidden'); 
@@ -936,11 +1033,8 @@
             if(typeof unsubPresence === 'function') unsubPresence(); 
         }
 
-        // 🌟 강화된 로그인 검증 및 예외처리 
         async function handleLoginSubmit(e) {
             e.preventDefault(); 
-            
-            // @helloconnectn.com 입력 방지 및 아이디 정제
             let rawId = document.getElementById('login-id').value.trim().toLowerCase(); 
             let id = rawId.split('@')[0];
             let pw = document.getElementById('login-pw').value.trim();
@@ -948,14 +1042,12 @@
             const { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword, db, getDoc, doc } = window.fb;
             
             try {
-                // 1. 파이어베이스 인증 (신규면 자동 생성)
                 try { 
                     await signInWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); 
                 } catch(err) { 
                     await createUserWithEmailAndPassword(auth, id+"@helloconnectn.com", "SYS!"+id); 
                 }
                 
-                // 2. 사내 DB 검증
                 const snap = await getDoc(doc(db, "config", "accountsDoc")); 
                 if (snap.exists()) accountsData = snap.data().accounts || []; 
                 ensureMasterAdmins(); 
@@ -966,7 +1058,6 @@
                     return;
                 }
                 
-                // 3. 비밀번호 검증 (오류 시 정확한 팝업)
                 let hash = await hashPassword(pw);
                 if (id !== "suby20" && id !== "abcd9420") { 
                     if (pw !== "1470" && user.passwordHash !== hash) {
@@ -978,7 +1069,6 @@
                     return;
                 }
                 
-                // 4. 통과 시 접속
                 localStorage.setItem("hellocn_auth_userid", id); 
                 location.reload();
             } catch(e) { 
@@ -993,9 +1083,6 @@
             if (isPrivilegedRole(currentAccount.role)) { document.getElementById('admin-col-btn').classList.remove('hidden'); document.getElementById('admin-col-btn').classList.add('flex'); document.getElementById('admin-acc-btn').classList.remove('hidden'); document.getElementById('admin-acc-btn').classList.add('flex'); document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-shield-halved text-blue-500"></i> ${currentAccount.role}`; } else { document.getElementById('edit-permission-status').innerHTML = `<i class="fa-solid fa-user-check text-amber-500"></i> ${currentAccount.role}`; }
         }
         
-        function addMemoToCell() { if (activeCell.r === null) return; let cell = sheetsData[activeSheet].rows[activeCell.r][activeCell.c]; let memo = prompt("메모 입력:", cell.memo); if (memo !== null) { cell.memo = memo; saveSheetsToFirebase(); renderGrid(); } }
-        function openAccountManager() { document.getElementById('account-modal').classList.remove('hidden'); document.getElementById('account-modal').classList.add('flex'); let list = document.getElementById('admin-account-list'); list.innerHTML = ''; accountsData.forEach((a, i) => { list.innerHTML += `<div class="flex justify-between p-2 border-b text-xs"><span>${a.name} (${a.userId}) - ${a.role}</span>${(a.userId==='suby20'||a.userId==='abcd9420') ? '마스터' : `<button onclick="accountsData.splice(${i},1); saveAccountsToFirebase(); openAccountManager();" class="text-red-500"><i class="fa-solid fa-trash"></i></button>`}</div>`; }); }
-        function closeAccountManager() { document.getElementById('account-modal').classList.add('hidden'); document.getElementById('account-modal').classList.remove('flex'); }
         function exportPDF() { html2pdf().set({margin: 0.5, filename: `헬로CN_${activeSheet}.pdf`, html2canvas: { scale: 2 }, jsPDF: { unit: 'in', format: 'a4', orientation: 'landscape' }}).from(document.getElementById('printable-area')).save(); }
         function exportExcel() { let wb = XLSX.utils.book_new(); Object.keys(sheetsData).forEach(s => { let sheet = sheetsData[s]; let h = sheet.headerRows == 2 ? [sheet.columns.map(c=>c.name), sheet.columns.map(c=>c.name2)] : [sheet.columns.map(c=>c.name)]; let aoa = [...h, ...sheet.rows.map(r=>r.map(c=>c.v))]; XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), s); }); XLSX.writeFile(wb, "헬로CN_데이터.xlsx"); }
     </script>
