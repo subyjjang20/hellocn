@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>헬로CN닥스 - 웹 엑셀 시스템</title>
+  <title>헬로CN닥스 - 실시간 웹 엑셀</title>
 
-  <!-- Luckysheet UI 라이브러리 -->
+  <!-- Luckysheet UI 라이브러리 (구글 Docs 클론) -->
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/css/pluginsCss.css' />
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/plugins.css' />
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/css/luckysheet.css' />
@@ -15,30 +15,31 @@
 
   <style>
     body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Malgun Gothic', sans-serif; background: #f8f9fa; overflow: hidden; }
-    
     .screen { display: none; width: 100%; height: 100%; }
     .active { display: flex; flex-direction: column; }
 
-    /* 개선된 로그인 화면 디자인 */
+    /* 로그인 화면 */
     #login-screen { justify-content: center; align-items: center; background: #eef2f5; }
     .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 380px; text-align: center; }
     .login-box h2 { margin-top: 0; color: #333; margin-bottom: 30px; font-size: 24px; }
-    
-    .input-group { margin-bottom: 20px; text-align: left; }
-    .id-wrapper { display: flex; align-items: center; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; background: #f9f9f9; }
+    .id-wrapper { display: flex; align-items: center; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; background: #f9f9f9; margin-bottom: 15px;}
     .id-wrapper input { border: none; padding: 14px; flex: 1; outline: none; font-size: 15px; background: white; }
     .id-wrapper span { padding: 0 15px; color: #666; font-size: 14px; border-left: 1px solid #ddd; background: #f4f5f7; height: 100%; display: flex; align-items: center; }
-    
-    .pw-input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+    .pw-input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; margin-bottom: 20px;}
     button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
     button.primary-btn:hover { background: #1557b0; }
 
     /* 메인 화면 헤더 */
     .header-bar { height: 60px; background: #ffffff; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 10; }
+    .header-left { display: flex; align-items: center; gap: 15px; }
     .header-info { font-size: 15px; font-weight: bold; color: #333; }
+    
+    /* 동시 편집 표시 뱃지 및 자동저장 알림 */
+    #concurrent-users { display: none; background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; border: 1px solid #ffeeba; }
+    #save-status { font-size: 12px; color: #28a745; font-weight: bold; opacity: 0; transition: opacity 0.5s; }
+    
     .header-actions button { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: bold; cursor: pointer; margin-left: 8px; }
     #btn-show-admin { background: #0f9d58; color: white; }
-    #btn-save-cloud { background: #1a73e8; color: white; }
     #btn-logout { background: #d93025; color: white; }
 
     #spreadsheet-container { flex: 1; width: 100%; position: relative; }
@@ -58,24 +59,23 @@
 <div id="login-screen" class="screen active">
   <div class="login-box">
     <h2>헬로CN닥스 로그인</h2>
-    <div class="input-group">
-      <div class="id-wrapper">
-        <input type="text" id="login-id" placeholder="아이디 (예: suby20)">
-        <span>@helloconnectn.com</span>
-      </div>
+    <div class="id-wrapper">
+      <input type="text" id="login-id" placeholder="아이디 (예: suby20)">
+      <span>@helloconnectn.com</span>
     </div>
-    <div class="input-group">
-      <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호">
-    </div>
+    <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호">
     <button id="btn-login" class="primary-btn">시스템 접속</button>
   </div>
 </div>
 
 <div id="main-screen" class="screen">
   <div class="header-bar">
-    <div class="header-info" id="user-info-display">사용자 정보 로딩중...</div>
+    <div class="header-left">
+      <div class="header-info" id="user-info-display">사용자 정보 로딩중...</div>
+      <div id="save-status">✓ 클라우드 자동 저장됨</div>
+      <div id="concurrent-users">현재 동시 편집 중: </div>
+    </div>
     <div class="header-actions">
-      <button id="btn-save-cloud">클라우드 저장 (덮어쓰기)</button>
       <button id="btn-show-admin" style="display: none;">관리자 패널</button>
       <button id="btn-logout">로그아웃</button>
     </div>
@@ -111,9 +111,9 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-  // ★ 중요: 아래 값을 반드시 본인의 Firebase 프로젝트 설정값으로 변경해야 에러가 나지 않습니다.
+  // ★ 필수: 아래 값을 실제 발급받은 Firebase 키로 교체해야 로그인 에러가 사라집니다.
 const firebaseConfig = {
   apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
   authDomain: "hellocn-128ba.firebaseapp.com",
@@ -131,22 +131,26 @@ const firebaseConfig = {
   const secondaryAuth = getAuth(secondaryApp);
   const domain = "@helloconnectn.com";
 
-  const loginScreen = document.getElementById('login-screen');
-  const mainScreen = document.getElementById('main-screen');
-  const adminModal = document.getElementById('admin-modal');
-  
+  let currentUserInfo = null;
+  let saveTimeout;
+  let isInitializing = true;
+
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       const userDoc = await getDoc(doc(db, "users", user.uid));
-      const userData = userDoc.exists() ? userDoc.data() : { name: "알수없음", dept: "소속없음", role: "user" };
-      document.getElementById('user-info-display').innerText = `${userData.name} (${userData.dept}) - ${userData.role === 'admin' ? '관리자' : '사용자'}`;
-      loginScreen.classList.remove('active');
-      mainScreen.classList.add('active');
-      document.getElementById('btn-show-admin').style.display = userData.role === 'admin' ? 'inline-block' : 'none';
+      currentUserInfo = userDoc.exists() ? { ...userDoc.data(), uid: user.uid } : { name: "알수없음", dept: "소속없음", role: "user", uid: user.uid };
+      
+      document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept}) - ${currentUserInfo.role === 'admin' ? '관리자' : '사용자'}`;
+      document.getElementById('login-screen').classList.remove('active');
+      document.getElementById('main-screen').classList.add('active');
+      document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
+      
       initExcel();
+      listenPresence();
     } else {
-      loginScreen.classList.add('active');
-      mainScreen.classList.remove('active');
+      document.getElementById('login-screen').classList.add('active');
+      document.getElementById('main-screen').classList.remove('active');
+      currentUserInfo = null;
     }
   });
 
@@ -158,8 +162,8 @@ const firebaseConfig = {
   });
 
   document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
-  document.getElementById('btn-show-admin').addEventListener('click', () => adminModal.style.display = 'flex');
-  document.getElementById('btn-close-admin').addEventListener('click', () => adminModal.style.display = 'none');
+  document.getElementById('btn-show-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'flex');
+  document.getElementById('btn-close-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'none');
 
   document.getElementById('btn-create-user').addEventListener('click', async () => {
     const id = document.getElementById('new-id').value.trim();
@@ -175,12 +179,13 @@ const firebaseConfig = {
       await setDoc(doc(db, "users", userCred.user.uid), { name, dept, role, email: id + domain });
       await signOut(secondaryAuth);
       alert(`[${name}] 계정 발급 완료`);
-      adminModal.style.display = 'none';
+      document.getElementById('admin-modal').style.display = 'none';
     } catch (error) {
       alert("발급 에러: " + error.message);
     }
   });
 
+  // 1. 실시간 웹 엑셀 초기화 및 실시간 동기화 설정
   async function initExcel() {
     const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
     let sheetData = [];
@@ -190,10 +195,7 @@ const firebaseConfig = {
     } else {
       const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
       sheetData = centers.map((center, index) => ({
-        name: center,
-        status: index === 0 ? 1 : 0,
-        order: index,
-        data: []
+        name: center, status: index === 0 ? 1 : 0, order: index, data: []
       }));
     }
 
@@ -204,22 +206,77 @@ const firebaseConfig = {
       data: sheetData,
       showinfobar: false,
       enableAddRow: true,
-      enableAddBackTop: true
+      enableAddBackTop: true,
+      hook: {
+        // 셀 수정, 서식 변경 등이 일어날 때마다 자동 실행 (수동 저장 불필요)
+        updated: function(operate) {
+          if(!isInitializing) autoSaveToCloud();
+        },
+        // 셀을 클릭/이동할 때마다 내 커서 위치를 서버로 전송
+        rangeSelect: function(sheet, range) {
+          if(!isInitializing) updateMyPresence();
+        }
+      }
+    });
+    isInitializing = false;
+  }
+
+  // 2. 실시간 자동 저장 로직 (1초 디바운싱 - 입력 도중 서버 과부하 방지)
+  function autoSaveToCloud() {
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(async () => {
+      try {
+        const allData = luckysheet.getAllSheets();
+        await setDoc(doc(db, "sheets", "master_doc"), {
+          content: JSON.stringify(allData),
+          timestamp: new Date().getTime()
+        });
+        
+        // 우측 상단 '자동 저장됨' 초록색 텍스트 깜빡임 효과
+        const statusEl = document.getElementById('save-status');
+        statusEl.style.opacity = 1;
+        setTimeout(() => statusEl.style.opacity = 0, 2000);
+      } catch (error) {
+        console.error("자동 저장 실패: ", error);
+      }
+    }, 1000);
+  }
+
+  // 3. 현재 내 상태(Presence)를 Firestore에 업데이트
+  function updateMyPresence() {
+    if (!currentUserInfo) return;
+    setDoc(doc(db, "presence", currentUserInfo.uid), {
+      name: currentUserInfo.name,
+      dept: currentUserInfo.dept,
+      updatedAt: new Date().getTime()
     });
   }
 
-  document.getElementById('btn-save-cloud').addEventListener('click', async () => {
-    try {
-      const allData = luckysheet.getAllSheets();
-      await setDoc(doc(db, "sheets", "master_doc"), {
-        content: JSON.stringify(allData),
-        timestamp: new Date()
+  // 4. 타인의 동시 편집 상태 감지 및 상단 UI 표시
+  function listenPresence() {
+    onSnapshot(collection(db, "presence"), (snapshot) => {
+      let editingUsers = [];
+      const now = new Date().getTime();
+      
+      snapshot.forEach(docSnap => {
+        if(docSnap.id !== currentUserInfo?.uid) {
+           const data = docSnap.data();
+           // 최근 1분 이내에 셀을 클릭/수정한 사용자만 "동시 편집 중"으로 간주
+           if(now - data.updatedAt < 60000) {
+             editingUsers.push(`${data.name}(${data.dept})`);
+           }
+        }
       });
-      alert("데이터가 클라우드에 성공적으로 저장되었습니다.");
-    } catch (error) {
-      alert("저장 실패: " + error.message);
-    }
-  });
+      
+      const badge = document.getElementById("concurrent-users");
+      if(editingUsers.length > 0) {
+        badge.innerText = `현재 동시 편집 중: ${editingUsers.join(', ')}`;
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+    });
+  }
 </script>
 </body>
 </html>
