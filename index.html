@@ -14,10 +14,8 @@
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
 
   <style>
-    /* 전체 리셋 및 모던 폰트 적용 */
     body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; overflow: hidden; }
     
-    /* 화면 제어 */
     .screen { display: none; width: 100%; height: 100%; flex-direction: column; }
     .screen.active { display: flex; }
 
@@ -38,13 +36,13 @@
     button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(26,115,232,0.3); }
     button.primary-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(26,115,232,0.4); }
 
-    /* 메인 화면 헤더 디자인 */
+    /* 메인 화면 헤더 */
     .header-bar { height: 64px; min-height: 64px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; }
     .header-left { display: flex; align-items: center; gap: 20px; }
     .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; margin-right: 10px; }
     .header-info { font-size: 14px; font-weight: 600; color: #3c4043; background: #f1f3f4; padding: 6px 12px; border-radius: 6px; }
     
-    /* DB 상태 표시기 */
+    /* DB 연결 상태 */
     .db-status { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #34a853; background: #e6f4ea; padding: 6px 12px; border-radius: 20px; }
     .status-dot { width: 8px; height: 8px; background-color: #34a853; border-radius: 50%; animation: pulse 2s infinite; }
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52, 168, 83, 0.6); } 70% { box-shadow: 0 0 0 6px rgba(52, 168, 83, 0); } 100% { box-shadow: 0 0 0 0; } }
@@ -60,9 +58,14 @@
     #btn-logout { background: #fff; color: #5f6368; border: 1px solid #dadce0; }
     #btn-logout:hover { background: #f8f9fa; color: #202124; }
 
-    /* 엑셀 영역 크기 강제 고정 */
+    /* 엑셀 영역 */
     #spreadsheet-container { flex: 1; width: 100vw; position: relative; height: calc(100vh - 64px); background: #fff; }
     #luckysheet { margin: 0; padding: 0; position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
+
+    /* 데이터 로딩 마스크 */
+    #loading-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #ffffff; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #1a73e8; font-weight: bold; font-size: 16px; }
+    .spinner { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top: 4px solid #1a73e8; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
     /* 관리자 팝업 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
@@ -97,7 +100,7 @@
       <div class="header-info" id="user-info-display">로딩중...</div>
       <div id="db-status-indicator" class="db-status">
         <span class="status-dot"></span>
-        <span id="db-status-text">DB 실시간 연결됨</span>
+        <span id="db-status-text">DB 연결 준비중</span>
       </div>
       <div id="concurrent-users">동시 편집 감지됨: </div>
     </div>
@@ -107,11 +110,14 @@
     </div>
   </div>
   <div id="spreadsheet-container">
+    <div id="loading-mask">
+      <div class="spinner"></div>
+      <div>엑셀 데이터를 실시간으로 불러오는 중입니다...</div>
+    </div>
     <div id="luckysheet"></div>
   </div>
 </div>
 
-<!-- 계정 발급 모달 -->
 <div id="admin-modal" class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
@@ -163,11 +169,16 @@
   const dbStatusIndicator = document.getElementById('db-status-indicator');
   const dbStatusText = document.getElementById('db-status-text');
 
-  // 기본 엑셀 템플릿 생성 함수 (데이터 깨짐 방지용)
+  // ★ 엑셀 엔진 충돌 방지용 필수 규격(celldata) 선언
   function getDefaultData() {
     const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
     return centers.map((center, index) => ({
-      name: center, status: index === 0 ? 1 : 0, order: index, data: []
+      name: center,
+      status: index === 0 ? 1 : 0,
+      order: index,
+      row: 50,    // 기본 50행 생성
+      column: 20, // 기본 20열 생성
+      celldata: [] // 엔진 에러 방지를 위해 data 대신 celldata 빈 배열 사용
     }));
   }
 
@@ -181,8 +192,7 @@
       document.getElementById('main-screen').classList.add('active');
       document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
       
-      // 화면 렌더링 후 0.3초 대기 뒤 엑셀 초기화 시작
-      setTimeout(initExcel, 300);
+      setTimeout(initExcel, 500); // UI 전환 후 안정적인 렌더링을 위해 0.5초 대기
       listenPresence();
     } else {
       document.getElementById('login-screen').classList.add('active');
@@ -199,7 +209,7 @@
   });
 
   document.getElementById('btn-logout').addEventListener('click', () => {
-    window.location.reload(); // 로그아웃 시 깔끔하게 화면 전체 새로고침
+    window.location.reload(); // 로그아웃 시 깔끔한 초기화를 위해 새로고침
   });
 
   document.getElementById('btn-show-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'flex');
@@ -231,11 +241,15 @@
     let sheetData = [];
     try {
       const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
-      if (sheetDoc.exists()) {
-        sheetData = JSON.parse(sheetDoc.data().content);
-        // 만약 과거 저장된 데이터가 비정상적인 형태라면 강제로 초기화
-        if (!Array.isArray(sheetData) || sheetData.length === 0) {
-          console.warn("데이터 형식 오류 감지, 기본 시트로 덮어씁니다.");
+      
+      if (sheetDoc.exists() && sheetDoc.data().content) {
+        try {
+          sheetData = JSON.parse(sheetDoc.data().content);
+          // 과거 저장된 데이터가 비정상(빈 배열 등)이면 강제로 템플릿 복구
+          if (!Array.isArray(sheetData) || sheetData.length === 0) {
+            sheetData = getDefaultData();
+          }
+        } catch (parseErr) {
           sheetData = getDefaultData();
         }
       } else {
@@ -262,15 +276,14 @@
         }
       });
       isInitializing = false;
-
-      // ★ Blank Canvas 해결 핵심 코드: 엑셀 생성 후 강제로 브라우저 사이즈 재조정 이벤트 발생
-      setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-      }, 100);
+      
+      // 엑셀 로딩 완료 시 마스크 숨김 및 상태 업데이트
+      document.getElementById('loading-mask').style.display = 'none';
+      dbStatusText.innerText = "DB 실시간 연결됨";
 
     } catch (err) {
-      console.error("초기화 실패: ", err);
-      alert("엑셀 데이터 로드 중 문제가 발생했습니다. 관리자에게 문의하세요.");
+      console.error("초기화 실패 상세 에러: ", err);
+      document.getElementById('loading-mask').innerHTML = `<div style='color:red;'>데이터 로드 오류가 발생했습니다.<br>에러 내용: ${err.message}</div>`;
     }
   }
 
