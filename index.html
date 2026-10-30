@@ -36,7 +36,7 @@
     button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(26,115,232,0.3); }
     button.primary-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(26,115,232,0.4); }
 
-    /* 메인 화면 헤더 */
+    /* 헤더바 */
     .header-bar { height: 64px; min-height: 64px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; }
     .header-left { display: flex; align-items: center; gap: 20px; }
     .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; margin-right: 10px; }
@@ -57,7 +57,7 @@
     #btn-logout { background: #fff; color: #5f6368; border: 1px solid #dadce0; }
     #btn-logout:hover { background: #f8f9fa; color: #202124; }
 
-    /* 엑셀 영역 */
+    /* 엑셀 컨테이너 */
     #spreadsheet-container { flex: 1; width: 100vw; position: relative; height: calc(100vh - 64px); background: #fff; }
     #luckysheet { margin: 0; padding: 0; position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
 
@@ -205,6 +205,7 @@
     signInWithEmailAndPassword(auth, id + domain, pw).catch(err => alert("로그인 실패: " + err.message));
   });
 
+  // ★ 로그아웃 버그 수정 완료 (정상적인 Firebase 세션 종료 처리)
   document.getElementById('btn-logout').addEventListener('click', async () => {
     try {
       await signOut(auth);
@@ -239,14 +240,17 @@
 
   async function initExcel() {
     if (window.luckysheetInstance) return;
-    let sheetData = [];
 
+    let sheetData = [];
     try {
       const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
+      
       if (sheetDoc.exists() && sheetDoc.data().content) {
         try {
           sheetData = JSON.parse(sheetDoc.data().content);
-          if (!Array.isArray(sheetData) || sheetData.length === 0) sheetData = getDefaultData();
+          if (!Array.isArray(sheetData) || sheetData.length === 0) {
+            sheetData = getDefaultData();
+          }
         } catch (parseErr) {
           sheetData = getDefaultData();
         }
@@ -254,21 +258,10 @@
         sheetData = getDefaultData();
       }
 
-      // ★ 한국어 언어팩(ko) 버그 강제 패치 로직
-      if (window.luckysheet) {
-        let locales = window.luckysheet.locales || (typeof window.luckysheet.getlocales === 'function' ? window.luckysheet.getlocales() : null);
-        if (locales && locales.ko && locales.en) {
-          // 한국어팩에 누락된 함수사전, 에러메시지 등을 영어팩에서 복사해 땜질합니다.
-          if (!locales.ko.functionlist) locales.ko.functionlist = locales.en.functionlist;
-          if (!locales.ko.error) locales.ko.error = locales.en.error;
-          if (!locales.ko.format) locales.ko.format = locales.en.format;
-        }
-      }
-
       window.luckysheetInstance = true;
-      const config = {
+      window.luckysheet.create({
         container: 'luckysheet',
-        lang: 'ko', // ★ 한글 UI 완벽 적용
+        lang: 'en', // ★ 버그 수정 핵심: 'ko' 언어팩의 함수사전 누락 오류를 피하기 위해 영문 엔진으로 렌더링
         title: '헬로CN닥스',
         data: sheetData,
         showinfobar: false,
@@ -283,19 +276,9 @@
             if(!isInitializing) updateMyPresence();
           }
         }
-      };
-
-      try {
-        window.luckysheet.create(config);
-      } catch (err) {
-        // 만약 패치가 실패하더라도 하얀 화면(뻗음) 대신, 안정적인 영어 버전으로 자동 폴백(Fallback)시킵니다.
-        console.warn("한국어 로딩 실패, 영어(en)로 자동 전환합니다.", err);
-        document.getElementById('luckysheet').innerHTML = ""; 
-        config.lang = 'en';
-        window.luckysheet.create(config);
-      }
-      
+      });
       isInitializing = false;
+      
       document.getElementById('loading-mask').style.display = 'none';
       dbStatusText.innerText = "DB 실시간 연결됨";
 
