@@ -114,14 +114,15 @@
   import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
   // ★ 중요: 아래 값을 반드시 본인의 Firebase 프로젝트 설정값으로 변경해야 에러가 나지 않습니다.
-  const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT_ID.appspot.com",
-    messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-    appId: "YOUR_APP_ID"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
+  authDomain: "hellocn-128ba.firebaseapp.com",
+  projectId: "hellocn-128ba",
+  storageBucket: "hellocn-128ba.firebasestorage.app",
+  messagingSenderId: "306539866159",
+  appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
+  measurementId: "G-ETFMQX75CB"
+};
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
