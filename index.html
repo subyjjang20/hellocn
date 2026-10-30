@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>헬로CN닥스 - 실시간 웹 엑셀</title>
 
-  <!-- Luckysheet UI 라이브러리 (구글 Docs 클론) -->
+  <!-- Luckysheet UI 라이브러리 -->
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/css/pluginsCss.css' />
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/plugins.css' />
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/css/luckysheet.css' />
@@ -14,51 +14,78 @@
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
 
   <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Malgun Gothic', sans-serif; background: #f8f9fa; overflow: hidden; }
-    .screen { display: none; width: 100%; height: 100%; }
+    /* 전체 리셋 및 모던 폰트 적용 */
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; overflow: hidden; }
+    
+    /* 화면 제어 */
+    .screen { display: none; width: 100%; height: 100vh; }
     .active { display: flex; flex-direction: column; }
 
-    /* 로그인 화면 */
-    #login-screen { justify-content: center; align-items: center; background: #eef2f5; }
-    .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 380px; text-align: center; }
-    .login-box h2 { margin-top: 0; color: #333; margin-bottom: 30px; font-size: 24px; }
-    .id-wrapper { display: flex; align-items: center; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; background: #f9f9f9; margin-bottom: 15px;}
-    .id-wrapper input { border: none; padding: 14px; flex: 1; outline: none; font-size: 15px; background: white; }
-    .id-wrapper span { padding: 0 15px; color: #666; font-size: 14px; border-left: 1px solid #ddd; background: #f4f5f7; height: 100%; display: flex; align-items: center; }
-    .pw-input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; margin-bottom: 20px;}
-    button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
-    button.primary-btn:hover { background: #1557b0; }
-
-    /* 메인 화면 헤더 */
-    .header-bar { height: 60px; background: #ffffff; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 10; }
-    .header-left { display: flex; align-items: center; gap: 15px; }
-    .header-info { font-size: 15px; font-weight: bold; color: #333; }
+    /* 로그인 화면 디자인 (Google 스타일) */
+    #login-screen { justify-content: center; align-items: center; background: #f0f2f5; }
+    .login-box { background: #ffffff; padding: 48px 40px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); width: 400px; text-align: center; box-sizing: border-box; }
+    .login-logo { width: 50px; height: 50px; background: #1a73e8; color: white; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; margin-bottom: 20px; }
+    .login-box h2 { margin: 0 0 30px 0; color: #202124; font-size: 24px; font-weight: 700; }
     
-    /* 동시 편집 표시 뱃지 및 자동저장 알림 */
-    #concurrent-users { display: none; background: #fff3cd; color: #856404; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; border: 1px solid #ffeeba; }
-    #save-status { font-size: 12px; color: #28a745; font-weight: bold; opacity: 0; transition: opacity 0.5s; }
+    .id-wrapper { display: flex; align-items: center; border: 1px solid #dadce0; border-radius: 8px; overflow: hidden; background: #fff; margin-bottom: 16px; transition: border 0.2s; }
+    .id-wrapper:focus-within { border: 1px solid #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.2); }
+    .id-wrapper input { border: none; padding: 14px 16px; flex: 1; outline: none; font-size: 15px; color: #202124; }
+    .id-wrapper span { padding: 0 16px; color: #5f6368; font-size: 14px; background: #f8f9fa; border-left: 1px solid #dadce0; height: 100%; display: flex; align-items: center; font-weight: 500; }
     
-    .header-actions button { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: bold; cursor: pointer; margin-left: 8px; }
-    #btn-show-admin { background: #0f9d58; color: white; }
-    #btn-logout { background: #d93025; color: white; }
+    .pw-input { width: 100%; padding: 14px 16px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 15px; margin-bottom: 24px; transition: 0.2s; }
+    .pw-input:focus { border: 1px solid #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.2); outline: none; }
+    
+    button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(26,115,232,0.3); }
+    button.primary-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(26,115,232,0.4); }
 
-    #spreadsheet-container { flex: 1; width: 100%; position: relative; }
+    /* 메인 화면 헤더 디자인 */
+    .header-bar { height: 64px; min-height: 64px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .header-left { display: flex; align-items: center; gap: 20px; }
+    .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; margin-right: 10px; }
+    .header-info { font-size: 14px; font-weight: 600; color: #3c4043; background: #f1f3f4; padding: 6px 12px; border-radius: 6px; }
+    
+    /* DB 상태 표시기 (LED 애니메이션) */
+    .db-status { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #34a853; background: #e6f4ea; padding: 6px 12px; border-radius: 20px; }
+    .status-dot { width: 8px; height: 8px; background-color: #34a853; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(52, 168, 83, 0.6); }
+      70% { box-shadow: 0 0 0 6px rgba(52, 168, 83, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(52, 168, 83, 0); }
+    }
+    .db-status.saving .status-dot { background-color: #fbbc04; animation: pulse-yellow 1s infinite; }
+    .db-status.saving { color: #b08d00; background: #fef7e0; }
+    @keyframes pulse-yellow { 0% { box-shadow: 0 0 0 0 rgba(251, 188, 4, 0.6); } 70% { box-shadow: 0 0 0 6px rgba(251, 188, 4, 0); } 100% { box-shadow: 0 0 0 0; } }
+
+    #concurrent-users { display: none; background: #fce8e6; color: #c5221f; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; }
+    
+    .header-actions button { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: 10px; transition: 0.2s; }
+    #btn-show-admin { background: #34a853; color: white; }
+    #btn-show-admin:hover { background: #2d9047; }
+    #btn-logout { background: #fff; color: #5f6368; border: 1px solid #dadce0; }
+    #btn-logout:hover { background: #f8f9fa; color: #202124; }
+
+    /* 엑셀 영역 하얗게 나오는 버그 수정 (flex 속성 고정) */
+    #spreadsheet-container { flex: 1 1 auto; width: 100%; position: relative; }
     #luckysheet { margin: 0; padding: 0; position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
 
-    /* 관리자 팝업 */
-    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; }
-    .modal-content { background: white; padding: 30px; border-radius: 10px; width: 420px; box-shadow: 0 5px 25px rgba(0,0,0,0.2); }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
-    .modal-header h3 { margin: 0; }
-    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
-    .modal-content input, .modal-content select { width: 100%; padding: 12px; margin-top: 5px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    /* 관리자 팝업 모달 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+    .modal-content { background: white; padding: 32px; border-radius: 16px; width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .modal-header h3 { margin: 0; font-size: 18px; color: #202124; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #5f6368; padding: 0; }
+    .modal-content label { display: block; font-size: 13px; color: #5f6368; font-weight: 600; margin-bottom: 6px; }
+    .modal-content input, .modal-content select { width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+    .modal-content input:focus, .modal-content select:focus { outline: none; border-color: #1a73e8; }
   </style>
 </head>
 <body>
 
+<!-- 로그인 화면 -->
 <div id="login-screen" class="screen active">
   <div class="login-box">
-    <h2>헬로CN닥스 로그인</h2>
+    <div class="login-logo">N</div>
+    <h2>헬로CN닥스</h2>
     <div class="id-wrapper">
       <input type="text" id="login-id" placeholder="아이디 (예: suby20)">
       <span>@helloconnectn.com</span>
@@ -68,15 +95,23 @@
   </div>
 </div>
 
+<!-- 메인 엑셀 화면 -->
 <div id="main-screen" class="screen">
   <div class="header-bar">
     <div class="header-left">
-      <div class="header-info" id="user-info-display">사용자 정보 로딩중...</div>
-      <div id="save-status">✓ 클라우드 자동 저장됨</div>
-      <div id="concurrent-users">현재 동시 편집 중: </div>
+      <div class="header-title">헬로CN닥스</div>
+      <div class="header-info" id="user-info-display">로딩중...</div>
+      
+      <!-- 상단 실시간 DB 연결 상태 표시기 -->
+      <div id="db-status-indicator" class="db-status">
+        <span class="status-dot"></span>
+        <span id="db-status-text">DB 실시간 연결됨</span>
+      </div>
+
+      <div id="concurrent-users">동시 편집 감지됨: </div>
     </div>
     <div class="header-actions">
-      <button id="btn-show-admin" style="display: none;">관리자 패널</button>
+      <button id="btn-show-admin" style="display: none;">계정 발급(관리자)</button>
       <button id="btn-logout">로그아웃</button>
     </div>
   </div>
@@ -85,6 +120,7 @@
   </div>
 </div>
 
+<!-- 관리자 팝업 -->
 <div id="admin-modal" class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
@@ -92,11 +128,11 @@
       <button id="btn-close-admin" class="close-btn">&times;</button>
     </div>
     <label>아이디</label>
-    <div class="id-wrapper" style="margin-top: 5px; margin-bottom: 15px;">
-      <input type="text" id="new-id" placeholder="아이디 입력" style="margin:0; border:none; padding:12px;">
-      <span style="padding: 0 15px; background: #f4f5f7; border-left: 1px solid #ccc; display:flex; align-items:center;">@helloconnectn.com</span>
+    <div class="id-wrapper" style="margin-bottom: 16px;">
+      <input type="text" id="new-id" placeholder="사번 입력" style="margin:0; border:none;">
+      <span>@helloconnectn.com</span>
     </div>
-    <label>성명</label><input type="text" id="new-name" placeholder="성명">
+    <label>성명</label><input type="text" id="new-name" placeholder="예: 홍길동">
     <label>부서명</label><input type="text" id="new-dept" placeholder="예: 부평센터">
     <label>권한</label>
     <select id="new-role">
@@ -104,7 +140,7 @@
       <option value="admin">관리자</option>
     </select>
     <label>초기 비밀번호</label><input type="password" id="new-pw" placeholder="6자리 이상">
-    <button id="btn-create-user" class="primary-btn">계정 생성</button>
+    <button id="btn-create-user" class="primary-btn">계정 생성 및 등록</button>
   </div>
 </div>
 
@@ -113,16 +149,16 @@
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-  // ★ 필수: 아래 값을 실제 발급받은 Firebase 키로 교체해야 로그인 에러가 사라집니다.
-const firebaseConfig = {
-  apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
-  authDomain: "hellocn-128ba.firebaseapp.com",
-  projectId: "hellocn-128ba",
-  storageBucket: "hellocn-128ba.firebasestorage.app",
-  messagingSenderId: "306539866159",
-  appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
-  measurementId: "G-ETFMQX75CB"
-};
+  // 요청하신 헬로커넥트N 실제 Firebase Config 완벽 적용
+  const firebaseConfig = {
+    apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
+    authDomain: "hellocn-128ba.firebaseapp.com",
+    projectId: "hellocn-128ba",
+    storageBucket: "hellocn-128ba.firebasestorage.app",
+    messagingSenderId: "306539866159",
+    appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
+    measurementId: "G-ETFMQX75CB"
+  };
 
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
@@ -134,18 +170,21 @@ const firebaseConfig = {
   let currentUserInfo = null;
   let saveTimeout;
   let isInitializing = true;
+  const dbStatusIndicator = document.getElementById('db-status-indicator');
+  const dbStatusText = document.getElementById('db-status-text');
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       currentUserInfo = userDoc.exists() ? { ...userDoc.data(), uid: user.uid } : { name: "알수없음", dept: "소속없음", role: "user", uid: user.uid };
       
-      document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept}) - ${currentUserInfo.role === 'admin' ? '관리자' : '사용자'}`;
+      document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept})`;
       document.getElementById('login-screen').classList.remove('active');
       document.getElementById('main-screen').classList.add('active');
       document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
       
-      initExcel();
+      // 화면 전환 후 컨테이너 크기가 확보될 시간을 주고 엑셀을 렌더링합니다.
+      setTimeout(initExcel, 100);
       listenPresence();
     } else {
       document.getElementById('login-screen').classList.add('active');
@@ -185,7 +224,6 @@ const firebaseConfig = {
     }
   });
 
-  // 1. 실시간 웹 엑셀 초기화 및 실시간 동기화 설정
   async function initExcel() {
     const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
     let sheetData = [];
@@ -204,16 +242,15 @@ const firebaseConfig = {
       lang: 'ko',
       title: '헬로CN닥스',
       data: sheetData,
-      showinfobar: false,
+      showinfobar: false, // 커스텀 상단바를 사용하므로 엑셀 자체 타이틀바 숨김
+      showsheetbar: true, // 하단 시트탭 표시
       enableAddRow: true,
       enableAddBackTop: true,
       hook: {
-        // 셀 수정, 서식 변경 등이 일어날 때마다 자동 실행 (수동 저장 불필요)
-        updated: function(operate) {
+        updated: function() {
           if(!isInitializing) autoSaveToCloud();
         },
-        // 셀을 클릭/이동할 때마다 내 커서 위치를 서버로 전송
-        rangeSelect: function(sheet, range) {
+        rangeSelect: function() {
           if(!isInitializing) updateMyPresence();
         }
       }
@@ -221,9 +258,13 @@ const firebaseConfig = {
     isInitializing = false;
   }
 
-  // 2. 실시간 자동 저장 로직 (1초 디바운싱 - 입력 도중 서버 과부하 방지)
   function autoSaveToCloud() {
     clearTimeout(saveTimeout);
+    
+    // DB 상태: 노란색 저장 중 표시
+    dbStatusIndicator.classList.add('saving');
+    dbStatusText.innerText = "DB 동기화 중...";
+
     saveTimeout = setTimeout(async () => {
       try {
         const allData = luckysheet.getAllSheets();
@@ -232,17 +273,16 @@ const firebaseConfig = {
           timestamp: new Date().getTime()
         });
         
-        // 우측 상단 '자동 저장됨' 초록색 텍스트 깜빡임 효과
-        const statusEl = document.getElementById('save-status');
-        statusEl.style.opacity = 1;
-        setTimeout(() => statusEl.style.opacity = 0, 2000);
+        // DB 상태: 초록색 연결 완료 표시 복귀
+        dbStatusIndicator.classList.remove('saving');
+        dbStatusText.innerText = "DB 실시간 연결됨";
       } catch (error) {
+        dbStatusText.innerText = "DB 동기화 오류";
         console.error("자동 저장 실패: ", error);
       }
-    }, 1000);
+    }, 1000); // 1초 디바운스
   }
 
-  // 3. 현재 내 상태(Presence)를 Firestore에 업데이트
   function updateMyPresence() {
     if (!currentUserInfo) return;
     setDoc(doc(db, "presence", currentUserInfo.uid), {
@@ -252,7 +292,6 @@ const firebaseConfig = {
     });
   }
 
-  // 4. 타인의 동시 편집 상태 감지 및 상단 UI 표시
   function listenPresence() {
     onSnapshot(collection(db, "presence"), (snapshot) => {
       let editingUsers = [];
@@ -261,7 +300,6 @@ const firebaseConfig = {
       snapshot.forEach(docSnap => {
         if(docSnap.id !== currentUserInfo?.uid) {
            const data = docSnap.data();
-           // 최근 1분 이내에 셀을 클릭/수정한 사용자만 "동시 편집 중"으로 간주
            if(now - data.updatedAt < 60000) {
              editingUsers.push(`${data.name}(${data.dept})`);
            }
