@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>헬로CN닥스 - 웹 엑셀 시스템</title>
 
-  <!-- Luckysheet (구글 시트 클론 UI 라이브러리) -->
+  <!-- Luckysheet UI 라이브러리 -->
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/css/pluginsCss.css' />
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/plugins.css' />
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/css/luckysheet.css' />
@@ -14,102 +14,97 @@
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
 
   <style>
-    body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Pretendard', 'Malgun Gothic', sans-serif; background: #f8f9fa; overflow: hidden; }
+    body, html { margin: 0; padding: 0; width: 100%; height: 100%; font-family: 'Malgun Gothic', sans-serif; background: #f8f9fa; overflow: hidden; }
     
-    /* 화면 전환 제어 */
     .screen { display: none; width: 100%; height: 100%; }
     .active { display: flex; flex-direction: column; }
 
-    /* 로그인 화면 디자인 */
+    /* 개선된 로그인 화면 디자인 */
     #login-screen { justify-content: center; align-items: center; background: #eef2f5; }
-    .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 320px; text-align: center; }
-    .login-box h2 { margin-top: 0; color: #333; margin-bottom: 25px; }
-    .input-group { margin-bottom: 15px; text-align: left; }
-    .input-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
-    .input-domain { font-size: 12px; color: #666; display: block; margin-top: 5px; text-align: right; }
-    button.primary-btn { width: 100%; padding: 12px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+    .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 380px; text-align: center; }
+    .login-box h2 { margin-top: 0; color: #333; margin-bottom: 30px; font-size: 24px; }
+    
+    .input-group { margin-bottom: 20px; text-align: left; }
+    .id-wrapper { display: flex; align-items: center; border: 1px solid #ddd; border-radius: 6px; overflow: hidden; background: #f9f9f9; }
+    .id-wrapper input { border: none; padding: 14px; flex: 1; outline: none; font-size: 15px; background: white; }
+    .id-wrapper span { padding: 0 15px; color: #666; font-size: 14px; border-left: 1px solid #ddd; background: #f4f5f7; height: 100%; display: flex; align-items: center; }
+    
+    .pw-input { width: 100%; padding: 14px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 15px; }
+    button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; transition: 0.2s; }
     button.primary-btn:hover { background: #1557b0; }
 
     /* 메인 화면 헤더 */
-    .header-bar { height: 60px; background: #ffffff; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; box-sizing: border-box; }
-    .header-info { display: flex; align-items: center; gap: 15px; font-size: 14px; font-weight: 600; color: #333; }
+    .header-bar { height: 60px; background: #ffffff; border-bottom: 1px solid #e0e0e0; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 10; }
+    .header-info { font-size: 15px; font-weight: bold; color: #333; }
     .header-actions button { padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: bold; cursor: pointer; margin-left: 8px; }
     #btn-show-admin { background: #0f9d58; color: white; }
     #btn-save-cloud { background: #1a73e8; color: white; }
     #btn-logout { background: #d93025; color: white; }
 
-    /* 엑셀 컨테이너 (헤더 제외한 전체 영역) */
     #spreadsheet-container { flex: 1; width: 100%; position: relative; }
     #luckysheet { margin: 0; padding: 0; position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
 
-    /* 관리자 팝업 모달 */
+    /* 관리자 팝업 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; }
-    .modal-content { background: white; padding: 30px; border-radius: 10px; width: 400px; box-shadow: 0 5px 25px rgba(0,0,0,0.2); }
+    .modal-content { background: white; padding: 30px; border-radius: 10px; width: 420px; box-shadow: 0 5px 25px rgba(0,0,0,0.2); }
     .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px; }
-    .modal-header h3 { margin: 0; color: #333; }
-    .close-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #999; }
-    .modal-content select, .modal-content input { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+    .modal-header h3 { margin: 0; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #999; }
+    .modal-content input, .modal-content select { width: 100%; padding: 12px; margin-top: 5px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
   </style>
 </head>
 <body>
 
-<!-- 로그인 화면 -->
 <div id="login-screen" class="screen active">
   <div class="login-box">
-    <h2>헬로CN닥스</h2>
+    <h2>헬로CN닥스 로그인</h2>
     <div class="input-group">
-      <input type="text" id="login-id" placeholder="아이디 (예: suby20)">
-      <span class="input-domain">@helloconnectn.com</span>
+      <div class="id-wrapper">
+        <input type="text" id="login-id" placeholder="아이디 (예: suby20)">
+        <span>@helloconnectn.com</span>
+      </div>
     </div>
     <div class="input-group">
-      <input type="password" id="login-pw" placeholder="비밀번호">
+      <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호">
     </div>
-    <button id="btn-login" class="primary-btn">로그인</button>
+    <button id="btn-login" class="primary-btn">시스템 접속</button>
   </div>
 </div>
 
-<!-- 메인 작업 화면 -->
 <div id="main-screen" class="screen">
   <div class="header-bar">
-    <div class="header-info">
-      <span id="user-info-display">사용자 정보 로딩중...</span>
-    </div>
+    <div class="header-info" id="user-info-display">사용자 정보 로딩중...</div>
     <div class="header-actions">
-      <button id="btn-save-cloud">클라우드 저장</button>
-      <button id="btn-show-admin" style="display: none;">계정 관리(관리자)</button>
+      <button id="btn-save-cloud">클라우드 저장 (덮어쓰기)</button>
+      <button id="btn-show-admin" style="display: none;">관리자 패널</button>
       <button id="btn-logout">로그아웃</button>
     </div>
   </div>
-
-  <!-- 풀스크린 엑셀 시트 영역 -->
   <div id="spreadsheet-container">
     <div id="luckysheet"></div>
   </div>
 </div>
 
-<!-- 관리자 계정 생성 팝업(모달) -->
 <div id="admin-modal" class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
       <h3>신규 계정 발급</h3>
       <button id="btn-close-admin" class="close-btn">&times;</button>
     </div>
-    <div class="input-group">
-      <label>아이디</label>
-      <input type="text" id="new-id" placeholder="아이디 입력">
-      <span class="input-domain">@helloconnectn.com</span>
+    <label>아이디</label>
+    <div class="id-wrapper" style="margin-top: 5px; margin-bottom: 15px;">
+      <input type="text" id="new-id" placeholder="아이디 입력" style="margin:0; border:none; padding:12px;">
+      <span style="padding: 0 15px; background: #f4f5f7; border-left: 1px solid #ccc; display:flex; align-items:center;">@helloconnectn.com</span>
     </div>
-    <div class="input-group"><label>성명</label><input type="text" id="new-name" placeholder="성명"></div>
-    <div class="input-group"><label>부서명</label><input type="text" id="new-dept" placeholder="예: 사업추진실, 부평센터"></div>
-    <div class="input-group">
-      <label>권한</label>
-      <select id="new-role">
-        <option value="user">일반 사용자</option>
-        <option value="admin">관리자</option>
-      </select>
-    </div>
-    <div class="input-group"><label>초기 비밀번호</label><input type="password" id="new-pw" placeholder="6자리 이상"></div>
-    <button id="btn-create-user" class="primary-btn" style="margin-top: 15px;">계정 생성</button>
+    <label>성명</label><input type="text" id="new-name" placeholder="성명">
+    <label>부서명</label><input type="text" id="new-dept" placeholder="예: 부평센터">
+    <label>권한</label>
+    <select id="new-role">
+      <option value="user">일반 사용자</option>
+      <option value="admin">관리자</option>
+    </select>
+    <label>초기 비밀번호</label><input type="password" id="new-pw" placeholder="6자리 이상">
+    <button id="btn-create-user" class="primary-btn">계정 생성</button>
   </div>
 </div>
 
@@ -118,7 +113,7 @@
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
   import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-  // Firebase 설정 적용
+  // ★ 중요: 아래 값을 반드시 본인의 Firebase 프로젝트 설정값으로 변경해야 에러가 나지 않습니다.
   const firebaseConfig = {
     apiKey: "YOUR_API_KEY",
     authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
@@ -131,28 +126,22 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = getFirestore(app);
-  
   const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
   const secondaryAuth = getAuth(secondaryApp);
   const domain = "@helloconnectn.com";
 
-  // UI 제어 변수
   const loginScreen = document.getElementById('login-screen');
   const mainScreen = document.getElementById('main-screen');
   const adminModal = document.getElementById('admin-modal');
   
-  // 로그인 상태 감지
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       const userDoc = await getDoc(doc(db, "users", user.uid));
       const userData = userDoc.exists() ? userDoc.data() : { name: "알수없음", dept: "소속없음", role: "user" };
-      
       document.getElementById('user-info-display').innerText = `${userData.name} (${userData.dept}) - ${userData.role === 'admin' ? '관리자' : '사용자'}`;
-      
       loginScreen.classList.remove('active');
       mainScreen.classList.add('active');
       document.getElementById('btn-show-admin').style.display = userData.role === 'admin' ? 'inline-block' : 'none';
-
       initExcel();
     } else {
       loginScreen.classList.add('active');
@@ -168,12 +157,9 @@
   });
 
   document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
-
-  // 팝업 모달 제어
   document.getElementById('btn-show-admin').addEventListener('click', () => adminModal.style.display = 'flex');
   document.getElementById('btn-close-admin').addEventListener('click', () => adminModal.style.display = 'none');
 
-  // 신규 계정 발급 (다중 인스턴스로 기존 세션 보호)
   document.getElementById('btn-create-user').addEventListener('click', async () => {
     const id = document.getElementById('new-id').value.trim();
     const pw = document.getElementById('new-pw').value;
@@ -187,29 +173,24 @@
       const userCred = await createUserWithEmailAndPassword(secondaryAuth, id + domain, pw);
       await setDoc(doc(db, "users", userCred.user.uid), { name, dept, role, email: id + domain });
       await signOut(secondaryAuth);
-      
       alert(`[${name}] 계정 발급 완료`);
       adminModal.style.display = 'none';
-      ['new-id', 'new-name', 'new-dept', 'new-pw'].forEach(el => document.getElementById(el).value = '');
     } catch (error) {
       alert("발급 에러: " + error.message);
     }
   });
 
-  // 풀스크린 웹 엑셀 초기화
   async function initExcel() {
-    // Firestore에서 저장된 시트 데이터 불러오기
     const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
     let sheetData = [];
 
     if (sheetDoc.exists()) {
       sheetData = JSON.parse(sheetDoc.data().content);
     } else {
-      // 12개 센터별 초기 시트 자동 구성
-      const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터'];
+      const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
       sheetData = centers.map((center, index) => ({
         name: center,
-        status: index === 0 ? 1 : 0, // 첫 시트 활성화
+        status: index === 0 ? 1 : 0,
         order: index,
         data: []
       }));
@@ -220,13 +201,12 @@
       lang: 'ko',
       title: '헬로CN닥스',
       data: sheetData,
-      showinfobar: false, // 자체 상단바 숨김 (커스텀 헤더 사용)
+      showinfobar: false,
       enableAddRow: true,
-      enableAddBackTop: true,
+      enableAddBackTop: true
     });
   }
 
-  // 전체 시트 데이터 수동 저장
   document.getElementById('btn-save-cloud').addEventListener('click', async () => {
     try {
       const allData = luckysheet.getAllSheets();
@@ -234,7 +214,7 @@
         content: JSON.stringify(allData),
         timestamp: new Date()
       });
-      alert("클라우드에 안전하게 저장되었습니다.");
+      alert("데이터가 클라우드에 성공적으로 저장되었습니다.");
     } catch (error) {
       alert("저장 실패: " + error.message);
     }
