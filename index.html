@@ -1,756 +1,235 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HelloConnectN Docs</title>
-    
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- Quill.js for Rich Text Editor -->
-    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
-    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+  <meta charset="UTF-8">
+  <title>헬로CN닥스 - 웹 엑셀 시스템</title>
+  
+  <!-- Jspreadsheet (엑셀 UI 라이브러리) -->
+  <script src="https://bossanova.uk/jspreadsheet/v4/jexcel.js"></script>
+  <link rel="stylesheet" href="https://bossanova.uk/jspreadsheet/v4/jexcel.css" type="text/css" />
+  <script src="https://jsuites.net/v4/jsuites.js"></script>
+  <link rel="stylesheet" href="https://jsuites.net/v4/jsuites.css" type="text/css" />
 
-    <!-- FontAwesome for Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #f3f4f6;
-        }
-
-        /* Tailwind Preflight overrides for Quill editor to show lists correctly */
-        .ql-editor ul {
-            list-style-type: disc !important;
-            padding-left: 1.5em !important;
-        }
-        .ql-editor ol {
-            list-style-type: decimal !important;
-            padding-left: 1.5em !important;
-        }
-        .ql-editor h1 { font-size: 2em !important; font-weight: bold !important; margin-bottom: 0.5em !important; }
-        .ql-editor h2 { font-size: 1.5em !important; font-weight: bold !important; margin-bottom: 0.5em !important; }
-        
-        /* Document Paper Style */
-        .doc-paper {
-            min-height: 1056px; /* A4 Ratio approx */
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-        }
-
-        .ql-toolbar.ql-snow {
-            border: none;
-            border-bottom: 1px solid #e5e7eb;
-            background-color: white;
-            position: sticky;
-            top: 0;
-            z-index: 10;
-            padding: 12px;
-        }
-        
-        .ql-container.ql-snow {
-            border: none;
-        }
-    </style>
+  <style>
+    body { font-family: 'Malgun Gothic', sans-serif; padding: 20px; background: #f4f5f7; }
+    .container { max-width: 1200px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .screen { display: none; }
+    .active { display: block; }
+    .input-group { margin-bottom: 15px; }
+    .input-group input, .input-group select { padding: 10px; width: 250px; border: 1px solid #ccc; border-radius: 4px; }
+    .input-group span { font-weight: bold; margin-left: 5px; color: #555; }
+    button { padding: 10px 20px; background: #0056b3; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #004494; }
+    .header-bar { display: flex; justify-content: space-between; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+  </style>
 </head>
-<body class="text-gray-800 h-screen overflow-hidden flex flex-col">
+<body>
 
-    <!-- Modal Overlay (Hidden by default) -->
-    <div id="modalOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-96 max-w-full m-4">
-            <h3 id="modalTitle" class="text-lg font-bold mb-2">알림</h3>
-            <p id="modalMessage" class="text-gray-600 mb-6"></p>
-            <div class="text-right">
-                <button onclick="closeModal()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition">확인</button>
-            </div>
-        </div>
+<div class="container">
+  <!-- 로그인 화면 -->
+  <div id="login-screen" class="screen active">
+    <h2>헬로CN닥스 로그인</h2>
+    <div class="input-group">
+      <input type="text" id="login-id" placeholder="아이디 (예: suby20)">
+      <span>@helloconnectn.com</span>
+    </div>
+    <div class="input-group">
+      <input type="password" id="login-pw" placeholder="비밀번호">
+    </div>
+    <button id="btn-login">로그인</button>
+  </div>
+
+  <!-- 메인 작업 화면 -->
+  <div id="main-screen" class="screen">
+    <div class="header-bar">
+      <div>
+        <h3 id="user-info-display">사용자 정보</h3>
+      </div>
+      <div>
+        <button id="btn-show-admin" style="display: none; background: #28a745;">관리자 패널</button>
+        <button id="btn-logout" style="background: #dc3545;">로그아웃</button>
+      </div>
     </div>
 
-    <!-- Login Screen -->
-    <div id="loginScreen" class="flex-1 flex items-center justify-center bg-gray-50 z-40 absolute inset-0">
-        <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
-            <div class="text-center mb-8">
-                <div class="bg-blue-600 text-white w-12 h-12 rounded-lg flex items-center justify-center mx-auto mb-4 text-2xl">
-                    <i class="fa-solid fa-file-word"></i>
-                </div>
-                <h1 class="text-2xl font-bold text-gray-900">HelloConnectN Docs</h1>
-                <p class="text-gray-500 text-sm mt-1">업무용 계정으로 로그인하세요</p>
-            </div>
-
-            <form id="loginForm" class="space-y-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">아이디</label>
-                    <div class="flex rounded-md shadow-sm">
-                        <input type="text" id="loginId" required class="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="userid">
-                        <span class="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
-                            @helloconnectn.com
-                        </span>
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">비밀번호</label>
-                    <input type="password" id="loginPassword" required class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                </div>
-                <button type="submit" class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                    로그인
-                </button>
-            </form>
-            
-            <!-- Hidden init button for very first setup -->
-            <div class="mt-4 text-center">
-                <button id="initAdminBtn" class="text-xs text-gray-400 hover:text-gray-600 hidden">최초 관리자 생성 (시스템 초기화)</button>
-            </div>
-        </div>
+    <!-- 엑셀 시트 영역 -->
+    <div id="spreadsheet-container">
+      <div id="spreadsheet"></div>
+      <br>
+      <button id="btn-save-sheet">데이터 서버 저장</button>
     </div>
 
-    <!-- Main Dashboard -->
-    <div id="mainDashboard" class="flex h-screen hidden">
-        <!-- Sidebar -->
-        <div class="w-64 bg-gray-900 text-white flex flex-col">
-            <div class="p-4 flex items-center space-x-3 border-b border-gray-800">
-                <div class="bg-blue-500 text-white w-8 h-8 rounded flex items-center justify-center">
-                    <i class="fa-solid fa-file-word"></i>
-                </div>
-                <span class="font-bold text-lg tracking-wider">DOCS</span>
-            </div>
-            
-            <div class="p-4 flex-1">
-                <div class="mb-6">
-                    <p class="text-xs text-gray-400 uppercase tracking-wider mb-2">메뉴</p>
-                    <nav class="space-y-1">
-                        <button onclick="navigate('documents')" id="nav-documents" class="w-full flex items-center space-x-3 px-3 py-2 rounded-md bg-gray-800 text-white">
-                            <i class="fa-regular fa-folder-open w-5 text-center"></i>
-                            <span>모든 문서</span>
-                        </button>
-                        <button onclick="navigate('admin')" id="nav-admin" class="w-full flex items-center space-x-3 px-3 py-2 rounded-md text-gray-400 hover:bg-gray-800 hover:text-white hidden">
-                            <i class="fa-solid fa-users-gear w-5 text-center"></i>
-                            <span>사용자 관리</span>
-                        </button>
-                    </nav>
-                </div>
-            </div>
-
-            <!-- User Profile & Logout -->
-            <div class="p-4 border-t border-gray-800">
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-3 overflow-hidden">
-                        <div class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-bold" id="sidebarUserInitials">
-                            U
-                        </div>
-                        <div class="flex flex-col truncate">
-                            <span class="text-sm font-medium truncate" id="sidebarUserName">사용자</span>
-                            <span class="text-xs text-gray-400 truncate" id="sidebarUserRole">부서명</span>
-                        </div>
-                    </div>
-                    <button onclick="handleLogout()" class="text-gray-400 hover:text-white" title="로그아웃">
-                        <i class="fa-solid fa-right-from-bracket"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Content Area -->
-        <div class="flex-1 flex flex-col h-screen overflow-hidden bg-gray-50 relative">
-            
-            <!-- Documents View -->
-            <div id="viewDocuments" class="flex-1 p-8 overflow-y-auto hidden">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-gray-800">문서 보관함</h2>
-                    <button onclick="createNewDocument()" class="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 shadow flex items-center space-x-2">
-                        <i class="fa-solid fa-plus"></i>
-                        <span>새 문서 작성</span>
-                    </button>
-                </div>
-                
-                <div class="bg-white rounded-lg shadow border border-gray-200">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">제목</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">작성자</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">최종 수정일</th>
-                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">관리</th>
-                            </tr>
-                        </thead>
-                        <tbody id="docsTableBody" class="bg-white divide-y divide-gray-200">
-                            <!-- Docs will be injected here -->
-                        </tbody>
-                    </table>
-                    <div id="noDocsMsg" class="p-8 text-center text-gray-500 hidden">
-                        저장된 문서가 없습니다. 새로운 문서를 작성해보세요.
-                    </div>
-                </div>
-            </div>
-
-            <!-- Editor View -->
-            <div id="viewEditor" class="flex-1 flex flex-col hidden h-full overflow-hidden bg-gray-100">
-                <!-- Editor Topbar -->
-                <div class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between shrink-0">
-                    <div class="flex items-center space-x-4 flex-1">
-                        <button onclick="navigate('documents')" class="text-gray-500 hover:text-gray-800">
-                            <i class="fa-solid fa-arrow-left text-lg"></i>
-                        </button>
-                        <input type="text" id="docTitleInput" class="text-xl font-medium text-gray-800 bg-transparent border-none focus:ring-0 p-1 flex-1 outline-none hover:bg-gray-50 focus:bg-white rounded transition" placeholder="제목 없는 문서" value="제목 없는 문서">
-                    </div>
-                    <div class="flex items-center space-x-3 ml-4">
-                        <span id="saveStatus" class="text-xs text-gray-400">저장됨</span>
-                        <button onclick="saveDocument()" class="bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-blue-700 shadow font-medium">
-                            저장
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Editor Scrollable Area -->
-                <div class="flex-1 overflow-y-auto flex justify-center p-8">
-                    <!-- The Paper -->
-                    <div class="bg-white doc-paper w-full max-w-4xl rounded-sm flex flex-col">
-                        <!-- Quill Toolbar will be injected here by JS -->
-                        <div id="quillEditor" class="flex-1 p-8 text-base"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Admin View -->
-            <div id="viewAdmin" class="flex-1 p-8 overflow-y-auto hidden">
-                <div class="flex justify-between items-center mb-6">
-                    <div>
-                        <h2 class="text-2xl font-bold text-gray-800">사용자 계정 관리</h2>
-                        <p class="text-sm text-gray-500 mt-1">시스템에 접근할 수 있는 사내 사용자를 관리합니다.</p>
-                    </div>
-                    <button onclick="openAddUserModal()" class="bg-gray-800 text-white px-4 py-2 rounded-md hover:bg-gray-900 shadow flex items-center space-x-2">
-                        <i class="fa-solid fa-user-plus"></i>
-                        <span>새 사용자 추가</span>
-                    </button>
-                </div>
-                
-                <div class="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">아이디 (이메일)</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">성명</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">부서명</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">권한</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">가입일</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTableBody" class="bg-white divide-y divide-gray-200">
-                            <!-- Users will be injected here -->
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-        </div>
+    <!-- 관리자 패널 영역 -->
+    <div id="admin-panel" style="display: none; margin-top: 30px; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: #fafafa;">
+      <h3>신규 계정 발급</h3>
+      <div class="input-group">
+        <input type="text" id="new-id" placeholder="신규 아이디"> <span>@helloconnectn.com</span>
+      </div>
+      <div class="input-group"><input type="text" id="new-name" placeholder="성명"></div>
+      <div class="input-group"><input type="text" id="new-dept" placeholder="부서명"></div>
+      <div class="input-group">
+        <select id="new-role">
+          <option value="user">일반 사용자</option>
+          <option value="admin">관리자</option>
+        </select>
+      </div>
+      <div class="input-group"><input type="password" id="new-pw" placeholder="초기 비밀번호"></div>
+      <button id="btn-create-user">계정 생성</button>
     </div>
+  </div>
+</div>
 
-    <!-- Add User Modal (Admin only) -->
-    <div id="addUserModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden flex items-center justify-center">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md m-4 overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center">
-                <h3 class="text-lg font-bold text-gray-800">새 사용자 추가</h3>
-                <button onclick="closeAddUserModal()" class="text-gray-400 hover:text-gray-600"><i class="fa-solid fa-xmark text-xl"></i></button>
-            </div>
-            <div class="p-6">
-                <form id="addUserForm" class="space-y-4">
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">아이디</label>
-                        <div class="flex rounded-md shadow-sm">
-                            <input type="text" id="newUserId" required class="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-l-md border border-gray-300 focus:ring-blue-500 focus:border-blue-500 sm:text-sm" placeholder="userid">
-                            <span class="inline-flex items-center px-3 rounded-r-md border border-l-0 border-gray-300 bg-gray-50 text-gray-500 sm:text-sm">
-                                @helloconnectn.com
-                            </span>
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">초기 비밀번호</label>
-                        <input type="password" id="newUserPassword" required minlength="6" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">성명</label>
-                            <input type="text" id="newUserName" required class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">부서명</label>
-                            <input type="text" id="newUserDept" required class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700 mb-1">권한</label>
-                        <select id="newUserRole" class="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm">
-                            <option value="사용자">사용자</option>
-                            <option value="관리자">관리자</option>
-                        </select>
-                    </div>
-                    <div class="pt-4 flex justify-end space-x-3">
-                        <button type="button" onclick="closeAddUserModal()" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">취소</button>
-                        <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gray-800 hover:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-900">추가하기</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
-    <!-- Firebase Scripts -->
-    <script type="module">
-        import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+  // TODO: Firebase 콘솔에서 발급받은 실제 환경 설정값으로 교체하세요.
+const firebaseConfig = {
+  apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
+  authDomain: "hellocn-128ba.firebaseapp.com",
+  projectId: "hellocn-128ba",
+  storageBucket: "hellocn-128ba.firebasestorage.app",
+  messagingSenderId: "306539866159",
+  appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
+  measurementId: "G-ETFMQX75CB"
+};
 
-        // Global Env Variables
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'helloconnectn-app';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            /* Fallback or provided config */
-        };
-        const initialToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+  // 기본 앱 초기화 (로그인 및 데이터베이스용)
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
 
-        // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);
-        const db = getFirestore(app);
+  // 계정 생성용 보조 앱 초기화 (관리자 로그아웃 방지)
+  const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+  const secondaryAuth = getAuth(secondaryApp);
 
-        // State
-        let currentUserProfile = null;
-        let quillEditorInstance = null;
-        let currentEditingDocId = null;
+  const domain = "@helloconnectn.com";
+  let sheetInstance = null;
 
-        // DOM Elements
-        const DOM = {
-            loginScreen: document.getElementById('loginScreen'),
-            mainDashboard: document.getElementById('mainDashboard'),
-            loginForm: document.getElementById('loginForm'),
-            initAdminBtn: document.getElementById('initAdminBtn'),
-            
-            navDocs: document.getElementById('nav-documents'),
-            navAdmin: document.getElementById('nav-admin'),
-            
-            views: {
-                documents: document.getElementById('viewDocuments'),
-                editor: document.getElementById('viewEditor'),
-                admin: document.getElementById('viewAdmin')
-            },
-            
-            sidebarUserName: document.getElementById('sidebarUserName'),
-            sidebarUserRole: document.getElementById('sidebarUserRole'),
-            sidebarUserInitials: document.getElementById('sidebarUserInitials'),
-            
-            docsTableBody: document.getElementById('docsTableBody'),
-            noDocsMsg: document.getElementById('noDocsMsg'),
-            usersTableBody: document.getElementById('usersTableBody'),
-            
-            addUserForm: document.getElementById('addUserForm'),
-            docTitleInput: document.getElementById('docTitleInput')
-        };
+  // UI 엘리먼트
+  const loginScreen = document.getElementById('login-screen');
+  const mainScreen = document.getElementById('main-screen');
+  const adminPanel = document.getElementById('admin-panel');
+  const btnShowAdmin = document.getElementById('btn-show-admin');
+  
+  // 로그인 상태 감지
+  onAuthStateChanged(auth, async (user) => {
+    if (user) {
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      const userData = userDoc.data();
+      
+      document.getElementById('user-info-display').innerText = `${userData.name} (${userData.dept}) - ${userData.role === 'admin' ? '관리자' : '사용자'}`;
+      
+      loginScreen.classList.remove('active');
+      mainScreen.classList.add('active');
 
-        // Initialize App Auth State
-        async function initApp() {
-            // Setup Quill
-            quillEditorInstance = new Quill('#quillEditor', {
-                theme: 'snow',
-                modules: {
-                    toolbar: [
-                        [{ 'font': [] }, { 'size': ['small', false, 'large', 'huge'] }],
-                        ['bold', 'italic', 'underline', 'strike'],
-                        [{ 'color': [] }, { 'background': [] }],
-                        [{ 'script': 'sub'}, { 'script': 'super' }],
-                        [{ 'header': 1 }, { 'header': 2 }, 'blockquote', 'code-block'],
-                        [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'indent': '-1'}, { 'indent': '+1' }],
-                        [{ 'align': [] }],
-                        ['link', 'image'],
-                        ['clean']
-                    ]
-                },
-                placeholder: '내용을 입력하세요...'
-            });
+      if (userData.role === 'admin') {
+        btnShowAdmin.style.display = 'inline-block';
+      }
 
-            // Listen to Auth Changes
-            onAuthStateChanged(auth, async (user) => {
-                if (user) {
-                    // Fetch user profile from Firestore
-                    const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'company_users', user.uid);
-                    const userSnap = await getDoc(userRef);
-                    
-                    if (userSnap.exists()) {
-                        currentUserProfile = { uid: user.uid, ...userSnap.data() };
-                        showDashboard();
-                    } else {
-                        // User authenticated but no profile (might be anonymous or custom token system auth)
-                        // If they are not logged in with an actual email account, keep them on login screen.
-                        if (user.isAnonymous || !user.email) {
-                            showLogin();
-                            checkInitialAdminSetup(); 
-                        } else {
-                            // Rare case: Email logged in but no profile.
-                            showModal("오류", "계정 프로필이 존재하지 않습니다. 관리자에게 문의하세요.");
-                            signOut(auth);
-                        }
-                    }
-                } else {
-                    showLogin();
-                    // System mandated: Ensure sandbox auth is present to allow initial queries (like checking if users exist)
-                    try {
-                        if (initialToken) await signInWithCustomToken(auth, initialToken);
-                        else await signInAnonymously(auth);
-                    } catch(e) { console.error("Initial auth failed:", e); }
-                }
-            });
-            
-            // Check if initial admin button is needed
-            checkInitialAdminSetup();
-        }
+      loadSpreadsheet();
+    } else {
+      loginScreen.classList.add('active');
+      mainScreen.classList.remove('active');
+      adminPanel.style.display = 'none';
+      btnShowAdmin.style.display = 'none';
+    }
+  });
 
-        // Check if DB is empty to allow first admin creation
-        async function checkInitialAdminSetup() {
-            try {
-                // Ensure we have some auth before querying (handled by onAuthStateChanged)
-                if (!auth.currentUser) return;
-                const usersCol = collection(db, 'artifacts', appId, 'public', 'data', 'company_users');
-                const usersSnap = await getDocs(usersCol);
-                if (usersSnap.empty) {
-                    DOM.initAdminBtn.classList.remove('hidden');
-                }
-            } catch(e) { console.log("Init check skipped:", e); }
-        }
+  // 로그인 로직
+  document.getElementById('btn-login').addEventListener('click', () => {
+    const id = document.getElementById('login-id').value.trim();
+    const pw = document.getElementById('login-pw').value;
+    if (!id || !pw) return alert("아이디와 비밀번호를 입력하세요.");
+    
+    const email = id + domain;
+    signInWithEmailAndPassword(auth, email, pw).catch(err => alert("로그인 실패: " + err.message));
+  });
 
-        // Login Submit
-        DOM.loginForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const idInput = document.getElementById('loginId').value.trim().replace(/@.*$/, ""); // Strip @ if entered
-            const password = document.getElementById('loginPassword').value;
-            const email = `${idInput}@helloconnectn.com`;
+  // 로그아웃 로직
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    signOut(auth);
+  });
 
-            try {
-                await signInWithEmailAndPassword(auth, email, password);
-                // onAuthStateChanged will handle routing
-            } catch (error) {
-                let msg = "아이디 또는 비밀번호가 올바르지 않습니다.";
-                if (error.code === 'auth/user-not-found') msg = "존재하지 않는 사용자입니다.";
-                showModal("로그인 실패", msg);
-            }
-        });
+  // 관리자 패널 토글
+  btnShowAdmin.addEventListener('click', () => {
+    adminPanel.style.display = adminPanel.style.display === 'none' ? 'block' : 'none';
+  });
 
-        // Initialize First Admin
-        DOM.initAdminBtn.addEventListener('click', async () => {
-            try {
-                const id = "admin";
-                const password = "password123";
-                const email = `${id}@helloconnectn.com`;
-                
-                // Create user
-                const uc = await createUserWithEmailAndPassword(auth, email, password);
-                
-                // Save profile
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'company_users', uc.user.uid);
-                await setDoc(userRef, {
-                    id: id,
-                    email: email,
-                    name: "최고관리자",
-                    department: "경영지원",
-                    role: "관리자",
-                    createdAt: Date.now()
-                });
-                
-                showModal("완료", "초기 관리자 계정이 생성되었습니다.\nID: admin\nPW: password123\n\n자동으로 로그인됩니다.");
-                DOM.initAdminBtn.classList.add('hidden');
-            } catch (error) {
-                showModal("오류", "초기 설정 실패: " + error.message);
-            }
-        });
+  // 신규 계정 발급 로직 (Secondary Auth 사용)
+  document.getElementById('btn-create-user').addEventListener('click', async () => {
+    const newId = document.getElementById('new-id').value.trim();
+    const newName = document.getElementById('new-name').value.trim();
+    const newDept = document.getElementById('new-dept').value.trim();
+    const newRole = document.getElementById('new-role').value;
+    const newPw = document.getElementById('new-pw').value;
+    const email = newId + domain;
 
-        // UI Routing
-        function showLogin() {
-            DOM.loginScreen.classList.remove('hidden');
-            DOM.mainDashboard.classList.add('hidden');
-            document.getElementById('loginPassword').value = '';
-        }
+    if (!newId || !newName || !newDept || !newPw) return alert("모든 항목을 입력하세요.");
 
-        function showDashboard() {
-            DOM.loginScreen.classList.add('hidden');
-            DOM.mainDashboard.classList.remove('hidden');
-            
-            // Setup Sidebar
-            DOM.sidebarUserName.textContent = currentUserProfile.name;
-            DOM.sidebarUserRole.textContent = `${currentUserProfile.department} / ${currentUserProfile.role}`;
-            DOM.sidebarUserInitials.textContent = currentUserProfile.name.charAt(0);
-            
-            if (currentUserProfile.role === '관리자') {
-                DOM.navAdmin.classList.remove('hidden');
-            } else {
-                DOM.navAdmin.classList.add('hidden');
-            }
+    try {
+      // 보조 앱을 통해 계정 생성 (기존 세션 유지)
+      const userCredential = await createUserWithEmailAndPassword(secondaryAuth, email, newPw);
+      const newUserId = userCredential.user.uid;
 
-            navigate('documents');
-        }
+      // Firestore에 사용자 추가 정보 저장
+      await setDoc(doc(db, "users", newUserId), {
+        name: newName,
+        dept: newDept,
+        role: newRole,
+        email: email
+      });
 
-        // Global Navigation
-        window.navigate = function(viewName) {
-            // Update Active Nav Styles
-            [DOM.navDocs, DOM.navAdmin].forEach(el => {
-                el.classList.remove('bg-gray-800', 'text-white');
-                el.classList.add('text-gray-400');
-            });
-            
-            if (viewName === 'documents') {
-                DOM.navDocs.classList.add('bg-gray-800', 'text-white');
-                DOM.navDocs.classList.remove('text-gray-400');
-                showView(DOM.views.documents);
-                loadDocuments();
-            } else if (viewName === 'admin' && currentUserProfile.role === '관리자') {
-                DOM.navAdmin.classList.add('bg-gray-800', 'text-white');
-                DOM.navAdmin.classList.remove('text-gray-400');
-                showView(DOM.views.admin);
-                loadUsers();
-            } else if (viewName === 'editor') {
-                showView(DOM.views.editor);
-            }
-        };
+      // 보조 앱 로그아웃 (초기화)
+      await signOut(secondaryAuth);
+      
+      alert(`${newName} 님의 계정이 성공적으로 생성되었습니다.`);
+      document.getElementById('new-id').value = '';
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-dept').value = '';
+      document.getElementById('new-pw').value = '';
 
-        function showView(activeView) {
-            Object.values(DOM.views).forEach(v => v.classList.add('hidden'));
-            activeView.classList.remove('hidden');
-        }
+    } catch (error) {
+      alert("계정 생성 실패: " + error.message);
+    }
+  });
 
-        // Logout
-        window.handleLogout = async function() {
-            await signOut(auth);
-            currentUserProfile = null;
-        };
+  // 엑셀 시트 초기화 및 데이터 불러오기
+  async function loadSpreadsheet() {
+    const sheetDoc = await getDoc(doc(db, "sheets", "master"));
+    let initialData = sheetDoc.exists() ? JSON.parse(sheetDoc.data().content) : [[]];
 
-        /* ---------------- Admin: User Management ---------------- */
-        async function loadUsers() {
-            const usersCol = collection(db, 'artifacts', appId, 'public', 'data', 'company_users');
-            const snap = await getDocs(usersCol);
-            
-            let html = '';
-            // Sort by createdAt client-side to avoid index requirements (Rule 2)
-            const users = [];
-            snap.forEach(doc => users.push({ uid: doc.id, ...doc.data() }));
-            users.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+    if (sheetInstance) {
+      sheetInstance.destroy();
+    }
 
-            users.forEach(u => {
-                const date = u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '-';
-                const roleBadge = u.role === '관리자' 
-                    ? `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">관리자</span>`
-                    : `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">사용자</span>`;
+    sheetInstance = jspreadsheet(document.getElementById('spreadsheet'), {
+      data: initialData,
+      minDimensions: [20, 20], // 기본 20열 x 20행
+      contextMenu: true,
+      allowInsertColumn: true,
+      allowInsertRow: true,
+      allowDeleteColumn: true,
+      allowDeleteRow: true,
+      allowRenameColumn: true
+    });
+  }
 
-                html += `
-                    <tr>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${u.email}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${u.name}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${u.department}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${roleBadge}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${date}</td>
-                    </tr>
-                `;
-            });
-            DOM.usersTableBody.innerHTML = html;
-        }
+  // 엑셀 시트 데이터 저장
+  document.getElementById('btn-save-sheet').addEventListener('click', async () => {
+    if (!sheetInstance) return;
+    const data = sheetInstance.getData();
+    try {
+      await setDoc(doc(db, "sheets", "master"), {
+        content: JSON.stringify(data),
+        lastUpdated: new Date()
+      });
+      alert("서버에 데이터가 안전하게 저장되었습니다.");
+    } catch (error) {
+      alert("저장 실패: " + error.message);
+    }
+  });
 
-        window.openAddUserModal = function() {
-            document.getElementById('addUserModal').classList.remove('hidden');
-            DOM.addUserForm.reset();
-        };
-
-        window.closeAddUserModal = function() {
-            document.getElementById('addUserModal').classList.add('hidden');
-        };
-
-        DOM.addUserForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (currentUserProfile.role !== '관리자') return;
-
-            const id = document.getElementById('newUserId').value.trim().replace(/@.*$/, "");
-            const pwd = document.getElementById('newUserPassword').value;
-            const name = document.getElementById('newUserName').value.trim();
-            const dept = document.getElementById('newUserDept').value.trim();
-            const role = document.getElementById('newUserRole').value;
-            const email = `${id}@helloconnectn.com`;
-
-            try {
-                // To create a user without logging out the current admin, we initialize a temporary secondary Firebase app
-                const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp_" + Date.now());
-                const secondaryAuth = getAuth(secondaryApp);
-                
-                const uc = await createUserWithEmailAndPassword(secondaryAuth, email, pwd);
-                const newUid = uc.user.uid;
-
-                // Save to Firestore using MAIN app's db
-                const userRef = doc(db, 'artifacts', appId, 'public', 'data', 'company_users', newUid);
-                await setDoc(userRef, {
-                    id: id,
-                    email: email,
-                    name: name,
-                    department: dept,
-                    role: role,
-                    createdAt: Date.now()
-                });
-
-                // Sign out secondary app to clean up
-                await signOut(secondaryAuth);
-                
-                showModal("성공", `${name} 사용자가 성공적으로 등록되었습니다.`);
-                closeAddUserModal();
-                loadUsers();
-            } catch(err) {
-                showModal("사용자 생성 오류", err.message);
-            }
-        });
-
-        /* ---------------- Documents Management ---------------- */
-        async function loadDocuments() {
-            const docsCol = collection(db, 'artifacts', appId, 'public', 'data', 'company_docs');
-            const snap = await getDocs(docsCol);
-            
-            const docs = [];
-            snap.forEach(doc => docs.push({ id: doc.id, ...doc.data() }));
-            
-            // Sort descending by update time in memory
-            docs.sort((a, b) => b.updatedAt - a.updatedAt);
-
-            if (docs.length === 0) {
-                DOM.docsTableBody.innerHTML = '';
-                DOM.noDocsMsg.classList.remove('hidden');
-            } else {
-                DOM.noDocsMsg.classList.add('hidden');
-                let html = '';
-                docs.forEach(d => {
-                    const date = new Date(d.updatedAt).toLocaleString();
-                    html += `
-                        <tr class="hover:bg-gray-50 cursor-pointer transition" onclick="openDocument('${d.id}')">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 flex items-center space-x-2">
-                                <i class="fa-regular fa-file-lines text-blue-500"></i>
-                                <span class="truncate max-w-xs block">${escapeHTML(d.title || '제목 없음')}</span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${escapeHTML(d.authorName)}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${date}</td>
-                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                <button onclick="event.stopPropagation(); deleteDocument('${d.id}')" class="text-red-500 hover:text-red-700 p-2"><i class="fa-solid fa-trash-can"></i></button>
-                            </td>
-                        </tr>
-                    `;
-                });
-                DOM.docsTableBody.innerHTML = html;
-            }
-        }
-
-        window.createNewDocument = function() {
-            currentEditingDocId = null;
-            DOM.docTitleInput.value = '';
-            quillEditorInstance.setContents([]); // Clear editor
-            document.getElementById('saveStatus').textContent = "저장 대기중";
-            navigate('editor');
-        };
-
-        window.openDocument = async function(docId) {
-            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'company_docs', docId);
-            const snap = await getDoc(docRef);
-            
-            if (snap.exists()) {
-                const data = snap.data();
-                currentEditingDocId = docId;
-                DOM.docTitleInput.value = data.title;
-                
-                // Load HTML content into Quill
-                quillEditorInstance.clipboard.dangerouslyPasteHTML(data.content);
-                
-                document.getElementById('saveStatus').textContent = "불러옴";
-                navigate('editor');
-            } else {
-                showModal("오류", "문서를 찾을 수 없습니다.");
-            }
-        };
-
-        window.saveDocument = async function() {
-            if (!currentUserProfile) return;
-
-            const title = DOM.docTitleInput.value.trim() || '제목 없는 문서';
-            const contentHTML = quillEditorInstance.root.innerHTML;
-            const now = Date.now();
-
-            const docData = {
-                title: title,
-                content: contentHTML,
-                authorId: currentUserProfile.uid,
-                authorName: currentUserProfile.name,
-                updatedAt: now
-            };
-
-            try {
-                document.getElementById('saveStatus').textContent = "저장 중...";
-                let docRef;
-
-                if (currentEditingDocId) {
-                    docRef = doc(db, 'artifacts', appId, 'public', 'data', 'company_docs', currentEditingDocId);
-                    await setDoc(docRef, docData, { merge: true });
-                } else {
-                    const docsCol = collection(db, 'artifacts', appId, 'public', 'data', 'company_docs');
-                    const newDoc = doc(docsCol); // Auto-generate ID
-                    currentEditingDocId = newDoc.id;
-                    docData.createdAt = now;
-                    docRef = newDoc;
-                    await setDoc(docRef, docData);
-                }
-                
-                document.getElementById('saveStatus').textContent = "저장 완료";
-                setTimeout(() => { document.getElementById('saveStatus').textContent = ""; }, 2000);
-            } catch (err) {
-                showModal("저장 오류", err.message);
-                document.getElementById('saveStatus').textContent = "저장 실패";
-            }
-        };
-
-        window.deleteDocument = async function(docId) {
-            // Since we can't use window.confirm, we use custom modal for confirmation is tricky in synchronous flow.
-            // For simplicity in this demo, we'll allow immediate delete but warn.
-            // Ideally, implement a confirm modal.
-            try {
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'company_docs', docId);
-                await deleteDoc(docRef);
-                loadDocuments();
-            } catch(e) {
-                showModal("오류", "삭제 실패: " + e.message);
-            }
-        };
-
-
-        /* ---------------- Utilities ---------------- */
-        window.showModal = function(title, message) {
-            document.getElementById('modalTitle').textContent = title;
-            document.getElementById('modalMessage').textContent = message;
-            document.getElementById('modalOverlay').classList.remove('hidden');
-        };
-
-        window.closeModal = function() {
-            document.getElementById('modalOverlay').classList.add('hidden');
-        };
-
-        function escapeHTML(str) {
-            return str.replace(/[&<>'"]/g, 
-                tag => ({
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    "'": '&#39;',
-                    '"': '&quot;'
-                }[tag] || tag)
-            );
-        }
-
-        // Auto-save typing indicator logic
-        quillEditorInstance?.on('text-change', function() {
-            document.getElementById('saveStatus').textContent = "변경사항 있음";
-        });
-        DOM.docTitleInput?.addEventListener('input', () => {
-            document.getElementById('saveStatus').textContent = "변경사항 있음";
-        });
-
-        // Start initialization
-        window.addEventListener('DOMContentLoaded', initApp);
-
-    </script>
+</script>
 </body>
 </html>
