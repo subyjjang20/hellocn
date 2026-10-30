@@ -15,22 +15,22 @@
 
   <style>
     /* 전체 리셋 및 모던 폰트 적용 */
-    body, html { margin: 0; padding: 0; width: 100%; height: 100vh; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; overflow: hidden; }
+    body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; overflow: hidden; }
     
     /* 화면 제어 */
-    .screen { display: none; width: 100%; height: 100%; }
-    .active { display: flex; flex-direction: column; }
+    .screen { display: none; width: 100%; height: 100%; flex-direction: column; }
+    .screen.active { display: flex; }
 
-    /* 로그인 화면 디자인 (Google 스타일) */
+    /* 로그인 화면 디자인 */
     #login-screen { justify-content: center; align-items: center; background: #f0f2f5; }
-    .login-box { background: #ffffff; padding: 48px 40px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); width: 440px; text-align: center; box-sizing: border-box; } /* width 증가 */
+    .login-box { background: #ffffff; padding: 48px 40px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); width: 440px; text-align: center; box-sizing: border-box; }
     .login-logo { width: 50px; height: 50px; background: #1a73e8; color: white; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; margin-bottom: 20px; }
     .login-box h2 { margin: 0 0 30px 0; color: #202124; font-size: 24px; font-weight: 700; }
     
     .id-wrapper { display: flex; align-items: stretch; border: 1px solid #dadce0; border-radius: 8px; overflow: hidden; background: #fff; margin-bottom: 16px; transition: border 0.2s; }
     .id-wrapper:focus-within { border: 1px solid #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.2); }
-    .id-wrapper input { border: none; padding: 14px 16px; flex: 1; outline: none; font-size: 15px; color: #202124; min-width: 0; } /* min-width 추가 */
-    .id-wrapper span { padding: 0 16px; color: #5f6368; font-size: 14px; background: #f8f9fa; border-left: 1px solid #dadce0; display: flex; align-items: center; font-weight: 500; white-space: nowrap; } /* white-space 추가 */
+    .id-wrapper input { border: none; padding: 14px 16px; flex: 1; outline: none; font-size: 15px; color: #202124; min-width: 0; }
+    .id-wrapper span { padding: 0 16px; color: #5f6368; font-size: 14px; background: #f8f9fa; border-left: 1px solid #dadce0; display: flex; align-items: center; font-weight: 500; white-space: nowrap; }
     
     .pw-input { width: 100%; padding: 14px 16px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 15px; margin-bottom: 24px; transition: 0.2s; }
     .pw-input:focus { border: 1px solid #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.2); outline: none; }
@@ -39,7 +39,7 @@
     button.primary-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(26,115,232,0.4); }
 
     /* 메인 화면 헤더 디자인 */
-    .header-bar { height: 64px; min-height: 64px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; } /* flex-shrink 추가 */
+    .header-bar { height: 64px; min-height: 64px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; }
     .header-left { display: flex; align-items: center; gap: 20px; }
     .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; margin-right: 10px; }
     .header-info { font-size: 14px; font-weight: 600; color: #3c4043; background: #f1f3f4; padding: 6px 12px; border-radius: 6px; }
@@ -47,11 +47,7 @@
     /* DB 상태 표시기 */
     .db-status { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #34a853; background: #e6f4ea; padding: 6px 12px; border-radius: 20px; }
     .status-dot { width: 8px; height: 8px; background-color: #34a853; border-radius: 50%; animation: pulse 2s infinite; }
-    @keyframes pulse {
-      0% { box-shadow: 0 0 0 0 rgba(52, 168, 83, 0.6); }
-      70% { box-shadow: 0 0 0 6px rgba(52, 168, 83, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(52, 168, 83, 0); }
-    }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52, 168, 83, 0.6); } 70% { box-shadow: 0 0 0 6px rgba(52, 168, 83, 0); } 100% { box-shadow: 0 0 0 0; } }
     .db-status.saving .status-dot { background-color: #fbbc04; animation: pulse-yellow 1s infinite; }
     .db-status.saving { color: #b08d00; background: #fef7e0; }
     @keyframes pulse-yellow { 0% { box-shadow: 0 0 0 0 rgba(251, 188, 4, 0.6); } 70% { box-shadow: 0 0 0 6px rgba(251, 188, 4, 0); } 100% { box-shadow: 0 0 0 0; } }
@@ -64,13 +60,13 @@
     #btn-logout { background: #fff; color: #5f6368; border: 1px solid #dadce0; }
     #btn-logout:hover { background: #f8f9fa; color: #202124; }
 
-    /* 엑셀 영역 하얗게 나오는 버그 수정 */
-    #spreadsheet-container { flex-grow: 1; width: 100%; position: relative; height: calc(100vh - 64px); } /* height 명시적 지정 */
+    /* 엑셀 영역 크기 강제 고정 */
+    #spreadsheet-container { flex: 1; width: 100vw; position: relative; height: calc(100vh - 64px); background: #fff; }
     #luckysheet { margin: 0; padding: 0; position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
 
-    /* 관리자 팝업 모달 */
+    /* 관리자 팝업 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-    .modal-content { background: white; padding: 32px; border-radius: 16px; width: 440px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); } /* width 증가 */
+    .modal-content { background: white; padding: 32px; border-radius: 16px; width: 440px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
     .modal-header h3 { margin: 0; font-size: 18px; color: #202124; }
     .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #5f6368; padding: 0; }
@@ -81,7 +77,6 @@
 </head>
 <body>
 
-<!-- 로그인 화면 -->
 <div id="login-screen" class="screen active">
   <div class="login-box">
     <div class="login-logo">N</div>
@@ -95,19 +90,15 @@
   </div>
 </div>
 
-<!-- 메인 엑셀 화면 -->
 <div id="main-screen" class="screen">
   <div class="header-bar">
     <div class="header-left">
       <div class="header-title">헬로CN닥스</div>
       <div class="header-info" id="user-info-display">로딩중...</div>
-      
-      <!-- 상단 실시간 DB 연결 상태 표시기 -->
       <div id="db-status-indicator" class="db-status">
         <span class="status-dot"></span>
         <span id="db-status-text">DB 실시간 연결됨</span>
       </div>
-
       <div id="concurrent-users">동시 편집 감지됨: </div>
     </div>
     <div class="header-actions">
@@ -120,7 +111,7 @@
   </div>
 </div>
 
-<!-- 관리자 팝업 -->
+<!-- 계정 발급 모달 -->
 <div id="admin-modal" class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
@@ -169,9 +160,16 @@
   let currentUserInfo = null;
   let saveTimeout;
   let isInitializing = true;
-  let luckysheetInstance = null;
   const dbStatusIndicator = document.getElementById('db-status-indicator');
   const dbStatusText = document.getElementById('db-status-text');
+
+  // 기본 엑셀 템플릿 생성 함수 (데이터 깨짐 방지용)
+  function getDefaultData() {
+    const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
+    return centers.map((center, index) => ({
+      name: center, status: index === 0 ? 1 : 0, order: index, data: []
+    }));
+  }
 
   onAuthStateChanged(auth, async (user) => {
     if (user) {
@@ -183,19 +181,13 @@
       document.getElementById('main-screen').classList.add('active');
       document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
       
-      // 렌더링 지연 해결을 위해 requestAnimationFrame 사용
-      requestAnimationFrame(() => {
-        setTimeout(initExcel, 300); 
-      });
+      // 화면 렌더링 후 0.3초 대기 뒤 엑셀 초기화 시작
+      setTimeout(initExcel, 300);
       listenPresence();
     } else {
       document.getElementById('login-screen').classList.add('active');
       document.getElementById('main-screen').classList.remove('active');
       currentUserInfo = null;
-      if (luckysheetInstance) {
-        luckysheet.destroy();
-        luckysheetInstance = null;
-      }
     }
   });
 
@@ -206,7 +198,10 @@
     signInWithEmailAndPassword(auth, id + domain, pw).catch(err => alert("로그인 실패: " + err.message));
   });
 
-  document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
+  document.getElementById('btn-logout').addEventListener('click', () => {
+    window.location.reload(); // 로그아웃 시 깔끔하게 화면 전체 새로고침
+  });
+
   document.getElementById('btn-show-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'flex');
   document.getElementById('btn-close-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'none');
 
@@ -231,55 +226,66 @@
   });
 
   async function initExcel() {
-    if (luckysheetInstance) return; // 중복 렌더링 방지
+    if (window.luckysheetInstance) return;
 
-    const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
     let sheetData = [];
-
-    if (sheetDoc.exists()) {
-      sheetData = JSON.parse(sheetDoc.data().content);
-    } else {
-      const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
-      sheetData = centers.map((center, index) => ({
-        name: center, status: index === 0 ? 1 : 0, order: index, data: []
-      }));
-    }
-
-    luckysheetInstance = luckysheet.create({
-      container: 'luckysheet',
-      lang: 'ko',
-      title: '헬로CN닥스',
-      data: sheetData,
-      showinfobar: false,
-      showsheetbar: true,
-      enableAddRow: true,
-      enableAddBackTop: true,
-      hook: {
-        updated: function() {
-          if(!isInitializing) autoSaveToCloud();
-        },
-        rangeSelect: function() {
-          if(!isInitializing) updateMyPresence();
+    try {
+      const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
+      if (sheetDoc.exists()) {
+        sheetData = JSON.parse(sheetDoc.data().content);
+        // 만약 과거 저장된 데이터가 비정상적인 형태라면 강제로 초기화
+        if (!Array.isArray(sheetData) || sheetData.length === 0) {
+          console.warn("데이터 형식 오류 감지, 기본 시트로 덮어씁니다.");
+          sheetData = getDefaultData();
         }
+      } else {
+        sheetData = getDefaultData();
       }
-    });
-    isInitializing = false;
+
+      window.luckysheetInstance = true;
+      window.luckysheet.create({
+        container: 'luckysheet',
+        lang: 'ko',
+        title: '헬로CN닥스',
+        data: sheetData,
+        showinfobar: false,
+        showsheetbar: true,
+        enableAddRow: true,
+        enableAddBackTop: true,
+        hook: {
+          updated: function() {
+            if(!isInitializing) autoSaveToCloud();
+          },
+          rangeSelect: function() {
+            if(!isInitializing) updateMyPresence();
+          }
+        }
+      });
+      isInitializing = false;
+
+      // ★ Blank Canvas 해결 핵심 코드: 엑셀 생성 후 강제로 브라우저 사이즈 재조정 이벤트 발생
+      setTimeout(() => {
+        window.dispatchEvent(new Event('resize'));
+      }, 100);
+
+    } catch (err) {
+      console.error("초기화 실패: ", err);
+      alert("엑셀 데이터 로드 중 문제가 발생했습니다. 관리자에게 문의하세요.");
+    }
   }
 
   function autoSaveToCloud() {
     clearTimeout(saveTimeout);
-    
     dbStatusIndicator.classList.add('saving');
     dbStatusText.innerText = "DB 동기화 중...";
 
     saveTimeout = setTimeout(async () => {
       try {
-        const allData = luckysheet.getAllSheets();
+        const allData = window.luckysheet.getAllSheets();
         await setDoc(doc(db, "sheets", "master_doc"), {
           content: JSON.stringify(allData),
           timestamp: new Date().getTime()
         });
-        
         dbStatusIndicator.classList.remove('saving');
         dbStatusText.innerText = "DB 실시간 연결됨";
       } catch (error) {
