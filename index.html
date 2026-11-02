@@ -700,7 +700,6 @@
     }
   });
 
-  // ★ 초기 비밀번호 변경 권한 오류(Missing permissions) 해결: 브라우저 세션 및 클라이언트 플래그 우선 반영
   document.getElementById('btn-force-pw-submit').addEventListener('click', async () => {
     if (!currentUserInfo || !auth.currentUser) return;
     const newPw = document.getElementById('force-new-pw').value;
@@ -726,7 +725,6 @@
         await updatePassword(cred.user, targetAuthPw);
       }
 
-      // DB 업데이트 시도 (보안 규칙 문제로 실패하더라도 세션 상태값 갱신으로 팝업 반복 방지)
       try {
         await setDoc(doc(db, "users", currentUserInfo.uid), {
           pw: newPw,
@@ -823,15 +821,16 @@
         sheetKey: safeKey,
         sheetName: active.name,
         changes: batch,
+        config: active.config || {}, // 테두리 및 서식 설정 변경 실시간 동기화 포함
         updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
         timestamp: Date.now()
       }).catch(() => {});
     }, 80);
   }
 
-  // ==================== 툴바 한글화, 우클릭 한글화 및 천단위(,) 콤마 버튼 추가 ====================
+  // ==================== 상단 툴바 및 우클릭 메뉴 전체 한글화 & 천단위 콤마 버튼 ====================
   function injectKoreanUiAndCommaButton() {
-    // 1. 천단위 콤마 버튼 주입 (백분율 % 아이콘 옆)
+    // 1. 천단위 콤마(,) 버튼 주입
     const toolbar = document.querySelector('.luckysheet-toolbar');
     if (toolbar && !document.getElementById('custom-comma-btn')) {
       const percentBtn = toolbar.querySelector('[data-tips="Percent format"]');
@@ -854,7 +853,7 @@
       }
     }
 
-    // 2. 상단 툴바 및 우클릭 메뉴 한글 매핑 딕셔너리
+    // 2. 상단 툴바 버튼 및 드롭다운 한글화 맵핑
     const koMap = {
       'Undo': '실행 취소', 'Redo': '다시 실행', 'Format painter': '서식 복사', 'Clear format': '서식 지우기',
       'Font': '글꼴', 'Font size': '글자 크기', 'Bold': '굵게', 'Italic': '기울임꼴', 'Strikethrough': '취소선', 'Underline': '밑줄',
@@ -865,17 +864,18 @@
       'Copy': '복사', 'Paste': '붙여넣기', 'Cut': '잘라내기', 'Insert row': '행 삽입', 'Insert column': '열 삽입',
       'Delete row': '행 삭제', 'Delete column': '열 삭제', 'Delete cell': '셀 삭제', 'Clear contents': '내용 지우기',
       'Sort ascending': '오름차순 정렬', 'Sort descending': '내림차순 정렬', 'Insert comment': '메모 삽입',
-      'Rename': '이름 변경', 'Delete': '삭제', 'Hide': '숨기기', 'Copy sheet': '시트 복제', 'Move': '시트 이동'
+      'Rename': '이름 변경', 'Delete': '삭제', 'Hide': '숨기기', 'Copy sheet': '시트 복제', 'Move': '시트 이동',
+      'Automatic': '자동', 'General': '일반', 'Number': '숫자', 'Percent': '백분율', 'Accounting': '회계',
+      'Short date': '간단한 날짜', 'Time': '시간', 'Scientific': '지수', 'Text': '텍스트'
     };
 
-    // 툴바 타이틀 한글화
     document.querySelectorAll('[data-tips]').forEach(el => {
       const tip = el.getAttribute('data-tips');
       if (koMap[tip]) el.setAttribute('title', koMap[tip]);
     });
 
-    // 우클릭 메뉴 텍스트 한글화
-    document.querySelectorAll('.luckysheet-right-menu-item, .luckysheet-cols-menuitem, .luckysheet-mousedown-select-item').forEach(el => {
+    // 우클릭 메뉴 및 드롭다운 전체 한글화 적용
+    document.querySelectorAll('.luckysheet-right-menu-item, .luckysheet-cols-menuitem, .luckysheet-mousedown-select-item, .luckysheet-toolbar-menu-item').forEach(el => {
       const txt = el.innerText.trim();
       if (koMap[txt]) el.innerText = koMap[txt];
     });
@@ -1129,6 +1129,7 @@
     }
   }
 
+  // ==================== 실시간 수신 엔진 (테두리/서식 config 동기화 포함) ====================
   function listenRemoteSheetChanges() {
     let isFirstDelta = true;
     deltaUnsubscribe = onSnapshot(doc(db, "sheets", "realtime_delta"), (docSnap) => {
@@ -1147,6 +1148,11 @@
 
         const targetSheet = liveFiles.find(s => toSafeDocKey(s.index) === d.sheetKey);
         if (!targetSheet) return;
+
+        // 테두리 등 config 변경사항 동기화
+        if (d.config) {
+          targetSheet.config = d.config;
+        }
 
         if (targetSheet.data && Array.isArray(targetSheet.data)) {
           d.changes.forEach(chg => {
