@@ -35,6 +35,7 @@
     
     button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(26,115,232,0.3); }
     button.primary-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(26,115,232,0.4); }
+    button.small-btn { padding: 6px 12px; background: #ea4335; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; }
 
     /* 헤더바 */
     .header-bar { height: 64px; min-height: 64px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; }
@@ -49,7 +50,7 @@
     .db-status.saving { color: #b08d00; background: #fef7e0; }
     @keyframes pulse-yellow { 0% { box-shadow: 0 0 0 0 rgba(251, 188, 4, 0.6); } 70% { box-shadow: 0 0 0 6px rgba(251, 188, 4, 0); } 100% { box-shadow: 0 0 0 0; } }
 
-    #concurrent-users { display: none; background: #e8f0fe; color: #1a73e8; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; border: 1px solid #d2e3fc; }
+    #concurrent-users { display: none; background: #fce8e6; color: #c5221f; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: bold; }
     
     .header-actions button { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; margin-left: 10px; transition: 0.2s; }
     #btn-show-admin { background: #34a853; color: white; }
@@ -61,39 +62,35 @@
     #spreadsheet-container { flex: 1; width: 100vw; position: relative; height: calc(100vh - 64px); background: #fff; }
     #luckysheet { margin: 0; padding: 0; position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
 
-    #loading-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #1a73e8; font-weight: bold; font-size: 16px; }
+    #loading-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #ffffff; z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #1a73e8; font-weight: bold; font-size: 16px; }
     .spinner { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top: 4px solid #1a73e8; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    /* 관리자 패널 팝업 */
-    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-    .modal-content { background: white; padding: 0; border-radius: 12px; width: 550px; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 10px 40px rgba(0,0,0,0.2); overflow: hidden; }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; background: #f8f9fa; border-bottom: 1px solid #eee; }
+    /* 관리자 팝업 탭 디자인 추가 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+    .modal-content { background: white; padding: 32px; border-radius: 16px; width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .modal-header h3 { margin: 0; font-size: 18px; color: #202124; }
     .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #5f6368; padding: 0; }
     
-    .admin-tabs { display: flex; border-bottom: 1px solid #ddd; background: #fff; }
-    .admin-tab { flex: 1; text-align: center; padding: 12px 0; font-weight: 600; cursor: pointer; color: #5f6368; border-bottom: 2px solid transparent; transition: 0.2s; }
-    .admin-tab.active { color: #1a73e8; border-bottom: 2px solid #1a73e8; }
+    .admin-tabs { display: flex; border-bottom: 1px solid #ddd; margin-bottom: 20px; }
+    .tab-btn { flex: 1; padding: 10px; background: none; border: none; font-size: 14px; font-weight: 600; color: #5f6368; cursor: pointer; border-bottom: 3px solid transparent; }
+    .tab-btn.active { color: #1a73e8; border-bottom-color: #1a73e8; }
     
-    .admin-body { padding: 24px; overflow-y: auto; flex: 1; }
-    .admin-section { display: none; }
-    .admin-section.active { display: block; }
-    
-    .admin-body label { display: block; font-size: 13px; color: #5f6368; font-weight: 600; margin-bottom: 6px; }
-    .admin-body input:not(#new-id), .admin-body select { width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+    .modal-view { display: none; }
+    .modal-view.active { display: block; }
+    .modal-content label { display: block; font-size: 13px; color: #5f6368; font-weight: 600; margin-bottom: 6px; }
+    .modal-content input:not(#new-id), .modal-content select { width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
     
     /* 사용자 목록 테이블 */
-    .user-table { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
-    .user-table th, .user-table td { padding: 10px; border-bottom: 1px solid #eee; }
-    .user-table th { background: #f8f9fa; color: #5f6368; font-weight: 600; }
-    .btn-reset { padding: 4px 8px; background: #ea4335; color: white; border: none; border-radius: 4px; font-size: 11px; cursor: pointer; }
-    .btn-reset:hover { background: #c5221f; }
+    .user-table-container { max-height: 300px; overflow-y: auto; }
+    .user-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .user-table th, .user-table td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
+    .user-table th { font-weight: 600; color: #5f6368; background: #f8f9fa; position: sticky; top: 0; }
   </style>
 </head>
 <body>
 
-<!-- 로그인 -->
 <div id="login-screen" class="screen active">
   <div class="login-box">
     <div class="login-logo">N</div>
@@ -107,7 +104,6 @@
   </div>
 </div>
 
-<!-- 메인 -->
 <div id="main-screen" class="screen">
   <div class="header-bar">
     <div class="header-left">
@@ -117,56 +113,63 @@
         <span class="status-dot"></span>
         <span id="db-status-text">DB 연결 준비중</span>
       </div>
-      <div id="concurrent-users">동시 편집 감지됨: </div>
+      <div id="concurrent-users">동시 편집 중: </div>
     </div>
     <div class="header-actions">
-      <button id="btn-show-admin" style="display: none;">관리자 패널</button>
+      <button id="btn-show-admin" style="display: none;">계정 관리(관리자)</button>
       <button id="btn-logout">로그아웃</button>
     </div>
   </div>
   <div id="spreadsheet-container">
     <div id="loading-mask">
       <div class="spinner"></div>
-      <div id="loading-text">엑셀 데이터를 실시간으로 불러오는 중입니다...</div>
+      <div>엑셀 데이터를 불러오는 중입니다...</div>
     </div>
     <div id="luckysheet"></div>
   </div>
 </div>
 
-<!-- 관리자 모달 -->
 <div id="admin-modal" class="modal-overlay">
   <div class="modal-content">
     <div class="modal-header">
-      <h3>시스템 관리 (Admin)</h3>
+      <h3>계정 관리 패널</h3>
       <button id="btn-close-admin" class="close-btn">&times;</button>
     </div>
     <div class="admin-tabs">
-      <div class="admin-tab active" data-target="tab-create">신규 계정 발급</div>
-      <div class="admin-tab" data-target="tab-users">사용자 목록 / 관리</div>
+      <button id="tab-create" class="tab-btn active">신규 발급</button>
+      <button id="tab-list" class="tab-btn">사용자 목록</button>
     </div>
-    <div class="admin-body">
-      <!-- 탭 1: 발급 -->
-      <div id="tab-create" class="admin-section active">
-        <label>아이디</label>
-        <div class="id-wrapper" style="margin-bottom: 16px;">
-          <input type="text" id="new-id" placeholder="사번 입력" style="margin:0; border:none; padding:14px 16px;">
-          <span>@helloconnectn.com</span>
-        </div>
-        <label>성명</label><input type="text" id="new-name" placeholder="예: 홍길동">
-        <label>부서명</label><input type="text" id="new-dept" placeholder="예: 부평센터">
-        <label>권한</label>
-        <select id="new-role">
-          <option value="user">일반 사용자</option>
-          <option value="admin">관리자</option>
-        </select>
-        <label>초기 비밀번호</label><input type="password" id="new-pw" placeholder="6자리 이상">
-        <button id="btn-create-user" class="primary-btn">계정 생성 및 등록</button>
+    
+    <!-- 신규 발급 탭 -->
+    <div id="view-create" class="modal-view active">
+      <label>아이디</label>
+      <div class="id-wrapper" style="margin-bottom: 16px;">
+        <input type="text" id="new-id" placeholder="사번 입력" style="margin:0; border:none; padding:14px 16px;">
+        <span>@helloconnectn.com</span>
       </div>
-      <!-- 탭 2: 목록 -->
-      <div id="tab-users" class="admin-section">
-        <div id="user-list-container">사용자 정보를 불러오는 중입니다...</div>
+      <label>성명</label><input type="text" id="new-name" placeholder="예: 홍길동">
+      <label>부서명</label><input type="text" id="new-dept" placeholder="예: 부평센터">
+      <label>권한</label>
+      <select id="new-role">
+        <option value="user">일반 사용자</option>
+        <option value="admin">관리자</option>
+      </select>
+      <label>초기 비밀번호</label><input type="password" id="new-pw" placeholder="6자리 이상">
+      <button id="btn-create-user" class="primary-btn">계정 생성 및 등록</button>
+    </div>
+
+    <!-- 사용자 목록 탭 -->
+    <div id="view-list" class="modal-view">
+      <div class="user-table-container">
+        <table class="user-table">
+          <thead><tr><th>성명</th><th>부서명</th><th>권한</th><th>비밀번호 초기화</th></tr></thead>
+          <tbody id="user-list-body">
+            <tr><td colspan="4" style="text-align:center;">데이터를 불러오는 중...</td></tr>
+          </tbody>
+        </table>
       </div>
     </div>
+
   </div>
 </div>
 
@@ -195,17 +198,12 @@
   let currentUserInfo = null;
   let saveTimeout;
   let isInitializing = true;
-  let localLastSaveTime = 0; // 양방향 동기화 구분을 위한 로컬 타임스탬프
-
   const dbStatusIndicator = document.getElementById('db-status-indicator');
   const dbStatusText = document.getElementById('db-status-text');
 
-  // 기본 시트(가볍게 설정하여 로딩 최적화)
   function getDefaultData() {
     const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
-    return centers.map((center, index) => ({
-      name: center, status: index === 0 ? 1 : 0, order: index, row: 50, column: 20, celldata: []
-    }));
+    return centers.map((center, index) => ({ name: center, status: index === 0 ? 1 : 0, order: index, row: 50, column: 20, celldata: [] }));
   }
 
   onAuthStateChanged(auth, async (user) => {
@@ -216,14 +214,9 @@
       document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept})`;
       document.getElementById('login-screen').classList.remove('active');
       document.getElementById('main-screen').classList.add('active');
+      document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
       
-      // 관리자 권한 제어
-      if (currentUserInfo.role === 'admin') {
-        document.getElementById('btn-show-admin').style.display = 'inline-block';
-      }
-      
-      // 실시간 데이터 수신 리스너 등록 (양방향 동기화 핵심)
-      listenForDataChanges();
+      initExcel(); 
       listenPresence();
     } else {
       document.getElementById('login-screen').classList.add('active');
@@ -240,60 +233,66 @@
   });
 
   document.getElementById('btn-logout').addEventListener('click', async () => {
-    try { await signOut(auth); window.location.reload(); } catch(err) {}
+    try { await signOut(auth); window.location.reload(); } catch(err) { alert("오류: " + err.message); }
   });
 
-  // 관리자 모달 및 탭 제어
+  // 관리자 팝업 제어 및 탭 전환
   document.getElementById('btn-show-admin').addEventListener('click', () => {
     document.getElementById('admin-modal').style.display = 'flex';
-    loadUserList(); // 모달 열릴 때 사용자 목록 불러오기
   });
-  document.getElementById('btn-close-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'none');
+  document.getElementById('btn-close-admin').addEventListener('click', () => {
+    document.getElementById('admin-modal').style.display = 'none';
+  });
   
-  document.querySelectorAll('.admin-tab').forEach(tab => {
-    tab.addEventListener('click', (e) => {
-      document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
-      e.target.classList.add('active');
-      document.getElementById(e.target.dataset.target).classList.add('active');
-    });
+  document.getElementById('tab-create').addEventListener('click', () => {
+    document.getElementById('tab-create').classList.add('active');
+    document.getElementById('tab-list').classList.remove('active');
+    document.getElementById('view-create').classList.add('active');
+    document.getElementById('view-list').classList.remove('active');
   });
 
-  // 관리자 - 사용자 목록 불러오기
-  async function loadUserList() {
-    const container = document.getElementById('user-list-container');
-    container.innerHTML = "데이터를 불러오는 중...";
+  document.getElementById('tab-list').addEventListener('click', async () => {
+    document.getElementById('tab-list').classList.add('active');
+    document.getElementById('tab-create').classList.remove('active');
+    document.getElementById('view-list').classList.add('active');
+    document.getElementById('view-create').classList.remove('active');
+    
+    // 사용자 목록 불러오기
+    const tbody = document.getElementById('user-list-body');
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">데이터를 불러오는 중...</td></tr>';
+    
     try {
-      const snapshot = await getDocs(collection(db, "users"));
-      let html = `<table class="user-table">
-                    <thead><tr><th>이름</th><th>부서</th><th>권한</th><th>관리</th></tr></thead><tbody>`;
-      snapshot.forEach(docSnap => {
-        const u = docSnap.data();
-        html += `<tr>
-                   <td>${u.name}</td>
-                   <td>${u.dept}</td>
-                   <td>${u.role === 'admin' ? '관리자' : '사용자'}</td>
-                   <td><button class="btn-reset" onclick="window.resetUserPassword('${u.email}')">PW 초기화</button></td>
-                 </tr>`;
+      const querySnapshot = await getDocs(collection(db, "users"));
+      tbody.innerHTML = '';
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${data.name}</td>
+          <td>${data.dept}</td>
+          <td>${data.role === 'admin' ? '관리자' : '사용자'}</td>
+          <td><button class="small-btn reset-pw-btn" data-email="${data.email}">초기화 메일</button></td>
+        `;
+        tbody.appendChild(tr);
       });
-      html += `</tbody></table>`;
-      container.innerHTML = html;
-    } catch (err) {
-      container.innerHTML = "목록을 불러오지 못했습니다.";
-    }
-  }
 
-  // 관리자 - 비밀번호 초기화 (이메일 발송)
-  window.resetUserPassword = async (email) => {
-    if(confirm(`${email} 계정의 비밀번호 초기화 메일을 발송하시겠습니까?\n(보안 정책상 관리자가 임의로 비밀번호를 지정할 수 없으며, 사용자가 메일을 통해 재설정해야 합니다.)`)) {
-      try {
-        await sendPasswordResetEmail(auth, email);
-        alert("초기화 이메일이 발송되었습니다.");
-      } catch (err) {
-        alert("이메일 발송 실패: " + err.message);
-      }
+      document.querySelectorAll('.reset-pw-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const email = e.target.getAttribute('data-email');
+          if (confirm(`${email} 계정의 비밀번호 초기화 메일을 발송하시겠습니까?`)) {
+            try {
+              await sendPasswordResetEmail(auth, email);
+              alert('초기화 메일이 성공적으로 발송되었습니다.');
+            } catch (err) {
+              alert('메일 발송 실패: ' + err.message);
+            }
+          }
+        });
+      });
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">불러오기 실패: ${err.message}</td></tr>`;
     }
-  };
+  });
 
   document.getElementById('btn-create-user').addEventListener('click', async () => {
     const id = document.getElementById('new-id').value.trim();
@@ -303,109 +302,102 @@
     const role = document.getElementById('new-role').value;
 
     if (!id || !pw || !name || !dept) return alert("모든 항목을 입력하세요.");
+
     try {
       const userCred = await createUserWithEmailAndPassword(secondaryAuth, id + domain, pw);
       await setDoc(doc(db, "users", userCred.user.uid), { name, dept, role, email: id + domain });
       await signOut(secondaryAuth);
       alert(`[${name}] 계정 발급 완료`);
-      loadUserList(); // 생성 후 목록 갱신
-      ['new-id', 'new-name', 'new-dept', 'new-pw'].forEach(el => document.getElementById(el).value = '');
+      document.getElementById('new-id').value = '';
+      document.getElementById('new-pw').value = '';
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-dept').value = '';
     } catch (error) {
       alert("발급 에러: " + error.message);
     }
   });
 
-  // ★ 양방향 실시간 동기화 리스너 (다른 사람이 수정 시 내 화면 업데이트)
-  function listenForDataChanges() {
-    onSnapshot(doc(db, "sheets", "master_doc"), (docSnap) => {
-      if (docSnap.exists()) {
-        const remoteData = docSnap.data();
-        // 내가 마지막으로 저장한 시간보다 서버 데이터가 2초 이상 최신일 경우 (다른 사람이 수정한 경우)
-        if (remoteData.timestamp > localLastSaveTime + 2000) {
-          try {
-            const parsedData = JSON.parse(remoteData.content);
-            renderLuckysheet(parsedData);
-          } catch(e) {
-            renderLuckysheet(getDefaultData());
+  async function initExcel() {
+    if (window.luckysheetInstance) return;
+    let sheetData = [];
+
+    try {
+      // 1회성 데이터 로드 (무한 로딩/덮어쓰기 버그 원인인 onSnapshot 제거)
+      const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
+      if (sheetDoc.exists() && sheetDoc.data().content) {
+        try {
+          sheetData = JSON.parse(sheetDoc.data().content);
+          if (!Array.isArray(sheetData) || sheetData.length === 0) sheetData = getDefaultData();
+        } catch (parseErr) { sheetData = getDefaultData(); }
+      } else {
+        sheetData = getDefaultData();
+      }
+
+      // 한글 UI 강제 패치
+      let koPatch = {};
+      try {
+        if (window.luckysheet && window.luckysheet.locales && window.luckysheet.locales.en) {
+          koPatch = { functionlist: window.luckysheet.locales.en.functionlist, error: window.luckysheet.locales.en.error, format: window.luckysheet.locales.en.format };
+        }
+      } catch (e) { console.warn(e); }
+
+      window.luckysheetInstance = true;
+      window.luckysheet.create({
+        container: 'luckysheet',
+        lang: 'ko', 
+        title: '헬로CN닥스',
+        data: sheetData,
+        locales: { ko: koPatch },
+        showinfobar: false,
+        showsheetbar: true,
+        enableAddRow: true,
+        enableAddBackTop: true,
+        hook: {
+          updated: function() {
+            if(!isInitializing) autoSaveToCloud();
+          },
+          rangeSelect: function() {
+            if(!isInitializing) updateMyPresence();
           }
         }
-      } else {
-        renderLuckysheet(getDefaultData());
-      }
-    });
-  }
+      });
+      
+      isInitializing = false;
+      document.getElementById('loading-mask').style.display = 'none';
+      dbStatusText.innerText = "DB 연결 완료";
 
-  // 엑셀 화면 렌더링 (한국어 패치 완벽 적용)
-  function renderLuckysheet(sheetData) {
-    isInitializing = true;
-    document.getElementById('loading-mask').style.display = 'flex';
-    document.getElementById('loading-text').innerText = "최신 데이터를 동기화 중입니다...";
-    
-    // 한국어 UI 버그 패치 로직
-    try {
-      if (window.luckysheet && window.luckysheet.locales && window.luckysheet.locales.en) {
-        if(!window.luckysheet.locales.ko) window.luckysheet.locales.ko = {};
-        Object.assign(window.luckysheet.locales.ko, window.luckysheet.locales.en, window.luckysheet.locales.ko);
-      }
-    } catch (e) {}
-
-    // 이전에 생성된 인스턴스가 있다면 파괴하여 메모리 누수 방지
-    if(window.luckysheetInstance) {
-      window.luckysheet.destroy();
+    } catch (err) {
+      document.getElementById('loading-mask').innerHTML = `<div style='color:red;'>데이터 로드 오류: ${err.message}</div>`;
     }
-    
-    window.luckysheetInstance = true;
-    window.luckysheet.create({
-      container: 'luckysheet',
-      lang: 'ko', // 한글 100% 적용
-      title: '헬로CN닥스',
-      data: sheetData,
-      showinfobar: false,
-      showsheetbar: true,
-      enableAddRow: true,
-      enableAddBackTop: true,
-      hook: {
-        updated: function() {
-          if(!isInitializing) autoSaveToCloud();
-        },
-        rangeSelect: function() {
-          if(!isInitializing) updateMyPresence();
-        }
-      }
-    });
-    
-    isInitializing = false;
-    document.getElementById('loading-mask').style.display = 'none';
-    dbStatusText.innerText = "DB 실시간 동기화 됨";
   }
 
-  // 내 변경사항을 서버로 저장
+  // 데이터베이스 강제 동기화(덮어쓰기) 최적화: 3초 타임아웃
   function autoSaveToCloud() {
     clearTimeout(saveTimeout);
     dbStatusIndicator.classList.add('saving');
-    dbStatusText.innerText = "데이터 저장 중...";
+    dbStatusText.innerText = "DB 동기화 중...";
 
     saveTimeout = setTimeout(async () => {
       try {
-        localLastSaveTime = new Date().getTime(); // 내가 저장한 시간 기록 (중복 새로고침 방지용)
         const allData = window.luckysheet.getAllSheets();
         await setDoc(doc(db, "sheets", "master_doc"), {
           content: JSON.stringify(allData),
-          timestamp: localLastSaveTime
+          timestamp: new Date().getTime()
         });
         dbStatusIndicator.classList.remove('saving');
-        dbStatusText.innerText = "DB 실시간 동기화 됨";
+        dbStatusText.innerText = "DB 저장 완료";
       } catch (error) {
-        dbStatusText.innerText = "저장 오류 발생";
+        dbStatusText.innerText = "DB 저장 오류";
       }
-    }, 1000); // 1초 대기 후 전송하여 과부하 방지
+    }, 3000); 
   }
 
-  // 상단 동시 접속자 상태 표시
   function updateMyPresence() {
     if (!currentUserInfo) return;
     setDoc(doc(db, "presence", currentUserInfo.uid), {
-      name: currentUserInfo.name, dept: currentUserInfo.dept, updatedAt: new Date().getTime()
+      name: currentUserInfo.name,
+      dept: currentUserInfo.dept,
+      updatedAt: new Date().getTime()
     });
   }
 
@@ -413,15 +405,16 @@
     onSnapshot(collection(db, "presence"), (snapshot) => {
       let editingUsers = [];
       const now = new Date().getTime();
+      
       snapshot.forEach(docSnap => {
         if(docSnap.id !== currentUserInfo?.uid) {
            const data = docSnap.data();
-           // 최근 30초 내에 움직임이 있는 유저 표시
-           if(now - data.updatedAt < 30000) {
+           if(now - data.updatedAt < 60000) {
              editingUsers.push(`${data.name}(${data.dept})`);
            }
         }
       });
+      
       const badge = document.getElementById("concurrent-users");
       if(editingUsers.length > 0) {
         badge.innerText = `현재 함께 접속 중: ${editingUsers.join(', ')}`;
