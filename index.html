@@ -212,7 +212,7 @@
       <div class="user-list-controls">
         <input type="text" id="user-search-input" class="user-search-input" placeholder="🔍 부서명, 사용자명, 아이디명으로 검색...">
         <span id="user-count-label" class="user-count-label">총 0명</span>
-        <button id="btn-reset-sort" class="sort-reset-btn" title="관리자 우선 → 부서명 가나다순 → 사용자명 가나다순으로 정렬">기본정렉 복귀</button>
+        <button id="btn-reset-sort" class="sort-reset-btn" title="관리자 우선 → 부서명 가나다순 → 사용자명 가나다순으로 정렬">기본정렬 복귀</button>
       </div>
       <div class="user-table-container">
         <table class="user-table">
@@ -410,6 +410,7 @@
     return exp;
   }
 
+  // ★ 테두리(config.borderInfo) 및 스타일 설정이 유실되지 않도록 완벽 보존하는 직렬화
   function serializeSingleSheet(sheet, fallbackIdx = 0) {
     let celldata = [];
     let maxR = 0;
@@ -452,8 +453,9 @@
 
     const rawConfig = sheet.config || {};
     const cleanConfig = { ...rawConfig };
-    if (Array.isArray(cleanConfig.borderInfo) && cleanConfig.borderInfo.length > 4000) {
-      cleanConfig.borderInfo = cleanConfig.borderInfo.slice(0, 4000);
+    // 테두리 정보(borderInfo)가 존재할 경우 용량 한도 내에서 온전하게 보존
+    if (Array.isArray(cleanConfig.borderInfo) && cleanConfig.borderInfo.length > 8000) {
+      cleanConfig.borderInfo = cleanConfig.borderInfo.slice(0, 8000);
     }
 
     return {
@@ -827,7 +829,7 @@
     }, 80);
   }
 
-  // ==================== ★ 강력한 실시간 DOM 감시 기반 전체 메뉴 한글화 엔진 ====================
+  // ==================== ★ 강력한 실시간 DOM 감시 기반 전체 메뉴 한글화 엔진 (하위 서브메뉴 전체 포함) ====================
   function translateAllMenusToKorean() {
     const koDictionary = {
       'Undo': '실행 취소', 'Redo': '다시 실행', 'Format painter': '서식 복사', 'Clear format': '서식 지우기',
@@ -836,8 +838,10 @@
       'Horizontal alignment': '가로 정렬', 'Vertical alignment': '세로 정렬', 'Text wrapping': '텍스트 줄 바꿈',
       'Auto sum': '자동 합계', 'Conditional formatting': '조건부 서식', 'Data validation': '데이터 유효성 검사',
       'Freeze panes': '틀 고정', 'Filter': '필터', 'Chart': '차트', 'Comment': '메모',
-      'Copy': '복사', 'Paste': '붙여넣기', 'Cut': '잘라내기', 'Insert row': '행 삽입', 'Insert column': '열 삽입',
-      'Delete row': '행 삭제', 'Delete column': '열 삭제', 'Delete selected Row': '선택한 행 삭제', 'Delete selected Column': '선택한 컬럼 삭제', 'Cell delete': '셀 삭제', 'Cell delete': '셀 삭제', 'Clear content': '내용 지우기',
+      'Copy': '복사', 'Paste': '붙여넣기', 'Cut': '잘라내기', 
+      'InsertRow': '행 삽입', 'InsertColumn': '열 삽입', 'Insert row': '행 삽입', 'Insert column': '열 삽입',
+      'Delete row': '행 삭제', 'Delete column': '열 삭제', 'Delete selected Row': '선택한 행 삭제', 'Delete selected Column': '선택한 컬럼 삭제', 'Delete cell': '셀 삭제',
+      'Clear content': '내용 지우기', 'Clear contents': '내용 지우기',
       'Matrix operation': '행렬 연산', 'Sort': '정렬', 'Create chart': '차트 생성', 'Insert image': '이미지 삽입',
       'Insert link': '링크 삽입', 'Data verification': '데이터 검증', 'Cell format config': '셀 서식 설정',
       'Copy as': '다른 형식으로 복사', 'Json first line title': 'JSON (첫 줄 제목)', 'Json untitled': 'JSON (제목 없음)',
@@ -850,25 +854,29 @@
       'Percent format': '백분율 서식'
     };
 
-    // 1. 툴바 툴팁 변환
     document.querySelectorAll('[data-tips]').forEach(el => {
       const tip = el.getAttribute('data-tips');
       if (koDictionary[tip]) el.setAttribute('title', koDictionary[tip]);
     });
 
-    // 2. 우클릭 메뉴, 서브메뉴, 드롭다운 텍스트 일괄 변환
-    const targets = document.querySelectorAll(
-      '.luckysheet-right-menu-item, .luckysheet-cols-menuitem, .luckysheet-mousedown-select-item, .luckysheet-toolbar-menu-item, .luckysheet-modal-dialog-title-text, .luckysheet-menubox-cell'
-    );
-    targets.forEach(el => {
-      // 자식 노드가 없는 순수 텍스트 노드이거나 단일 텍스트인 경우 대상 지정
-      const rawText = el.childNodes.length === 1 && el.childNodes[0].nodeType === 3 ? el.innerText.trim() : null;
-      if (rawText && koDictionary[rawText]) {
-        el.innerText = koDictionary[rawText];
+    // 상단 툴바, 우클릭 메뉴, 서브메뉴, 드롭다운 전체 요소를 탐색하여 한글 매칭
+    const selectors = [
+      '.luckysheet-right-menu-item', '.luckysheet-cols-menuitem', '.luckysheet-mousedown-select-item',
+      '.luckysheet-toolbar-menu-item', '.luckysheet-modal-dialog-title-text', '.luckysheet-menubox-cell',
+      'div[class*="menu"]', 'span[class*="menu"]', 'a[class*="menu"]', 'div[class*="item"]'
+    ];
+
+    document.querySelectorAll(selectors.join(', ')).forEach(el => {
+      // 자식 요소가 없고 순수 텍스트만 있는 경우
+      if (el.childNodes.length === 1 && el.childNodes[0].nodeType === 3) {
+        const txt = el.innerText.trim();
+        if (koDictionary[txt]) {
+          el.innerText = koDictionary[txt];
+        }
       } else {
-        // 하위 span이나 텍스트 조각이 포함된 경우 순회하며 치환
+        // 하위 span이나 텍스트 조각이 있는 경우 내부 텍스트 검사
         for (let key in koDictionary) {
-          if (el.innerText === key) {
+          if (el.innerText.trim() === key) {
             el.innerText = koDictionary[key];
             break;
           }
@@ -877,7 +885,6 @@
     });
   }
 
-  // DOM에 메뉴가 동적으로 생성될 때(우클릭 시) 즉시 감지하여 한글화 실행
   function initKoreanObserver() {
     const observer = new MutationObserver((mutations) => {
       let shouldTranslate = false;
@@ -1039,7 +1046,7 @@
 
     requestAnimationFrame(() => {
       renderLuckysheet(sheetData);
-      initKoreanObserver(); // 실시간 메뉴 한글화 감시 시작
+      initKoreanObserver();
 
       isInitializing = false;
       document.getElementById('loading-mask').style.display = 'none';
