@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>헬로CN닥스 - 실시간 웹 엑셀</title>
+  <title>헬로CN 닥스</title>
 
   <!-- Luckysheet UI 라이브러리 -->
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/css/pluginsCss.css' />
@@ -143,7 +143,7 @@
     <div class="login-logo">N</div>
     <h2>헬로CN닥스</h2>
     <div class="id-wrapper">
-      <input type="text" id="login-id" placeholder="아이디 (예: suby20)" autocomplete="username">
+      <input type="text" id="login-id" placeholder="아이디 (이메일 @ 앞부분)" autocomplete="username">
       <span>@helloconnectn.com</span>
     </div>
     <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호 (초기 비밀번호는 아이디와 동일)" autocomplete="current-password">
@@ -155,7 +155,7 @@
 <div id="main-screen" class="screen">
   <div class="header-bar">
     <div class="header-left">
-      <div class="header-title">헬로CN닥스</div>
+      <div class="header-title">헬로CN 닥스</div>
       <div class="header-info" id="user-info-display">확인 중...</div>
       <div id="db-status-indicator" class="db-status">
         <span class="status-dot"></span>
@@ -258,7 +258,7 @@
       <label>성명</label>
       <input type="text" id="new-name" class="form-input" placeholder="예: 홍길동">
       <label>부서명</label>
-      <input type="text" id="new-dept" class="form-input" placeholder="예: 부평센터">
+      <input type="text" id="new-dept" class="form-input" placeholder="예: 영업추진팀">
       <label>권한</label>
       <select id="new-role" class="form-select">
         <option value="user">일반 사용자 (user)</option>
@@ -294,8 +294,6 @@
 
   // 브라우저 탭 고유 세션 ID
   const clientSessionId = "sess_" + Math.random().toString(36).substring(2, 10) + "_" + Date.now();
-
-  // Firestore 단일 문서 제한(1MB) 우회를 위한 안전한 청크 크기 (700KB)
   const MAX_CHUNK_SIZE = 700000;
 
   // 동시 접속자별 고유 색상 팔레트
@@ -311,19 +309,35 @@
     return s.length < 6 ? s.padEnd(6, '#') : s;
   }
 
+  function toSafeDocKey(rawIndex) {
+    return String(rawIndex ?? '0').replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+
   let currentUserInfo = null;
   let saveTimeout = null;
+  let deltaFlushTimeout = null;
   let isInitializing = true;
   let isApplyingRemoteUpdate = false;
   let isSavingInProgress = false;
   let pendingSaveAfterCurrent = false;
   let isLoggingIn = false;
-  let lastSyncedJson = "";
-  let sheetUnsubscribe = null;
+
+  // ★ 핵심 최적화: 시트별 개별 캐시 및 수정된 시트(Dirty Sheet) 추적기
+  const serializedSheetCache = new Map(); // safeKey -> serialized sheet object
+  const sheetVersionMap = new Map();      // safeKey -> timestamp
+  const dirtySheetKeys = new Set();       // 수정이 발생한 시트 키만 기록
+  let structureDirty = false;             // 시트 추가/삭제/이름변경 여부
+  let pendingDeltaCells = [];             // 단일/소량 셀 즉시 전송 큐
+
+  let metaUnsubscribe = null;
+  let deltaUnsubscribe = null;
   let presenceUnsubscribe = null;
   let myUserUnsubscribe = null;
 
   let currentCellState = { r: 0, c: 0, label: "A1", sheetName: "통합대시보드", rect: null };
+  let lastPresenceSentAt = 0;
+  let presenceTimer = null;
+  let lastPresenceSignature = "";
   let latestRemoteUsers = [];
 
   // 계정 관리 리스트 상태 변수
@@ -361,34 +375,36 @@
     }));
   }
 
-  // ==================== 대용량 셀 경량화 및 직렬화/역직렬화 엔진 ====================
+  // ==================== 초고속 셀 경량화 및 시트별 독립 직렬화 엔진 ====================
   function compactCell(cell) {
     if (!cell || typeof cell !== 'object') return null;
     const c = {};
-    if (cell.v !== undefined && cell.v !== null && cell.v !== '') c.v = cell.v;
-    if (cell.m !== undefined && cell.m !== null && cell.m !== '' && String(cell.m) !== String(cell.v)) c.m = cell.m;
-    if (cell.f) c.f = cell.f;
-    if (cell.bg) c.bg = cell.bg;
-    if (cell.fc && cell.fc !== '#000000' && cell.fc !== '#000' && cell.fc !== 'rgb(0, 0, 0)') c.fc = cell.fc;
-    if (cell.bl) c.bl = cell.bl;
-    if (cell.it) c.it = cell.it;
-    if (cell.cl) c.cl = cell.cl;
-    if (cell.un) c.un = cell.un;
-    if (cell.fs && cell.fs !== 10 && cell.fs !== 11) c.fs = cell.fs;
-    if (cell.ff && cell.ff !== 'Times New Roman' && cell.ff !== 0 && cell.ff !== '0') c.ff = cell.ff;
-    if (cell.ht !== undefined && cell.ht !== 1 && cell.ht !== '1' && cell.ht !== 0 && cell.ht !== '0') c.ht = cell.ht;
-    if (cell.vt !== undefined && cell.vt !== 1 && cell.vt !== '1' && cell.vt !== 0 && cell.vt !== '0') c.vt = cell.vt;
-    if (cell.tb !== undefined && cell.tb !== 0 && cell.tb !== '0') c.tb = cell.tb;
-    if (cell.mc) c.mc = cell.mc;
-    if (cell.ps) c.ps = cell.ps;
+    let hasProp = false;
+
+    if (cell.v !== undefined && cell.v !== null && cell.v !== '') { c.v = cell.v; hasProp = true; }
+    if (cell.m !== undefined && cell.m !== null && cell.m !== '' && String(cell.m) !== String(cell.v)) { c.m = cell.m; hasProp = true; }
+    if (cell.f) { c.f = cell.f; hasProp = true; }
+    if (cell.bg) { c.bg = cell.bg; hasProp = true; }
+    if (cell.fc && cell.fc !== '#000000' && cell.fc !== '#000' && cell.fc !== 'rgb(0, 0, 0)') { c.fc = cell.fc; hasProp = true; }
+    if (cell.bl) { c.bl = cell.bl; hasProp = true; }
+    if (cell.it) { c.it = cell.it; hasProp = true; }
+    if (cell.cl) { c.cl = cell.cl; hasProp = true; }
+    if (cell.un) { c.un = cell.un; hasProp = true; }
+    if (cell.fs && cell.fs !== 10 && cell.fs !== 11) { c.fs = cell.fs; hasProp = true; }
+    if (cell.ff && cell.ff !== 'Times New Roman' && cell.ff !== 0 && cell.ff !== '0') { c.ff = cell.ff; hasProp = true; }
+    if (cell.ht !== undefined && cell.ht !== 1 && cell.ht !== '1' && cell.ht !== 0 && cell.ht !== '0') { c.ht = cell.ht; hasProp = true; }
+    if (cell.vt !== undefined && cell.vt !== 1 && cell.vt !== '1' && cell.vt !== 0 && cell.vt !== '0') { c.vt = cell.vt; hasProp = true; }
+    if (cell.tb !== undefined && cell.tb !== 0 && cell.tb !== '0') { c.tb = cell.tb; hasProp = true; }
+    if (cell.mc) { c.mc = cell.mc; hasProp = true; }
+    if (cell.ps) { c.ps = cell.ps; hasProp = true; }
     if (cell.ct) {
       if (cell.ct.s && Array.isArray(cell.ct.s) && cell.ct.s.length > 0) {
-        c.ct = cell.ct;
+        c.ct = cell.ct; hasProp = true;
       } else if (cell.ct.fa && cell.ct.fa !== 'General') {
-        c.ct = { fa: cell.ct.fa, t: cell.ct.t || 'g' };
+        c.ct = { fa: cell.ct.fa, t: cell.ct.t || 'g' }; hasProp = true;
       }
     }
-    return Object.keys(c).length > 0 ? c : null;
+    return hasProp ? c : null;
   }
 
   function expandCell(cell) {
@@ -403,95 +419,167 @@
     return exp;
   }
 
-  function serializeSheets(rawSheets) {
-    if (!Array.isArray(rawSheets)) return [];
-    return rawSheets.map((sheet, idx) => {
-      let celldata = [];
-      let maxR = 0;
-      let maxC = 0;
+  // 전체가 아닌 단일 시트 1개만 빠르게 직렬화
+  function serializeSingleSheet(sheet, fallbackIdx = 0) {
+    let celldata = [];
+    let maxR = 0;
+    let maxC = 0;
 
-      if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
-        for (let r = 0; r < sheet.data.length; r++) {
-          const rowArr = sheet.data[r];
-          if (!rowArr) continue;
-          for (let c = 0; c < rowArr.length; c++) {
-            const rawCell = rowArr[c];
-            if (rawCell !== null && rawCell !== undefined) {
-              const slim = compactCell(rawCell);
-              if (slim) {
-                celldata.push({ r, c, v: slim });
-                if (r > maxR) maxR = r;
-                if (c > maxC) maxC = c;
-              }
+    if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
+      const rLen = sheet.data.length;
+      for (let r = 0; r < rLen; r++) {
+        const rowArr = sheet.data[r];
+        if (!rowArr) continue;
+        const cLen = rowArr.length;
+        for (let c = 0; c < cLen; c++) {
+          const rawCell = rowArr[c];
+          if (rawCell !== null && rawCell !== undefined) {
+            const slim = compactCell(rawCell);
+            if (slim) {
+              celldata.push({ r, c, v: slim });
+              if (r > maxR) maxR = r;
+              if (c > maxC) maxC = c;
             }
           }
         }
-      } else if (sheet.celldata && Array.isArray(sheet.celldata)) {
-        for (let i = 0; i < sheet.celldata.length; i++) {
-          const item = sheet.celldata[i];
-          if (!item) continue;
-          const slim = compactCell(item.v);
-          if (slim) {
-            celldata.push({ r: item.r, c: item.c, v: slim });
-            if (item.r > maxR) maxR = item.r;
-            if (item.c > maxC) maxC = item.c;
-          }
+      }
+    } else if (sheet.celldata && Array.isArray(sheet.celldata)) {
+      const len = sheet.celldata.length;
+      for (let i = 0; i < len; i++) {
+        const item = sheet.celldata[i];
+        if (!item) continue;
+        const slim = compactCell(item.v);
+        if (slim) {
+          celldata.push({ r: item.r, c: item.c, v: slim });
+          if (item.r > maxR) maxR = item.r;
+          if (item.c > maxC) maxC = item.c;
         }
       }
+    }
 
-      // 3,000행 이상 또는 AD열(30열) 이상 붙여넣기 시 실제 데이터 범위에 맞춰 시트 크기 자동 확장
-      const computedRow = Math.max(sheet.row || 50, maxR + 20, 50);
-      const computedCol = Math.max(sheet.column || 20, maxC + 5, 20);
+    const computedRow = Math.max(sheet.row || 50, maxR + 20, 50);
+    const computedCol = Math.max(sheet.column || 20, maxC + 5, 20);
 
-      // config 내 과도한 셀별 테두리 배열(수만 개)이 있을 경우 실제 데이터 영역 내로 정리
-      const rawConfig = sheet.config || {};
-      const cleanConfig = { ...rawConfig };
-      if (Array.isArray(cleanConfig.borderInfo) && cleanConfig.borderInfo.length > 5000) {
-        cleanConfig.borderInfo = cleanConfig.borderInfo.slice(0, 5000);
+    const rawConfig = sheet.config || {};
+    const cleanConfig = { ...rawConfig };
+    if (Array.isArray(cleanConfig.borderInfo) && cleanConfig.borderInfo.length > 4000) {
+      cleanConfig.borderInfo = cleanConfig.borderInfo.slice(0, 4000);
+    }
+
+    return {
+      name: sheet.name || `Sheet${fallbackIdx + 1}`,
+      index: sheet.index !== undefined ? String(sheet.index) : String(fallbackIdx),
+      order: sheet.order !== undefined ? sheet.order : fallbackIdx,
+      status: sheet.status !== undefined ? sheet.status : 0,
+      row: computedRow,
+      column: computedCol,
+      config: cleanConfig,
+      calcChain: sheet.calcChain || [],
+      frozen: sheet.frozen || null,
+      celldata: celldata
+    };
+  }
+
+  function deserializeSingleSheet(sheet, fallbackIdx = 0) {
+    let maxR = 0;
+    let maxC = 0;
+    const rawCells = sheet.celldata || [];
+    const expandedCelldata = new Array(rawCells.length);
+    let writeIdx = 0;
+
+    for (let i = 0; i < rawCells.length; i++) {
+      const item = rawCells[i];
+      if (!item) continue;
+      if (item.r > maxR) maxR = item.r;
+      if (item.c > maxC) maxC = item.c;
+      const exp = expandCell(item.v);
+      if (exp) {
+        expandedCelldata[writeIdx++] = { r: item.r, c: item.c, v: exp };
       }
+    }
+    expandedCelldata.length = writeIdx;
 
-      return {
-        name: sheet.name || `Sheet${idx + 1}`,
-        index: sheet.index !== undefined ? String(sheet.index) : String(idx),
-        order: sheet.order !== undefined ? sheet.order : idx,
-        status: sheet.status !== undefined ? sheet.status : (idx === 0 ? 1 : 0),
-        row: computedRow,
-        column: computedCol,
-        config: cleanConfig,
-        calcChain: sheet.calcChain || [],
-        frozen: sheet.frozen || null,
-        celldata: celldata
-      };
-    });
+    return {
+      ...sheet,
+      index: sheet.index !== undefined ? String(sheet.index) : String(fallbackIdx),
+      order: sheet.order !== undefined ? sheet.order : fallbackIdx,
+      row: Math.max(sheet.row || 50, maxR + 20, 50),
+      column: Math.max(sheet.column || 20, maxC + 5, 20),
+      config: sheet.config || {},
+      celldata: expandedCelldata
+    };
   }
 
-  function deserializeSheets(parsedSheets) {
-    if (!Array.isArray(parsedSheets)) return [];
-    return parsedSheets.map((sheet, idx) => {
-      let maxR = 0;
-      let maxC = 0;
-      const expandedCelldata = (sheet.celldata || []).map(item => {
-        if (!item) return null;
-        if (item.r > maxR) maxR = item.r;
-        if (item.c > maxC) maxC = item.c;
-        return { r: item.r, c: item.c, v: expandCell(item.v) };
-      }).filter(Boolean);
+  // 개별 시트 문서를 Firestore에 저장 (단일 시트가 700KB 초과 시 자동 청크 분할)
+  async function saveSingleSheetDocToFirestore(safeKey, sheetObj, now) {
+    const jsonStr = JSON.stringify(sheetObj);
+    const isCompressed = Boolean(window.LZString);
+    const payloadStr = isCompressed ? window.LZString.compressToBase64(jsonStr) : jsonStr;
+    const docId = `sheet_doc_${safeKey}`;
 
-      return {
-        ...sheet,
-        index: sheet.index !== undefined ? String(sheet.index) : String(idx),
-        order: sheet.order !== undefined ? sheet.order : idx,
-        row: Math.max(sheet.row || 50, maxR + 20, 50),
-        column: Math.max(sheet.column || 20, maxC + 5, 20),
-        config: sheet.config || {},
-        celldata: expandedCelldata
-      };
-    });
+    if (payloadStr.length <= MAX_CHUNK_SIZE) {
+      await setDoc(doc(db, "sheets", docId), {
+        content: payloadStr,
+        isCompressed: isCompressed,
+        isChunked: false,
+        chunkCount: 0,
+        timestamp: now
+      });
+    } else {
+      const chunks = [];
+      for (let i = 0; i < payloadStr.length; i += MAX_CHUNK_SIZE) {
+        chunks.push(payloadStr.slice(i, i + MAX_CHUNK_SIZE));
+      }
+      await Promise.all(chunks.map((chunkData, cIdx) =>
+        setDoc(doc(db, "sheets", `${docId}_chunk_${cIdx}`), {
+          chunkIndex: cIdx,
+          content: chunkData,
+          timestamp: now
+        })
+      ));
+      await setDoc(doc(db, "sheets", docId), {
+        content: "",
+        isCompressed: isCompressed,
+        isChunked: true,
+        chunkCount: chunks.length,
+        timestamp: now
+      });
+    }
   }
 
-  // Firestore에서 압축 또는 다중 분할(Chunked)된 시트 데이터를 복원
-  async function loadFullJsonFromMasterDoc(docData) {
-    if (!docData) return null;
+  // 개별 시트 문서를 Firestore에서 로드
+  async function loadSingleSheetDocFromFirestore(safeKey) {
+    const docId = `sheet_doc_${safeKey}`;
+    const snap = await getDoc(doc(db, "sheets", docId));
+    if (!snap.exists()) return null;
+
+    const docData = snap.data();
+    let payloadStr = "";
+
+    if (docData.isChunked && docData.chunkCount > 0) {
+      const chunkPromises = [];
+      for (let i = 0; i < docData.chunkCount; i++) {
+        chunkPromises.push(getDoc(doc(db, "sheets", `${docId}_chunk_${i}`)));
+      }
+      const chunkSnaps = await Promise.all(chunkPromises);
+      payloadStr = chunkSnaps.map(s => (s.exists() ? (s.data().content || "") : "")).join("");
+    } else {
+      payloadStr = docData.content || "";
+    }
+
+    if (!payloadStr) return null;
+    if (docData.isCompressed && window.LZString) {
+      const decompressed = window.LZString.decompressFromBase64(payloadStr);
+      if (decompressed) return JSON.parse(decompressed);
+    }
+    return JSON.parse(payloadStr);
+  }
+
+  // 기존 통합 master_doc (이전 버전 백업 호환용) 로드 함수
+  async function loadLegacyMasterDoc() {
+    const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
+    if (!sheetDoc.exists()) return null;
+    const docData = sheetDoc.data();
     let payloadStr = "";
 
     if (docData.isChunked && docData.chunkCount > 0) {
@@ -506,12 +594,11 @@
     }
 
     if (!payloadStr) return null;
-
     if (docData.isCompressed && window.LZString) {
       const decompressed = window.LZString.decompressFromBase64(payloadStr);
-      if (decompressed) return decompressed;
+      if (decompressed) return JSON.parse(decompressed);
     }
-    return payloadStr;
+    return JSON.parse(payloadStr);
   }
 
   // ==================== 로그인 실행 및 엔터키(Enter) 완벽 연동 ====================
@@ -615,7 +702,7 @@
           forceModal.style.display = 'none';
         }
 
-        updateMyPresence();
+        schedulePresenceUpdate(true);
       });
 
       listenPresence();
@@ -674,7 +761,8 @@
 
   // 로그아웃
   document.getElementById('btn-logout').addEventListener('click', async () => {
-    if (sheetUnsubscribe) sheetUnsubscribe();
+    if (metaUnsubscribe) metaUnsubscribe();
+    if (deltaUnsubscribe) deltaUnsubscribe();
     if (presenceUnsubscribe) presenceUnsubscribe();
     if (myUserUnsubscribe) myUserUnsubscribe();
     if (clientSessionId) {
@@ -688,7 +776,8 @@
     if (window.luckysheet && typeof window.luckysheet.exitEditMode === 'function') {
       window.luckysheet.exitEditMode();
     }
-    saveToCloudNow(true);
+    markActiveSheetDirty();
+    saveDirtySheetsToCloud(true);
   });
 
   function getSelectedCellRect() {
@@ -702,6 +791,56 @@
     };
   }
 
+  function getActiveSheetObj() {
+    if (window.luckysheet && typeof window.luckysheet.getluckysheetfile === 'function') {
+      const files = window.luckysheet.getluckysheetfile();
+      if (files && files.length > 0) {
+        return files.find(s => s.status == 1) || files[0];
+      }
+    }
+    return null;
+  }
+
+  function getActiveSheetName() {
+    const active = getActiveSheetObj();
+    return active ? active.name : "통합대시보드";
+  }
+
+  // 현재 활성 시트만 수정됨(Dirty)으로 표시 (다른 시트는 재직렬화하지 않음)
+  function markActiveSheetDirty() {
+    const active = getActiveSheetObj();
+    if (active) {
+      dirtySheetKeys.add(toSafeDocKey(active.index));
+    }
+  }
+
+  // 단일 셀 변경 시 0.1초 만에 다른 접속자에게 델타(Delta) 패킷 전송 (전체 시트 전송 생략)
+  function queueRealtimeCellDelta(r, c, newVal) {
+    const active = getActiveSheetObj();
+    if (!active) return;
+    const safeKey = toSafeDocKey(active.index);
+    pendingDeltaCells.push({
+      r: r,
+      c: c,
+      v: compactCell(newVal)
+    });
+
+    clearTimeout(deltaFlushTimeout);
+    deltaFlushTimeout = setTimeout(() => {
+      if (pendingDeltaCells.length === 0) return;
+      const batch = pendingDeltaCells.splice(0, 100);
+      setDoc(doc(db, "sheets", "realtime_delta"), {
+        sessionId: clientSessionId,
+        sheetKey: safeKey,
+        sheetName: active.name,
+        changes: batch,
+        updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
+        timestamp: Date.now()
+      }).catch(() => {});
+    }, 80);
+  }
+
+  // 엑셀 렌더링 (단순 클릭/이동 시에는 무거운 저장 로직이 절대 실행되지 않도록 분리)
   function renderLuckysheet(sheetData) {
     window.luckysheet.create({
       container: 'luckysheet',
@@ -713,33 +852,44 @@
       enableAddRow: true,
       enableAddBackTop: true,
       hook: {
-        cellUpdated: function() {
-          if (!isInitializing && !isApplyingRemoteUpdate) triggerAutoSave(200);
+        // 1. 셀 값이 변경되었을 때만 실행 (단순 클릭 시에는 실행 안 됨)
+        cellUpdated: function(r, c, oldVal, newVal) {
+          if (isInitializing || isApplyingRemoteUpdate) return;
+          markActiveSheetDirty();
+          queueRealtimeCellDelta(r, c, newVal);
+          triggerAutoSave(1200);
         },
-        updated: function() {
-          if (!isInitializing && !isApplyingRemoteUpdate) triggerAutoSave(250);
+        // 2. 붙여넣기, 서식 변경, 테두리, 병합, 행/열 추가·삭제 시 실행
+        updated: function(operate) {
+          if (isInitializing || isApplyingRemoteUpdate) return;
+          markActiveSheetDirty();
+          if (operate && ['addSheet', 'deleteSheet', 'sheetName'].includes(operate.type)) {
+            structureDirty = true;
+          }
+          triggerAutoSave(1000);
         },
-        sheetActivate: function(index) {
+        // 3. 시트 탭 전환 시 (단순 조회이므로 저장하지 않고 커서 위치만 갱신)
+        sheetActivate: function() {
           setTimeout(() => {
-            updateMyPresence();
+            currentCellState.sheetName = getActiveSheetName();
+            schedulePresenceUpdate(false);
             renderRemoteCellCursors();
-          }, 80);
+          }, 60);
         },
+        // 4. 셀 클릭/선택 이동 시 (저장 루프 제거! 커서 위치만 가볍게 공유)
         rangeSelect: function(sheet, range) {
-          if (!isInitializing) {
-            if (range && range[0] && range[0].row && range[0].column) {
-              const r = range[0].row[0];
-              const c = range[0].column[0];
-              currentCellState = {
-                r: r,
-                c: c,
-                label: `${colToLetter(c)}${r + 1}`,
-                sheetName: sheet?.name || getActiveSheetName(),
-                rect: getSelectedCellRect()
-              };
-            }
-            updateMyPresence();
-            if (!isApplyingRemoteUpdate) triggerAutoSave(250);
+          if (isInitializing) return;
+          if (range && range[0] && range[0].row && range[0].column) {
+            const r = range[0].row[0];
+            const c = range[0].column[0];
+            currentCellState = {
+              r: r,
+              c: c,
+              label: `${colToLetter(c)}${r + 1}`,
+              sheetName: sheet?.name || getActiveSheetName(),
+              rect: getSelectedCellRect()
+            };
+            schedulePresenceUpdate(false);
           }
         }
       }
@@ -748,40 +898,53 @@
     setTimeout(() => renderRemoteCellCursors(), 200);
   }
 
-  function getActiveSheetName() {
-    if (window.luckysheet && typeof window.luckysheet.getluckysheetfile === 'function') {
-      const files = window.luckysheet.getluckysheetfile();
-      const active = files ? files.find(s => s.status == 1) : null;
-      if (active) return active.name;
-    }
-    return "통합대시보드";
-  }
-
+  // 초기 엑셀 로드 (새 시트별 분할 구조 우선 로드 + 기존 master_doc 데이터 자동 무손실 마이그레이션)
   async function initExcel() {
     if (window.luckysheetInstance) return;
     window.luckysheetInstance = true;
 
     let sheetData = null;
-    let needsCleanupSave = false;
+    let migratedFromLegacy = false;
 
     try {
-      const fetchPromise = getDoc(doc(db, "sheets", "master_doc"));
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 12000));
-      
-      const sheetDoc = await Promise.race([fetchPromise, timeoutPromise]);
-      if (sheetDoc && sheetDoc.exists()) {
-        const docData = sheetDoc.data();
-        const fullJsonStr = await loadFullJsonFromMasterDoc(docData);
-        if (fullJsonStr) {
-          const parsed = JSON.parse(fullJsonStr);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            if (parsed.some(s => s.data && s.data.length > 0) || !docData.isCompressed) {
-              needsCleanupSave = true;
+      const metaSnap = await getDoc(doc(db, "sheets", "workbook_meta"));
+      if (metaSnap.exists() && Array.isArray(metaSnap.data().sheetOrder) && metaSnap.data().sheetOrder.length > 0) {
+        const metaList = metaSnap.data().sheetOrder;
+        const loadedSheets = await Promise.all(
+          metaList.map(async (m, idx) => {
+            const sKey = m.safeKey || toSafeDocKey(m.index);
+            const sObj = await loadSingleSheetDocFromFirestore(sKey);
+            if (sObj) {
+              sObj.name = m.name || sObj.name;
+              sObj.index = String(m.index);
+              sObj.order = idx;
+              sObj.status = idx === 0 ? 1 : 0;
+              serializedSheetCache.set(sKey, sObj);
+              sheetVersionMap.set(sKey, m.updatedAt || 0);
+              return deserializeSingleSheet(sObj, idx);
             }
-            const slimmed = serializeSheets(parsed);
-            lastSyncedJson = JSON.stringify(slimmed);
-            sheetData = deserializeSheets(slimmed);
-          }
+            return null;
+          })
+        );
+        const validSheets = loadedSheets.filter(Boolean);
+        if (validSheets.length > 0) {
+          sheetData = validSheets;
+        }
+      }
+
+      // 아직 시트별 분할 메타 문서가 없다면 기존에 붙여넣어 저장된 master_doc에서 자동 복원
+      if (!sheetData) {
+        const legacyParsed = await loadLegacyMasterDoc();
+        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+          sheetData = legacyParsed.map((s, idx) => {
+            const slim = serializeSingleSheet(s, idx);
+            const sKey = toSafeDocKey(slim.index);
+            serializedSheetCache.set(sKey, slim);
+            dirtySheetKeys.add(sKey);
+            return deserializeSingleSheet(slim, idx);
+          });
+          structureDirty = true;
+          migratedFromLegacy = true;
         }
       }
     } catch (err) {
@@ -790,8 +953,11 @@
 
     if (!sheetData) {
       const defaults = getDefaultData();
-      lastSyncedJson = JSON.stringify(defaults);
-      sheetData = deserializeSheets(defaults);
+      sheetData = defaults.map((s, idx) => {
+        const sKey = toSafeDocKey(s.index);
+        serializedSheetCache.set(sKey, s);
+        return deserializeSingleSheet(s, idx);
+      });
     }
 
     requestAnimationFrame(() => {
@@ -802,48 +968,46 @@
       dbStatusIndicator.classList.remove('saving', 'error', 'syncing');
       dbStatusText.innerText = "DB 실시간 연결됨";
 
-      if (needsCleanupSave) {
-        saveToCloudNow(true);
+      // 기존 master_doc 데이터를 읽은 경우 백그라운드에서 시트별 고속 분할 구조로 자동 이관
+      if (migratedFromLegacy) {
+        setTimeout(() => saveDirtySheetsToCloud(true), 500);
       }
 
       const container = document.getElementById('spreadsheet-container');
-      // 대용량 붙여넣기(Ctrl+V) 감지 시 시트 파싱이 끝난 후 압축 저장 실행
+      // 대용량 붙여넣기(Ctrl+V) 감지
       container.addEventListener('paste', () => {
         if (isInitializing || isApplyingRemoteUpdate) return;
+        markActiveSheetDirty();
         dbStatusIndicator.classList.add('saving');
         dbStatusText.innerText = "대용량 붙여넣기 처리 중...";
-        triggerAutoSave(600);
+        triggerAutoSave(900);
       });
+
+      // Delete / Backspace 키로 셀 내용 삭제 시 감지 (단순 방향키 이동은 무시하여 멈춤 방지)
       container.addEventListener('keyup', (e) => {
         if (isInitializing || isApplyingRemoteUpdate) return;
-        if (['Enter', 'Tab', 'Delete', 'Backspace'].includes(e.key) || e.ctrlKey || e.metaKey) {
-          triggerAutoSave(300);
+        if (['Delete', 'Backspace'].includes(e.key) || ((e.ctrlKey || e.metaKey) && ['v', 'x', 'z', 'y'].includes(e.key.toLowerCase()))) {
+          markActiveSheetDirty();
+          triggerAutoSave(900);
         }
-      });
-      container.addEventListener('mouseup', () => {
-        if (isInitializing || isApplyingRemoteUpdate) return;
-        setTimeout(() => {
-          currentCellState.sheetName = getActiveSheetName();
-          currentCellState.rect = getSelectedCellRect();
-          updateMyPresence();
-          renderRemoteCellCursors();
-          triggerAutoSave(300);
-        }, 60);
       });
 
       listenRemoteSheetChanges();
     });
   }
 
-  function triggerAutoSave(delayMs = 250) {
+  function triggerAutoSave(delayMs = 1000) {
     clearTimeout(saveTimeout);
+    dbStatusIndicator.classList.add('saving');
+    dbStatusText.innerText = "자동 저장 대기 중...";
     saveTimeout = setTimeout(() => {
-      saveToCloudNow(false);
+      // 브라우저 UI 렌더링에 먼저 양보한 뒤 비동기로 저장 실행 (화면 멈춤 방지)
+      setTimeout(() => saveDirtySheetsToCloud(false), 10);
     }, delayMs);
   }
 
-  // ==================== 압축 + 다중 청크 분할 저장 (3,000행×AD열 이상 대용량 완벽 대응) ====================
-  async function saveToCloudNow(force = false) {
+  // ==================== 수정된 시트(Dirty Sheet)만 선별하여 초고속 저장 ====================
+  async function saveDirtySheetsToCloud(forceAll = false) {
     if (!window.luckysheet || isInitializing || isApplyingRemoteUpdate) return;
     if (isSavingInProgress) {
       pendingSaveAfterCurrent = true;
@@ -851,63 +1015,65 @@
     }
     clearTimeout(saveTimeout);
 
+    const liveFiles = window.luckysheet.getluckysheetfile();
+    if (!liveFiles || liveFiles.length === 0) return;
+
+    // 시트 개수가 바뀌었거나 이름이 바뀐 경우 확인
+    if (liveFiles.length !== serializedSheetCache.size) {
+      structureDirty = true;
+    }
+
+    if (!forceAll && dirtySheetKeys.size === 0 && !structureDirty) {
+      dbStatusIndicator.classList.remove('saving');
+      return;
+    }
+
+    isSavingInProgress = true;
+    dbStatusIndicator.classList.remove('error', 'syncing');
+    dbStatusIndicator.classList.add('saving');
+    dbStatusText.innerText = "실시간 저장 중...";
+
     try {
-      const liveFiles = window.luckysheet.getluckysheetfile();
-      if (!liveFiles) return;
-
-      const cleanSheets = serializeSheets(liveFiles);
-      const currentJson = JSON.stringify(cleanSheets);
-
-      if (!force && currentJson === lastSyncedJson) return;
-
-      isSavingInProgress = true;
-      lastSyncedJson = currentJson;
-      dbStatusIndicator.classList.remove('error', 'syncing');
-      dbStatusIndicator.classList.add('saving');
-      dbStatusText.innerText = "실시간 동기화 중...";
-
       const now = Date.now();
-      const isCompressed = Boolean(window.LZString);
-      const payloadStr = isCompressed ? window.LZString.compressToBase64(currentJson) : currentJson;
+      const updatedSheetKeys = [];
+      const sheetOrderMeta = [];
 
-      if (payloadStr.length <= MAX_CHUNK_SIZE) {
-        // 단일 문서(700KB 이하) 고속 저장
-        await setDoc(doc(db, "sheets", "master_doc"), {
-          content: payloadStr,
-          isCompressed: isCompressed,
-          isChunked: false,
-          chunkCount: 0,
-          sessionId: clientSessionId,
-          updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
-          updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
-          timestamp: now
-        });
-      } else {
-        // 700KB 초과 초대용량 데이터: 다중 문서(master_chunk_0, 1, ...)로 분할 병렬 저장 후 master_doc 갱신
-        const chunks = [];
-        for (let i = 0; i < payloadStr.length; i += MAX_CHUNK_SIZE) {
-          chunks.push(payloadStr.slice(i, i + MAX_CHUNK_SIZE));
+      // 수정된 시트만 직렬화 및 업로드 (수정되지 않은 다른 대용량 시트는 건드리지 않음!)
+      for (let i = 0; i < liveFiles.length; i++) {
+        const s = liveFiles[i];
+        const sKey = toSafeDocKey(s.index !== undefined ? s.index : i);
+        const needsSave = forceAll || dirtySheetKeys.has(sKey) || !serializedSheetCache.has(sKey);
+
+        if (needsSave) {
+          const serialized = serializeSingleSheet(s, i);
+          serializedSheetCache.set(sKey, serialized);
+          sheetVersionMap.set(sKey, now);
+          await saveSingleSheetDocToFirestore(sKey, serialized, now);
+          updatedSheetKeys.push(sKey);
         }
 
-        await Promise.all(chunks.map((chunkData, idx) =>
-          setDoc(doc(db, "sheets", `master_chunk_${idx}`), {
-            chunkIndex: idx,
-            content: chunkData,
-            timestamp: now
-          })
-        ));
-
-        await setDoc(doc(db, "sheets", "master_doc"), {
-          content: "",
-          isCompressed: isCompressed,
-          isChunked: true,
-          chunkCount: chunks.length,
-          sessionId: clientSessionId,
-          updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
-          updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
-          timestamp: now
+        sheetOrderMeta.push({
+          index: String(s.index !== undefined ? s.index : i),
+          safeKey: sKey,
+          name: s.name || `Sheet${i + 1}`,
+          order: i,
+          updatedAt: sheetVersionMap.get(sKey) || now
         });
       }
+
+      dirtySheetKeys.clear();
+      structureDirty = false;
+
+      // 시트 메타데이터 문서 업데이트 (다른 접속자에게 어떤 시트가 바뀌었는지 알림)
+      await setDoc(doc(db, "sheets", "workbook_meta"), {
+        version: 2,
+        sheetOrder: sheetOrderMeta,
+        changedSheets: updatedSheetKeys,
+        sessionId: clientSessionId,
+        updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
+        updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
+        timestamp: now
+      });
 
       dbStatusIndicator.classList.remove('saving', 'error', 'syncing');
       const timeStr = new Date(now).toLocaleTimeString('ko-KR', { hour12: false });
@@ -921,96 +1087,143 @@
       isSavingInProgress = false;
       if (pendingSaveAfterCurrent) {
         pendingSaveAfterCurrent = false;
-        triggerAutoSave(300);
+        triggerAutoSave(800);
       }
     }
   }
 
-  // ==================== 타 사용자의 대용량 붙여넣기 및 셀 수정 실시간 수신 ====================
+  // ==================== 실시간 수신 엔진 (0.1초 델타 수신 + 변경된 시트만 부분 수신) ====================
   function listenRemoteSheetChanges() {
-    let isFirstSnapshot = true;
-
-    sheetUnsubscribe = onSnapshot(doc(db, "sheets", "master_doc"), async (docSnap) => {
-      if (isFirstSnapshot) {
-        isFirstSnapshot = false;
+    // 1. 초경량 셀 델타(realtime_delta) 수신: 상대방이 입력한 단일 셀을 0.1초 만에 내 화면에 즉시 반영
+    let isFirstDelta = true;
+    deltaUnsubscribe = onSnapshot(doc(db, "sheets", "realtime_delta"), (docSnap) => {
+      if (isFirstDelta) {
+        isFirstDelta = false;
         return;
       }
       if (!docSnap.exists()) return;
-      const docData = docSnap.data();
-
-      if (docData.sessionId && docData.sessionId === clientSessionId) return;
+      const d = docSnap.data();
+      if (!d || d.sessionId === clientSessionId || !Array.isArray(d.changes)) return;
 
       try {
-        const fullJsonStr = await loadFullJsonFromMasterDoc(docData);
-        if (!fullJsonStr || fullJsonStr === lastSyncedJson) return;
-
-        const parsedRemote = JSON.parse(fullJsonStr);
-        if (!Array.isArray(parsedRemote) || parsedRemote.length === 0) return;
-
         isApplyingRemoteUpdate = true;
-        lastSyncedJson = fullJsonStr;
+        const liveFiles = window.luckysheet.getluckysheetfile();
+        if (!liveFiles) return;
 
-        const remoteSheets = deserializeSheets(parsedRemote);
+        const targetSheet = liveFiles.find(s => toSafeDocKey(s.index) === d.sheetKey);
+        if (!targetSheet) return;
+
+        if (targetSheet.data && Array.isArray(targetSheet.data)) {
+          d.changes.forEach(chg => {
+            if (targetSheet.data[chg.r]) {
+              targetSheet.data[chg.r][chg.c] = chg.v ? expandCell(chg.v) : null;
+            }
+          });
+          if (targetSheet.status == 1 && typeof window.luckysheet.jfrefreshgrid === 'function') {
+            window.luckysheet.jfrefreshgrid();
+          }
+        }
+
+        dbStatusIndicator.classList.remove('saving', 'error');
+        dbStatusIndicator.classList.add('syncing');
+        const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+        dbStatusText.innerText = `🔄 ${d.updatedByName || '상대방'} 실시간 입력 반영 (${timeStr})`;
+      } catch (e) {
+        console.warn("델타 반영 오류:", e);
+      } finally {
+        setTimeout(() => { isApplyingRemoteUpdate = false; }, 60);
+      }
+    });
+
+    // 2. 시트 단위 변경(workbook_meta) 수신: 변경된 시트만 선별 다운로드하여 메모리 즉시 교체 (JSON.stringify 루프 제거!)
+    let isFirstMeta = true;
+    metaUnsubscribe = onSnapshot(doc(db, "sheets", "workbook_meta"), async (docSnap) => {
+      if (isFirstMeta) {
+        isFirstMeta = false;
+        return;
+      }
+      if (!docSnap.exists()) return;
+      const meta = docSnap.data();
+      if (!meta || meta.sessionId === clientSessionId) return;
+
+      const changedKeys = Array.isArray(meta.changedSheets) ? meta.changedSheets : [];
+      const sheetOrder = Array.isArray(meta.sheetOrder) ? meta.sheetOrder : [];
+
+      try {
+        isApplyingRemoteUpdate = true;
         const liveSheets = window.luckysheet.getluckysheetfile();
         if (!liveSheets) return;
 
-        // 시트 추가/삭제 또는 대용량 붙여넣기로 인한 행/열 크기(예: 50행->3000행, 20열->AD열) 확장 여부 확인
-        const structureOrSizeChanged = liveSheets.length !== remoteSheets.length ||
-          liveSheets.some((s, i) => {
-            const rSheet = remoteSheets[i];
-            if (!rSheet) return true;
-            const curMaxRow = (s.data && s.data.length) ? s.data.length : (s.row || 50);
-            const curMaxCol = (s.data && s.data[0]) ? s.data[0].length : (s.column || 20);
-            return s.name !== rSheet.name ||
-                   String(s.index) !== String(rSheet.index) ||
-                   (rSheet.row > curMaxRow) ||
-                   (rSheet.column > curMaxCol);
-          });
+        // 변경된 시트 문서만 서버에서 다운로드
+        const downloadedMap = new Map();
+        await Promise.all(
+          changedKeys.map(async (sKey) => {
+            const sObj = await loadSingleSheetDocFromFirestore(sKey);
+            if (sObj) {
+              serializedSheetCache.set(sKey, sObj);
+              downloadedMap.set(sKey, deserializeSingleSheet(sObj));
+            }
+          })
+        );
 
-        if (structureOrSizeChanged) {
+        const structureChanged = liveSheets.length !== sheetOrder.length ||
+          liveSheets.some((s, i) => toSafeDocKey(s.index) !== sheetOrder[i]?.safeKey || s.name !== sheetOrder[i]?.name);
+
+        if (structureChanged) {
+          // 시트가 추가/삭제/이름변경된 경우 전체 시트 배열 재구성
           const currentActive = liveSheets.find(s => s.status == 1);
-          if (currentActive) {
-            remoteSheets.forEach(rs => {
-              rs.status = (String(rs.index) === String(currentActive.index)) ? 1 : 0;
-            });
-          }
+          const activeKey = currentActive ? toSafeDocKey(currentActive.index) : null;
+
+          const newSheets = await Promise.all(
+            sheetOrder.map(async (m, idx) => {
+              const sKey = m.safeKey;
+              let sObj = downloadedMap.get(sKey);
+              if (!sObj) {
+                const cached = serializedSheetCache.get(sKey) || await loadSingleSheetDocFromFirestore(sKey);
+                if (cached) {
+                  serializedSheetCache.set(sKey, cached);
+                  sObj = deserializeSingleSheet(cached, idx);
+                }
+              }
+              if (!sObj) sObj = getDefaultData()[0];
+              sObj.name = m.name;
+              sObj.index = m.index;
+              sObj.order = idx;
+              sObj.status = (sKey === activeKey) ? 1 : 0;
+              return sObj;
+            })
+          );
+          if (!newSheets.some(s => s.status == 1) && newSheets[0]) newSheets[0].status = 1;
           window.luckysheet.destroy();
-          renderLuckysheet(remoteSheets);
+          renderLuckysheet(newSheets);
         } else {
-          // 기존 행/열 범위 내 셀 값 및 서식 즉시 인플레이스 갱신
-          remoteSheets.forEach((rSheet, sIdx) => {
-            const lSheet = liveSheets.find(s => String(s.index) === String(rSheet.index)) || liveSheets[sIdx];
+          // 변경된 시트만 빠르게 2차원 배열 재할당 (느린 셀 단위 JSON.stringify 비교 완전 제거!)
+          downloadedMap.forEach((rSheet, sKey) => {
+            const lSheet = liveSheets.find(s => toSafeDocKey(s.index) === sKey);
             if (!lSheet) return;
 
-            if (!lSheet.config) lSheet.config = {};
-            Object.keys(lSheet.config).forEach(k => delete lSheet.config[k]);
-            Object.assign(lSheet.config, rSheet.config || {});
-
+            lSheet.config = rSheet.config || {};
             lSheet.calcChain = rSheet.calcChain || [];
             lSheet.celldata = rSheet.celldata || [];
 
-            const remoteMap = new Map();
-            (rSheet.celldata || []).forEach(item => {
-              remoteMap.set(`${item.r}_${item.c}`, item.v);
-            });
-
             if (lSheet.data && Array.isArray(lSheet.data)) {
-              for (let r = 0; r < lSheet.data.length; r++) {
-                if (!lSheet.data[r]) continue;
-                for (let c = 0; c < lSheet.data[r].length; c++) {
-                  const key = `${r}_${c}`;
-                  const remoteCell = remoteMap.has(key) ? remoteMap.get(key) : null;
-                  lSheet.data[r][c] = remoteCell;
-                  remoteMap.delete(key);
+              const targetRows = Math.max(lSheet.data.length, rSheet.row || 50);
+              const targetCols = Math.max(lSheet.data[0] ? lSheet.data[0].length : 20, rSheet.column || 20);
+
+              const freshGrid = new Array(targetRows);
+              for (let r = 0; r < targetRows; r++) {
+                freshGrid[r] = new Array(targetCols).fill(null);
+              }
+              const cells = rSheet.celldata || [];
+              for (let i = 0; i < cells.length; i++) {
+                const item = cells[i];
+                if (item && freshGrid[item.r]) {
+                  freshGrid[item.r][item.c] = item.v;
                 }
               }
-
-              remoteMap.forEach((val, key) => {
-                const [r, c] = key.split('_').map(Number);
-                if (lSheet.data[r]) {
-                  lSheet.data[r][c] = val;
-                }
-              });
+              lSheet.data = freshGrid;
+              lSheet.row = targetRows;
+              lSheet.column = targetCols;
             }
           });
 
@@ -1023,19 +1236,37 @@
         dbStatusIndicator.classList.remove('saving', 'error');
         dbStatusIndicator.classList.add('syncing');
         const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-        dbStatusText.innerText = `🔄 ${docData.updatedByName || '상대방'} 수정 반영 (${timeStr})`;
+        dbStatusText.innerText = `🔄 ${meta.updatedByName || '상대방'} 수정 반영 (${timeStr})`;
       } catch (e) {
-        console.error("실시간 수신 반영 오류:", e);
+        console.error("실시간 시트 수신 오류:", e);
       } finally {
-        setTimeout(() => { isApplyingRemoteUpdate = false; }, 150);
+        setTimeout(() => { isApplyingRemoteUpdate = false; }, 100);
       }
     });
   }
 
-  // ==================== 실시간 공동 작업자 셀 커서 표시 & 상단 2줄 요약 배지 ====================
-  function updateMyPresence() {
+  // ==================== 쓰로틀링 적용된 공동 작업자 셀 커서 표시 ====================
+  function schedulePresenceUpdate(force = false) {
     if (!currentUserInfo) return;
     const activeSheetName = getActiveSheetName();
+    const sig = `${activeSheetName}_${currentCellState.r}_${currentCellState.c}`;
+    if (!force && sig === lastPresenceSignature) return;
+
+    const now = Date.now();
+    if (force || now - lastPresenceSentAt >= 450) {
+      executePresenceWrite(activeSheetName, sig);
+    } else {
+      clearTimeout(presenceTimer);
+      presenceTimer = setTimeout(() => {
+        executePresenceWrite(getActiveSheetName(), `${getActiveSheetName()}_${currentCellState.r}_${currentCellState.c}`);
+      }, 450);
+    }
+  }
+
+  function executePresenceWrite(activeSheetName, sig) {
+    if (!currentUserInfo) return;
+    lastPresenceSentAt = Date.now();
+    lastPresenceSignature = sig;
     const rect = getSelectedCellRect() || currentCellState.rect;
 
     setDoc(doc(db, "presence", clientSessionId), {
@@ -1048,7 +1279,7 @@
       c: currentCellState.c || 0,
       cell: currentCellState.label || "A1",
       rect: rect || null,
-      updatedAt: Date.now()
+      updatedAt: lastPresenceSentAt
     }).catch(() => {});
   }
 
@@ -1065,10 +1296,7 @@
     layer.innerHTML = '';
 
     const myActiveSheetName = getActiveSheetName();
-    const liveFiles = window.luckysheet && typeof window.luckysheet.getluckysheetfile === 'function'
-      ? window.luckysheet.getluckysheetfile()
-      : null;
-    const activeSheetObj = liveFiles ? liveFiles.find(s => s.status == 1) : null;
+    const activeSheetObj = getActiveSheetObj();
 
     latestRemoteUsers.forEach(u => {
       if (u.sheet !== myActiveSheetName) return;
