@@ -13,6 +13,9 @@
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
 
+  <!-- 대용량 엑셀 데이터 실시간 압축 라이브러리 (LZ-String) -->
+  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+
   <style>
     body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; overflow: hidden; }
     
@@ -292,6 +295,9 @@
   // 브라우저 탭 고유 세션 ID
   const clientSessionId = "sess_" + Math.random().toString(36).substring(2, 10) + "_" + Date.now();
 
+  // Firestore 단일 문서 제한(1MB) 우회를 위한 안전한 청크 크기 (700KB)
+  const MAX_CHUNK_SIZE = 700000;
+
   // 동시 접속자별 고유 색상 팔레트
   const CURSOR_COLORS = ['#e91e63', '#00897b', '#8e24aa', '#f4511e', '#3949ab', '#039be5', '#43a047', '#fb8c00'];
   function getColorForId(str) {
@@ -300,7 +306,6 @@
     return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
   }
 
-  // Firebase Auth 최소 6자리 제한 호환 변환 함수
   function toAuthPassword(rawPw) {
     const s = String(rawPw || '');
     return s.length < 6 ? s.padEnd(6, '#') : s;
@@ -310,6 +315,8 @@
   let saveTimeout = null;
   let isInitializing = true;
   let isApplyingRemoteUpdate = false;
+  let isSavingInProgress = false;
+  let pendingSaveAfterCurrent = false;
   let isLoggingIn = false;
   let lastSyncedJson = "";
   let sheetUnsubscribe = null;
@@ -319,11 +326,11 @@
   let currentCellState = { r: 0, c: 0, label: "A1", sheetName: "통합대시보드", rect: null };
   let latestRemoteUsers = [];
 
-  // 계정 관리 리스트 상태 변수 (검색, 정렬, 페이지네이션)
+  // 계정 관리 리스트 상태 변수
   let allUsersCache = [];
   let userSearchQuery = "";
-  let userSortField = "default"; // 'default' | 'dept' | 'name' | 'id'
-  let userSortOrder = "asc";     // 'asc' | 'desc'
+  let userSortField = "default";
+  let userSortOrder = "asc";
   let userCurrentPage = 1;
   const USERS_PER_PAGE = 10;
 
@@ -354,23 +361,93 @@
     }));
   }
 
+  // ==================== 대용량 셀 경량화 및 직렬화/역직렬화 엔진 ====================
+  function compactCell(cell) {
+    if (!cell || typeof cell !== 'object') return null;
+    const c = {};
+    if (cell.v !== undefined && cell.v !== null && cell.v !== '') c.v = cell.v;
+    if (cell.m !== undefined && cell.m !== null && cell.m !== '' && String(cell.m) !== String(cell.v)) c.m = cell.m;
+    if (cell.f) c.f = cell.f;
+    if (cell.bg) c.bg = cell.bg;
+    if (cell.fc && cell.fc !== '#000000' && cell.fc !== '#000' && cell.fc !== 'rgb(0, 0, 0)') c.fc = cell.fc;
+    if (cell.bl) c.bl = cell.bl;
+    if (cell.it) c.it = cell.it;
+    if (cell.cl) c.cl = cell.cl;
+    if (cell.un) c.un = cell.un;
+    if (cell.fs && cell.fs !== 10 && cell.fs !== 11) c.fs = cell.fs;
+    if (cell.ff && cell.ff !== 'Times New Roman' && cell.ff !== 0 && cell.ff !== '0') c.ff = cell.ff;
+    if (cell.ht !== undefined && cell.ht !== 1 && cell.ht !== '1' && cell.ht !== 0 && cell.ht !== '0') c.ht = cell.ht;
+    if (cell.vt !== undefined && cell.vt !== 1 && cell.vt !== '1' && cell.vt !== 0 && cell.vt !== '0') c.vt = cell.vt;
+    if (cell.tb !== undefined && cell.tb !== 0 && cell.tb !== '0') c.tb = cell.tb;
+    if (cell.mc) c.mc = cell.mc;
+    if (cell.ps) c.ps = cell.ps;
+    if (cell.ct) {
+      if (cell.ct.s && Array.isArray(cell.ct.s) && cell.ct.s.length > 0) {
+        c.ct = cell.ct;
+      } else if (cell.ct.fa && cell.ct.fa !== 'General') {
+        c.ct = { fa: cell.ct.fa, t: cell.ct.t || 'g' };
+      }
+    }
+    return Object.keys(c).length > 0 ? c : null;
+  }
+
+  function expandCell(cell) {
+    if (!cell || typeof cell !== 'object') return null;
+    const exp = { ...cell };
+    if (exp.v !== undefined && exp.m === undefined) {
+      exp.m = String(exp.v);
+    }
+    if (!exp.ct) {
+      exp.ct = { fa: 'General', t: typeof exp.v === 'number' ? 'n' : 'g' };
+    }
+    return exp;
+  }
+
   function serializeSheets(rawSheets) {
     if (!Array.isArray(rawSheets)) return [];
     return rawSheets.map((sheet, idx) => {
       let celldata = [];
+      let maxR = 0;
+      let maxC = 0;
+
       if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
         for (let r = 0; r < sheet.data.length; r++) {
           const rowArr = sheet.data[r];
           if (!rowArr) continue;
           for (let c = 0; c < rowArr.length; c++) {
-            const cell = rowArr[c];
-            if (cell !== null && cell !== undefined && Object.keys(cell).length > 0) {
-              celldata.push({ r, c, v: cell });
+            const rawCell = rowArr[c];
+            if (rawCell !== null && rawCell !== undefined) {
+              const slim = compactCell(rawCell);
+              if (slim) {
+                celldata.push({ r, c, v: slim });
+                if (r > maxR) maxR = r;
+                if (c > maxC) maxC = c;
+              }
             }
           }
         }
       } else if (sheet.celldata && Array.isArray(sheet.celldata)) {
-        celldata = sheet.celldata;
+        for (let i = 0; i < sheet.celldata.length; i++) {
+          const item = sheet.celldata[i];
+          if (!item) continue;
+          const slim = compactCell(item.v);
+          if (slim) {
+            celldata.push({ r: item.r, c: item.c, v: slim });
+            if (item.r > maxR) maxR = item.r;
+            if (item.c > maxC) maxC = item.c;
+          }
+        }
+      }
+
+      // 3,000행 이상 또는 AD열(30열) 이상 붙여넣기 시 실제 데이터 범위에 맞춰 시트 크기 자동 확장
+      const computedRow = Math.max(sheet.row || 50, maxR + 20, 50);
+      const computedCol = Math.max(sheet.column || 20, maxC + 5, 20);
+
+      // config 내 과도한 셀별 테두리 배열(수만 개)이 있을 경우 실제 데이터 영역 내로 정리
+      const rawConfig = sheet.config || {};
+      const cleanConfig = { ...rawConfig };
+      if (Array.isArray(cleanConfig.borderInfo) && cleanConfig.borderInfo.length > 5000) {
+        cleanConfig.borderInfo = cleanConfig.borderInfo.slice(0, 5000);
       }
 
       return {
@@ -378,14 +455,63 @@
         index: sheet.index !== undefined ? String(sheet.index) : String(idx),
         order: sheet.order !== undefined ? sheet.order : idx,
         status: sheet.status !== undefined ? sheet.status : (idx === 0 ? 1 : 0),
-        row: Math.max(sheet.row || 50, 50),
-        column: Math.max(sheet.column || 20, 20),
-        config: sheet.config || {},
+        row: computedRow,
+        column: computedCol,
+        config: cleanConfig,
         calcChain: sheet.calcChain || [],
         frozen: sheet.frozen || null,
         celldata: celldata
       };
     });
+  }
+
+  function deserializeSheets(parsedSheets) {
+    if (!Array.isArray(parsedSheets)) return [];
+    return parsedSheets.map((sheet, idx) => {
+      let maxR = 0;
+      let maxC = 0;
+      const expandedCelldata = (sheet.celldata || []).map(item => {
+        if (!item) return null;
+        if (item.r > maxR) maxR = item.r;
+        if (item.c > maxC) maxC = item.c;
+        return { r: item.r, c: item.c, v: expandCell(item.v) };
+      }).filter(Boolean);
+
+      return {
+        ...sheet,
+        index: sheet.index !== undefined ? String(sheet.index) : String(idx),
+        order: sheet.order !== undefined ? sheet.order : idx,
+        row: Math.max(sheet.row || 50, maxR + 20, 50),
+        column: Math.max(sheet.column || 20, maxC + 5, 20),
+        config: sheet.config || {},
+        celldata: expandedCelldata
+      };
+    });
+  }
+
+  // Firestore에서 압축 또는 다중 분할(Chunked)된 시트 데이터를 복원
+  async function loadFullJsonFromMasterDoc(docData) {
+    if (!docData) return null;
+    let payloadStr = "";
+
+    if (docData.isChunked && docData.chunkCount > 0) {
+      const chunkPromises = [];
+      for (let i = 0; i < docData.chunkCount; i++) {
+        chunkPromises.push(getDoc(doc(db, "sheets", `master_chunk_${i}`)));
+      }
+      const chunkSnaps = await Promise.all(chunkPromises);
+      payloadStr = chunkSnaps.map(s => (s.exists() ? (s.data().content || "") : "")).join("");
+    } else {
+      payloadStr = docData.content || "";
+    }
+
+    if (!payloadStr) return null;
+
+    if (docData.isCompressed && window.LZString) {
+      const decompressed = window.LZString.decompressFromBase64(payloadStr);
+      if (decompressed) return decompressed;
+    }
+    return payloadStr;
   }
 
   // ==================== 로그인 실행 및 엔터키(Enter) 완벽 연동 ====================
@@ -428,13 +554,11 @@
     }
   }
 
-  // 1) form 기본 submit 이벤트 연동 (버튼 클릭 및 입력창 엔터키 모두 감지)
   document.getElementById('login-form').addEventListener('submit', (e) => {
     e.preventDefault();
     executeLogin();
   });
 
-  // 2) 아이디/비밀번호 입력란에서 한글 입력기(IME) 상태나 숫자패드 엔터(NumpadEnter)를 눌러도 100% 동작하도록 추가 보장
   ['login-id', 'login-pw'].forEach(inputId => {
     document.getElementById(inputId).addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
@@ -444,7 +568,6 @@
     });
   });
 
-  // 초기 비밀번호 변경창에서도 엔터키로 바로 변경되도록 지원
   ['force-new-pw', 'force-confirm-pw'].forEach(inputId => {
     document.getElementById(inputId).addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
@@ -591,10 +714,10 @@
       enableAddBackTop: true,
       hook: {
         cellUpdated: function() {
-          if (!isInitializing && !isApplyingRemoteUpdate) triggerAutoSave(150);
+          if (!isInitializing && !isApplyingRemoteUpdate) triggerAutoSave(200);
         },
         updated: function() {
-          if (!isInitializing && !isApplyingRemoteUpdate) triggerAutoSave(150);
+          if (!isInitializing && !isApplyingRemoteUpdate) triggerAutoSave(250);
         },
         sheetActivate: function(index) {
           setTimeout(() => {
@@ -616,7 +739,7 @@
               };
             }
             updateMyPresence();
-            if (!isApplyingRemoteUpdate) triggerAutoSave(150);
+            if (!isApplyingRemoteUpdate) triggerAutoSave(250);
           }
         }
       }
@@ -643,17 +766,22 @@
 
     try {
       const fetchPromise = getDoc(doc(db, "sheets", "master_doc"));
-      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 4000));
+      const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("DB_TIMEOUT")), 12000));
       
       const sheetDoc = await Promise.race([fetchPromise, timeoutPromise]);
-      if (sheetDoc && sheetDoc.exists() && sheetDoc.data().content) {
-        const parsed = JSON.parse(sheetDoc.data().content);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          if (parsed.some(s => s.data && s.data.length > 0)) {
-            needsCleanupSave = true;
+      if (sheetDoc && sheetDoc.exists()) {
+        const docData = sheetDoc.data();
+        const fullJsonStr = await loadFullJsonFromMasterDoc(docData);
+        if (fullJsonStr) {
+          const parsed = JSON.parse(fullJsonStr);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            if (parsed.some(s => s.data && s.data.length > 0) || !docData.isCompressed) {
+              needsCleanupSave = true;
+            }
+            const slimmed = serializeSheets(parsed);
+            lastSyncedJson = JSON.stringify(slimmed);
+            sheetData = deserializeSheets(slimmed);
           }
-          sheetData = serializeSheets(parsed);
-          lastSyncedJson = JSON.stringify(sheetData);
         }
       }
     } catch (err) {
@@ -661,8 +789,9 @@
     }
 
     if (!sheetData) {
-      sheetData = getDefaultData();
-      lastSyncedJson = JSON.stringify(sheetData);
+      const defaults = getDefaultData();
+      lastSyncedJson = JSON.stringify(defaults);
+      sheetData = deserializeSheets(defaults);
     }
 
     requestAnimationFrame(() => {
@@ -678,10 +807,17 @@
       }
 
       const container = document.getElementById('spreadsheet-container');
+      // 대용량 붙여넣기(Ctrl+V) 감지 시 시트 파싱이 끝난 후 압축 저장 실행
+      container.addEventListener('paste', () => {
+        if (isInitializing || isApplyingRemoteUpdate) return;
+        dbStatusIndicator.classList.add('saving');
+        dbStatusText.innerText = "대용량 붙여넣기 처리 중...";
+        triggerAutoSave(600);
+      });
       container.addEventListener('keyup', (e) => {
         if (isInitializing || isApplyingRemoteUpdate) return;
         if (['Enter', 'Tab', 'Delete', 'Backspace'].includes(e.key) || e.ctrlKey || e.metaKey) {
-          triggerAutoSave(200);
+          triggerAutoSave(300);
         }
       });
       container.addEventListener('mouseup', () => {
@@ -691,7 +827,7 @@
           currentCellState.rect = getSelectedCellRect();
           updateMyPresence();
           renderRemoteCellCursors();
-          triggerAutoSave(250);
+          triggerAutoSave(300);
         }, 60);
       });
 
@@ -699,15 +835,20 @@
     });
   }
 
-  function triggerAutoSave(delayMs = 150) {
+  function triggerAutoSave(delayMs = 250) {
     clearTimeout(saveTimeout);
     saveTimeout = setTimeout(() => {
       saveToCloudNow(false);
     }, delayMs);
   }
 
+  // ==================== 압축 + 다중 청크 분할 저장 (3,000행×AD열 이상 대용량 완벽 대응) ====================
   async function saveToCloudNow(force = false) {
     if (!window.luckysheet || isInitializing || isApplyingRemoteUpdate) return;
+    if (isSavingInProgress) {
+      pendingSaveAfterCurrent = true;
+      return;
+    }
     clearTimeout(saveTimeout);
 
     try {
@@ -719,35 +860,77 @@
 
       if (!force && currentJson === lastSyncedJson) return;
 
+      isSavingInProgress = true;
       lastSyncedJson = currentJson;
+      dbStatusIndicator.classList.remove('error', 'syncing');
       dbStatusIndicator.classList.add('saving');
-      dbStatusText.innerText = "실시간 저장 중...";
+      dbStatusText.innerText = "실시간 동기화 중...";
 
       const now = Date.now();
-      await setDoc(doc(db, "sheets", "master_doc"), {
-        content: currentJson,
-        sessionId: clientSessionId,
-        updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
-        updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
-        timestamp: now
-      });
+      const isCompressed = Boolean(window.LZString);
+      const payloadStr = isCompressed ? window.LZString.compressToBase64(currentJson) : currentJson;
+
+      if (payloadStr.length <= MAX_CHUNK_SIZE) {
+        // 단일 문서(700KB 이하) 고속 저장
+        await setDoc(doc(db, "sheets", "master_doc"), {
+          content: payloadStr,
+          isCompressed: isCompressed,
+          isChunked: false,
+          chunkCount: 0,
+          sessionId: clientSessionId,
+          updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
+          updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
+          timestamp: now
+        });
+      } else {
+        // 700KB 초과 초대용량 데이터: 다중 문서(master_chunk_0, 1, ...)로 분할 병렬 저장 후 master_doc 갱신
+        const chunks = [];
+        for (let i = 0; i < payloadStr.length; i += MAX_CHUNK_SIZE) {
+          chunks.push(payloadStr.slice(i, i + MAX_CHUNK_SIZE));
+        }
+
+        await Promise.all(chunks.map((chunkData, idx) =>
+          setDoc(doc(db, "sheets", `master_chunk_${idx}`), {
+            chunkIndex: idx,
+            content: chunkData,
+            timestamp: now
+          })
+        ));
+
+        await setDoc(doc(db, "sheets", "master_doc"), {
+          content: "",
+          isCompressed: isCompressed,
+          isChunked: true,
+          chunkCount: chunks.length,
+          sessionId: clientSessionId,
+          updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
+          updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
+          timestamp: now
+        });
+      }
 
       dbStatusIndicator.classList.remove('saving', 'error', 'syncing');
       const timeStr = new Date(now).toLocaleTimeString('ko-KR', { hour12: false });
       dbStatusText.innerText = `실시간 동기화됨 (${timeStr})`;
     } catch (error) {
-      console.error("저장 실패:", error);
+      console.error("저장 실패 상세:", error);
       dbStatusIndicator.classList.remove('saving', 'syncing');
       dbStatusIndicator.classList.add('error');
-      dbStatusText.innerText = "동기화 오류";
+      dbStatusText.innerText = "동기화 오류 (재시도 중)";
+    } finally {
+      isSavingInProgress = false;
+      if (pendingSaveAfterCurrent) {
+        pendingSaveAfterCurrent = false;
+        triggerAutoSave(300);
+      }
     }
   }
 
-  // 타 사용자의 셀/서식 변경 실시간 수신 및 화면 반영
+  // ==================== 타 사용자의 대용량 붙여넣기 및 셀 수정 실시간 수신 ====================
   function listenRemoteSheetChanges() {
     let isFirstSnapshot = true;
 
-    sheetUnsubscribe = onSnapshot(doc(db, "sheets", "master_doc"), (docSnap) => {
+    sheetUnsubscribe = onSnapshot(doc(db, "sheets", "master_doc"), async (docSnap) => {
       if (isFirstSnapshot) {
         isFirstSnapshot = false;
         return;
@@ -756,22 +939,35 @@
       const docData = docSnap.data();
 
       if (docData.sessionId && docData.sessionId === clientSessionId) return;
-      if (!docData.content || docData.content === lastSyncedJson) return;
 
       try {
-        const remoteSheets = JSON.parse(docData.content);
-        if (!Array.isArray(remoteSheets) || remoteSheets.length === 0) return;
+        const fullJsonStr = await loadFullJsonFromMasterDoc(docData);
+        if (!fullJsonStr || fullJsonStr === lastSyncedJson) return;
+
+        const parsedRemote = JSON.parse(fullJsonStr);
+        if (!Array.isArray(parsedRemote) || parsedRemote.length === 0) return;
 
         isApplyingRemoteUpdate = true;
-        lastSyncedJson = docData.content;
+        lastSyncedJson = fullJsonStr;
 
+        const remoteSheets = deserializeSheets(parsedRemote);
         const liveSheets = window.luckysheet.getluckysheetfile();
         if (!liveSheets) return;
 
-        const structureChanged = liveSheets.length !== remoteSheets.length ||
-          liveSheets.some((s, i) => s.name !== remoteSheets[i]?.name || String(s.index) !== String(remoteSheets[i]?.index));
+        // 시트 추가/삭제 또는 대용량 붙여넣기로 인한 행/열 크기(예: 50행->3000행, 20열->AD열) 확장 여부 확인
+        const structureOrSizeChanged = liveSheets.length !== remoteSheets.length ||
+          liveSheets.some((s, i) => {
+            const rSheet = remoteSheets[i];
+            if (!rSheet) return true;
+            const curMaxRow = (s.data && s.data.length) ? s.data.length : (s.row || 50);
+            const curMaxCol = (s.data && s.data[0]) ? s.data[0].length : (s.column || 20);
+            return s.name !== rSheet.name ||
+                   String(s.index) !== String(rSheet.index) ||
+                   (rSheet.row > curMaxRow) ||
+                   (rSheet.column > curMaxCol);
+          });
 
-        if (structureChanged) {
+        if (structureOrSizeChanged) {
           const currentActive = liveSheets.find(s => s.status == 1);
           if (currentActive) {
             remoteSheets.forEach(rs => {
@@ -781,15 +977,10 @@
           window.luckysheet.destroy();
           renderLuckysheet(remoteSheets);
         } else {
-          let activeSheetOrder = 0;
-          const activeSheetChanges = [];
-
+          // 기존 행/열 범위 내 셀 값 및 서식 즉시 인플레이스 갱신
           remoteSheets.forEach((rSheet, sIdx) => {
             const lSheet = liveSheets.find(s => String(s.index) === String(rSheet.index)) || liveSheets[sIdx];
             if (!lSheet) return;
-
-            const isActive = (lSheet.status == 1);
-            if (isActive) activeSheetOrder = lSheet.order !== undefined ? lSheet.order : sIdx;
 
             if (!lSheet.config) lSheet.config = {};
             Object.keys(lSheet.config).forEach(k => delete lSheet.config[k]);
@@ -808,15 +999,8 @@
                 if (!lSheet.data[r]) continue;
                 for (let c = 0; c < lSheet.data[r].length; c++) {
                   const key = `${r}_${c}`;
-                  const localCell = lSheet.data[r][c];
                   const remoteCell = remoteMap.has(key) ? remoteMap.get(key) : null;
-
-                  if (JSON.stringify(localCell) !== JSON.stringify(remoteCell)) {
-                    lSheet.data[r][c] = remoteCell;
-                    if (isActive) {
-                      activeSheetChanges.push({ r, c, v: remoteCell });
-                    }
-                  }
+                  lSheet.data[r][c] = remoteCell;
                   remoteMap.delete(key);
                 }
               }
@@ -825,24 +1009,10 @@
                 const [r, c] = key.split('_').map(Number);
                 if (lSheet.data[r]) {
                   lSheet.data[r][c] = val;
-                  if (isActive) {
-                    activeSheetChanges.push({ r, c, v: val });
-                  }
                 }
               });
             }
           });
-
-          if (activeSheetChanges.length > 0 && typeof window.luckysheet.setCellValue === 'function') {
-            activeSheetChanges.forEach((chg, idx) => {
-              const isLast = (idx === activeSheetChanges.length - 1);
-              window.luckysheet.setCellValue(chg.r, chg.c, chg.v, { order: activeSheetOrder, isRefresh: isLast });
-              const activeSheet = liveSheets.find(s => s.status == 1) || liveSheets[activeSheetOrder];
-              if (activeSheet && activeSheet.data && activeSheet.data[chg.r]) {
-                activeSheet.data[chg.r][chg.c] = chg.v;
-              }
-            });
-          }
 
           if (typeof window.luckysheet.jfrefreshgrid === 'function') {
             window.luckysheet.jfrefreshgrid();
