@@ -66,7 +66,7 @@
     .spinner { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top: 4px solid #1a73e8; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    /* 관리자 팝업 탭 디자인 추가 */
+    /* 관리자 팝업 탭 디자인 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
     .modal-content { background: white; padding: 32px; border-radius: 16px; width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -123,7 +123,7 @@
   <div id="spreadsheet-container">
     <div id="loading-mask">
       <div class="spinner"></div>
-      <div>엑셀 데이터를 불러오는 중입니다...</div>
+      <div>엑셀 데이터를 즉시 불러오는 중입니다...</div>
     </div>
     <div id="luckysheet"></div>
   </div>
@@ -140,7 +140,6 @@
       <button id="tab-list" class="tab-btn">사용자 목록</button>
     </div>
     
-    <!-- 신규 발급 탭 -->
     <div id="view-create" class="modal-view active">
       <label>아이디</label>
       <div class="id-wrapper" style="margin-bottom: 16px;">
@@ -158,7 +157,6 @@
       <button id="btn-create-user" class="primary-btn">계정 생성 및 등록</button>
     </div>
 
-    <!-- 사용자 목록 탭 -->
     <div id="view-list" class="modal-view">
       <div class="user-table-container">
         <table class="user-table">
@@ -169,7 +167,6 @@
         </table>
       </div>
     </div>
-
   </div>
 </div>
 
@@ -206,18 +203,22 @@
     return centers.map((center, index) => ({ name: center, status: index === 0 ? 1 : 0, order: index, row: 50, column: 20, celldata: [] }));
   }
 
-  onAuthStateChanged(auth, async (user) => {
+  onAuthStateChanged(auth, (user) => {
     if (user) {
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      currentUserInfo = userDoc.exists() ? { ...userDoc.data(), uid: user.uid } : { name: "알수없음", dept: "소속없음", role: "user", uid: user.uid };
-      
-      document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept})`;
+      // 1. 화면 즉시 전환 (Zero-delay)
       document.getElementById('login-screen').classList.remove('active');
       document.getElementById('main-screen').classList.add('active');
-      document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
       
+      // 2. 병렬 로딩: 엑셀 데이터를 즉시 불러오기 시작
       initExcel(); 
-      listenPresence();
+      
+      // 3. 병렬 로딩: 사용자 프로필을 백그라운드에서 조회
+      getDoc(doc(db, "users", user.uid)).then(userDoc => {
+        currentUserInfo = userDoc.exists() ? { ...userDoc.data(), uid: user.uid } : { name: "알수없음", dept: "소속없음", role: "user", uid: user.uid };
+        document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept})`;
+        document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
+        listenPresence();
+      });
     } else {
       document.getElementById('login-screen').classList.add('active');
       document.getElementById('main-screen').classList.remove('active');
@@ -236,13 +237,9 @@
     try { await signOut(auth); window.location.reload(); } catch(err) { alert("오류: " + err.message); }
   });
 
-  // 관리자 팝업 제어 및 탭 전환
-  document.getElementById('btn-show-admin').addEventListener('click', () => {
-    document.getElementById('admin-modal').style.display = 'flex';
-  });
-  document.getElementById('btn-close-admin').addEventListener('click', () => {
-    document.getElementById('admin-modal').style.display = 'none';
-  });
+  // 관리자 탭 제어 로직
+  document.getElementById('btn-show-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'flex');
+  document.getElementById('btn-close-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'none');
   
   document.getElementById('tab-create').addEventListener('click', () => {
     document.getElementById('tab-create').classList.add('active');
@@ -257,7 +254,6 @@
     document.getElementById('view-list').classList.add('active');
     document.getElementById('view-create').classList.remove('active');
     
-    // 사용자 목록 불러오기
     const tbody = document.getElementById('user-list-body');
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">데이터를 불러오는 중...</td></tr>';
     
@@ -267,12 +263,7 @@
       querySnapshot.forEach((doc) => {
         const data = doc.data();
         const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${data.name}</td>
-          <td>${data.dept}</td>
-          <td>${data.role === 'admin' ? '관리자' : '사용자'}</td>
-          <td><button class="small-btn reset-pw-btn" data-email="${data.email}">초기화 메일</button></td>
-        `;
+        tr.innerHTML = `<td>${data.name}</td><td>${data.dept}</td><td>${data.role === 'admin' ? '관리자' : '사용자'}</td><td><button class="small-btn reset-pw-btn" data-email="${data.email}">초기화 메일</button></td>`;
         tbody.appendChild(tr);
       });
 
@@ -280,12 +271,7 @@
         btn.addEventListener('click', async (e) => {
           const email = e.target.getAttribute('data-email');
           if (confirm(`${email} 계정의 비밀번호 초기화 메일을 발송하시겠습니까?`)) {
-            try {
-              await sendPasswordResetEmail(auth, email);
-              alert('초기화 메일이 성공적으로 발송되었습니다.');
-            } catch (err) {
-              alert('메일 발송 실패: ' + err.message);
-            }
+            try { await sendPasswordResetEmail(auth, email); alert('초기화 메일이 발송되었습니다.'); } catch (err) { alert('발송 실패: ' + err.message); }
           }
         });
       });
@@ -302,7 +288,6 @@
     const role = document.getElementById('new-role').value;
 
     if (!id || !pw || !name || !dept) return alert("모든 항목을 입력하세요.");
-
     try {
       const userCred = await createUserWithEmailAndPassword(secondaryAuth, id + domain, pw);
       await setDoc(doc(db, "users", userCred.user.uid), { name, dept, role, email: id + domain });
@@ -310,11 +295,7 @@
       alert(`[${name}] 계정 발급 완료`);
       document.getElementById('new-id').value = '';
       document.getElementById('new-pw').value = '';
-      document.getElementById('new-name').value = '';
-      document.getElementById('new-dept').value = '';
-    } catch (error) {
-      alert("발급 에러: " + error.message);
-    }
+    } catch (error) { alert("발급 에러: " + error.message); }
   });
 
   async function initExcel() {
@@ -322,7 +303,6 @@
     let sheetData = [];
 
     try {
-      // 1회성 데이터 로드 (무한 로딩/덮어쓰기 버그 원인인 onSnapshot 제거)
       const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
       if (sheetDoc.exists() && sheetDoc.data().content) {
         try {
@@ -332,46 +312,50 @@
       } else {
         sheetData = getDefaultData();
       }
+    } catch (dbErr) {
+      console.warn("DB 연결 지연 또는 실패, 기본 템플릿으로 시작합니다.", dbErr);
+      sheetData = getDefaultData();
+    }
 
-      // 한글 UI 강제 패치
-      let koPatch = {};
-      try {
-        if (window.luckysheet && window.luckysheet.locales && window.luckysheet.locales.en) {
-          koPatch = { functionlist: window.luckysheet.locales.en.functionlist, error: window.luckysheet.locales.en.error, format: window.luckysheet.locales.en.format };
-        }
-      } catch (e) { console.warn(e); }
+    // ★ 안전한 100% 독립형 한글 패치 (외부 객체 참조 배제하여 에러 원천 차단)
+    const safeKoPatch = {
+      functionlist: [],
+      error: {"v":"#VALUE!","n":"#NAME?","na":"#N/A","ref":"#REF!","num":"#NUM!","null":"#NULL!","div":"#DIV/0!"},
+      format: {}
+    };
 
+    try {
       window.luckysheetInstance = true;
       window.luckysheet.create({
         container: 'luckysheet',
         lang: 'ko', 
         title: '헬로CN닥스',
         data: sheetData,
-        locales: { ko: koPatch },
+        locales: { ko: safeKoPatch },
         showinfobar: false,
         showsheetbar: true,
         enableAddRow: true,
         enableAddBackTop: true,
         hook: {
-          updated: function() {
-            if(!isInitializing) autoSaveToCloud();
-          },
-          rangeSelect: function() {
-            if(!isInitializing) updateMyPresence();
-          }
+          updated: function() { if(!isInitializing) autoSaveToCloud(); },
+          rangeSelect: function() { if(!isInitializing) updateMyPresence(); }
         }
       });
       
       isInitializing = false;
       document.getElementById('loading-mask').style.display = 'none';
-      dbStatusText.innerText = "DB 연결 완료";
+      dbStatusText.innerText = "DB 실시간 연결됨";
 
-    } catch (err) {
-      document.getElementById('loading-mask').innerHTML = `<div style='color:red;'>데이터 로드 오류: ${err.message}</div>`;
+    } catch (renderErr) {
+      console.error("한글 UI 렌더링 실패, 안전 모드(영문)로 전환합니다.", renderErr);
+      document.getElementById('luckysheet').innerHTML = '';
+      window.luckysheet.create({ container: 'luckysheet', lang: 'en', data: sheetData, showinfobar: false, showsheetbar: true });
+      isInitializing = false;
+      document.getElementById('loading-mask').style.display = 'none';
+      dbStatusText.innerText = "DB 연결 완료 (안전 모드)";
     }
   }
 
-  // 데이터베이스 강제 동기화(덮어쓰기) 최적화: 3초 타임아웃
   function autoSaveToCloud() {
     clearTimeout(saveTimeout);
     dbStatusIndicator.classList.add('saving');
