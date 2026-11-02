@@ -35,17 +35,19 @@
     
     button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(26,115,232,0.3); }
     button.primary-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(26,115,232,0.4); }
-    button.small-btn { padding: 6px 10px; background: #1a73e8; color: white; border: none; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    button.small-btn { padding: 6px 9px; background: #1a73e8; color: white; border: none; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
     button.small-btn:hover { opacity: 0.9; }
+    button.save-row-btn { background: #0f9d58; }
+    button.warn-btn { background: #f29900; }
     button.danger-btn { background: #ea4335; }
 
-    /* 상단 헤더바 */
-    .header-bar { height: 60px; min-height: 60px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 0 20px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; }
-    .header-left { display: flex; align-items: center; gap: 14px; flex-wrap: nowrap; }
-    .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; margin-right: 4px; }
-    .header-info { font-size: 13px; font-weight: 600; color: #3c4043; background: #f1f3f4; padding: 6px 12px; border-radius: 6px; }
+    /* 상단 헤더바 (다중 접속자 2줄 표기 대응) */
+    .header-bar { min-height: 60px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 6px 20px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; box-sizing: border-box; gap: 12px; }
+    .header-left { display: flex; align-items: center; gap: 12px; flex-wrap: nowrap; flex: 1; min-width: 0; }
+    .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; white-space: nowrap; }
+    .header-info { font-size: 13px; font-weight: 600; color: #3c4043; background: #f1f3f4; padding: 6px 12px; border-radius: 6px; white-space: nowrap; }
     
-    .db-status { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #34a853; background: #e6f4ea; padding: 6px 12px; border-radius: 20px; transition: 0.2s; }
+    .db-status { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: #34a853; background: #e6f4ea; padding: 6px 12px; border-radius: 20px; transition: 0.2s; white-space: nowrap; }
     .status-dot { width: 8px; height: 8px; background-color: #34a853; border-radius: 50%; animation: pulse 2s infinite; }
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52, 168, 83, 0.6); } 70% { box-shadow: 0 0 0 6px rgba(52, 168, 83, 0); } 100% { box-shadow: 0 0 0 0; } }
     .db-status.saving .status-dot { background-color: #fbbc04; animation: none; }
@@ -55,13 +57,15 @@
     .db-status.error .status-dot { background-color: #ea4335; animation: none; }
     .db-status.error { color: #c5221f; background: #fce8e6; }
 
-    #concurrent-users { display: none; background: #e8f0fe; color: #1967d2; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+    /* 상단 동시 접속자 2줄 배지 컨테이너 */
+    #concurrent-users { display: none; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-height: 48px; overflow-y: auto; padding: 2px 4px; flex: 1; min-width: 120px; }
+    .user-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; line-height: 1.2; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
     
-    .header-actions { display: flex; align-items: center; gap: 8px; }
-    .header-actions button { padding: 8px 14px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; }
+    .header-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .header-actions button { padding: 8px 14px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap; }
     #btn-manual-save { background: #1a73e8; color: white; }
     #btn-manual-save:hover { background: #1557b0; }
-    #btn-show-admin { background: #34a853; color: white; }
+    #btn-show-admin { background: #34a853; color: white; display: none; }
     #btn-show-admin:hover { background: #2d9047; }
     #btn-logout { background: #fff; color: #5f6368; border: 1px solid #dadce0; }
     #btn-logout:hover { background: #f8f9fa; color: #202124; }
@@ -70,13 +74,18 @@
     #spreadsheet-container { flex: 1; width: 100vw; position: relative; height: calc(100vh - 60px); background: #fff; }
     #luckysheet { margin: 0; padding: 0; position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
 
+    /* 구글 Docs 스타일의 시트 내 실시간 타 사용자 셀 커서 표시 */
+    #remote-cursor-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; }
+    .remote-cell-box { position: absolute; box-sizing: border-box; border: 2px solid #e91e63; pointer-events: none; transition: all 0.12s ease-out; background: rgba(233, 30, 99, 0.06); }
+    .remote-cell-tag { position: absolute; top: -20px; left: -2px; padding: 2px 6px; font-size: 11px; font-weight: 700; color: #fff; border-radius: 4px 4px 4px 0; white-space: nowrap; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,0.2); line-height: 1.2; }
+
     #loading-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #1a73e8; font-weight: bold; font-size: 15px; }
     .spinner { width: 36px; height: 36px; border: 4px solid #e0e0e0; border-top: 4px solid #1a73e8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    /* 관리자 모달 */
+    /* 모달 공통 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-    .modal-content { background: white; padding: 28px 32px; border-radius: 16px; width: 620px; max-width: 95vw; box-shadow: 0 10px 40px rgba(0,0,0,0.15); box-sizing: border-box; }
+    .modal-content { background: white; padding: 28px 32px; border-radius: 16px; width: 720px; max-width: 95vw; box-shadow: 0 10px 40px rgba(0,0,0,0.15); box-sizing: border-box; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
     .modal-header h3 { margin: 0; font-size: 18px; color: #202124; }
     .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #5f6368; padding: 0; }
@@ -88,16 +97,16 @@
     .modal-view { display: none; }
     .modal-view.active { display: block; }
     .modal-content label { display: block; font-size: 13px; color: #5f6368; font-weight: 600; margin-bottom: 6px; }
-    .modal-content input:not(#new-id), .modal-content select { width: 100%; padding: 11px 12px; margin-bottom: 14px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+    .modal-content .form-input, .modal-content .form-select { width: 100%; padding: 11px 12px; margin-bottom: 14px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
     
-    .user-table-container { max-height: 360px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; }
+    .user-table-container { max-height: 380px; overflow-y: auto; border: 1px solid #eee; border-radius: 8px; }
     .user-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-    .user-table th, .user-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #eee; vertical-align: middle; }
+    .user-table th, .user-table td { padding: 9px 10px; text-align: left; border-bottom: 1px solid #eee; vertical-align: middle; }
     .user-table th { font-weight: 600; color: #5f6368; background: #f8f9fa; position: sticky; top: 0; z-index: 1; }
-    .action-buttons { display: flex; gap: 6px; }
-    .role-badge { padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 700; }
-    .role-admin { background: #e6f4ea; color: #137333; }
-    .role-user { background: #f1f3f4; color: #5f6368; }
+    .action-buttons { display: flex; gap: 5px; align-items: center; }
+    .inline-dept-input { width: 120px; padding: 6px 8px; border: 1px solid #dadce0; border-radius: 5px; font-size: 13px; }
+    .inline-role-select { padding: 6px 8px; border: 1px solid #dadce0; border-radius: 5px; font-size: 13px; background: #fff; }
+    .info-notice { background: #e8f0fe; color: #1967d2; padding: 12px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 16px; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -111,7 +120,7 @@
       <input type="text" id="login-id" placeholder="아이디 (예: suby20)" autocomplete="username">
       <span>@helloconnectn.com</span>
     </div>
-    <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호" autocomplete="current-password">
+    <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호 (초기 비밀번호는 아이디와 동일)" autocomplete="current-password">
     <button id="btn-login" class="primary-btn">시스템 접속</button>
   </div>
 </div>
@@ -126,6 +135,7 @@
         <span class="status-dot"></span>
         <span id="db-status-text">DB 연결 중...</span>
       </div>
+      <!-- 다중 접속자 이름(셀) 간결 표기 (자동 2줄 줄바꿈) -->
       <div id="concurrent-users"></div>
     </div>
     <div class="header-actions">
@@ -143,6 +153,25 @@
   </div>
 </div>
 
+<!-- 초기 비밀번호 강제 변경 모달 (초기 패스워드 로그인 시 자동 팝업) -->
+<div id="force-pw-modal" class="modal-overlay" style="z-index: 10001;">
+  <div class="modal-content" style="width: 420px;">
+    <div class="modal-header">
+      <h3>🔒 초기 비밀번호 변경 안내</h3>
+    </div>
+    <div class="info-notice">
+      초기 비밀번호(아이디와 동일)로 로그인하셨습니다.<br>
+      보안을 위해 본인이 사용할 새 비밀번호를 설정해 주세요.
+    </div>
+    <label>새로운 비밀번호 (6자리 이상, 아이디와 다르게 입력)</label>
+    <input type="password" id="force-new-pw" class="form-input" placeholder="새 비밀번호 입력">
+    <label>새로운 비밀번호 확인</label>
+    <input type="password" id="force-confirm-pw" class="form-input" placeholder="새 비밀번호 다시 입력">
+    <button id="btn-force-pw-submit" class="primary-btn" style="margin-top: 6px;">비밀번호 변경 및 시작하기</button>
+    <button id="btn-force-pw-logout" class="small-btn" style="width:100%; margin-top:10px; background:#f1f3f4; color:#5f6368; padding:10px;">로그아웃</button>
+  </div>
+</div>
+
 <!-- 관리자 계정 관리 모달 -->
 <div id="admin-modal" class="modal-overlay">
   <div class="modal-content">
@@ -151,7 +180,7 @@
       <button id="btn-close-admin" class="close-btn">&times;</button>
     </div>
     <div class="admin-tabs">
-      <button id="tab-list" class="tab-btn active">등록된 사용자 목록</button>
+      <button id="tab-list" class="tab-btn active">등록된 사용자 목록 (부서/권한 수정)</button>
       <button id="tab-create" class="tab-btn">+ 신규 계정 발급</button>
     </div>
 
@@ -161,10 +190,10 @@
         <table class="user-table">
           <thead>
             <tr>
-              <th>아이디</th>
-              <th>성명 / 부서</th>
-              <th>권한</th>
-              <th>계정 관리 (PW변경 / 삭제)</th>
+              <th>아이디 / 성명</th>
+              <th>부서명 (인사발령 수정)</th>
+              <th>권한 조정</th>
+              <th>관리 (저장 / PW초기화 / 삭제)</th>
             </tr>
           </thead>
           <tbody id="user-list-body">
@@ -176,19 +205,24 @@
     
     <!-- 신규 계정 발급 탭 -->
     <div id="view-create" class="modal-view">
-      <label>아이디</label>
+      <div class="info-notice">
+        💡 신규 발급 시 <b>초기 비밀번호는 입력한 아이디와 동일하게 자동 생성</b>됩니다.<br>
+        사용자가 최초 로그인하면 비밀번호 변경창이 자동으로 표시됩니다.
+      </div>
+      <label>아이디 (초기 비밀번호로 함께 설정됨)</label>
       <div class="id-wrapper" style="margin-bottom: 14px;">
-        <input type="text" id="new-id" placeholder="아이디 입력" style="margin:0; border:none; padding:12px 16px;">
+        <input type="text" id="new-id" placeholder="아이디 입력 (예: hong123)" style="margin:0; border:none; padding:12px 16px;">
         <span>@helloconnectn.com</span>
       </div>
-      <label>성명</label><input type="text" id="new-name" placeholder="예: 홍길동">
-      <label>부서명</label><input type="text" id="new-dept" placeholder="예: 부평센터">
+      <label>성명</label>
+      <input type="text" id="new-name" class="form-input" placeholder="예: 홍길동">
+      <label>부서명</label>
+      <input type="text" id="new-dept" class="form-input" placeholder="예: 부평센터">
       <label>권한</label>
-      <select id="new-role">
+      <select id="new-role" class="form-select">
         <option value="user">일반 사용자 (user)</option>
         <option value="admin">관리자 (admin)</option>
       </select>
-      <label>초기 비밀번호</label><input type="password" id="new-pw" placeholder="6자리 이상 입력">
       <button id="btn-create-user" class="primary-btn">계정 생성 및 등록</button>
     </div>
   </div>
@@ -217,8 +251,22 @@
   const secondaryAuth = getAuth(secondaryApp);
   const domain = "@helloconnectn.com";
 
-  // ★ 브라우저 창(탭)마다 고유 세션 ID 부여 (동일 계정으로 여러 창을 띄워도 실시간 동기화 작동)
+  // 브라우저 탭 고유 세션 ID
   const clientSessionId = "sess_" + Math.random().toString(36).substring(2, 10) + "_" + Date.now();
+
+  // 동시 접속자별 고유 색상 팔레트
+  const CURSOR_COLORS = ['#e91e63', '#00897b', '#8e24aa', '#f4511e', '#3949ab', '#039be5', '#43a047', '#fb8c00'];
+  function getColorForId(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
+  }
+
+  // Firebase Auth 최소 6자리 제한 호환 변환 함수 (짧은 아이디도 초기 비밀번호로 사용 가능하게 처리)
+  function toAuthPassword(rawPw) {
+    const s = String(rawPw || '');
+    return s.length < 6 ? s.padEnd(6, '#') : s;
+  }
 
   let currentUserInfo = null;
   let saveTimeout = null;
@@ -227,12 +275,14 @@
   let lastSyncedJson = "";
   let sheetUnsubscribe = null;
   let presenceUnsubscribe = null;
-  let currentCellLabel = "A1";
+  let myUserUnsubscribe = null;
+
+  let currentCellState = { r: 0, c: 0, label: "A1", sheetName: "통합대시보드", rect: null };
+  let latestRemoteUsers = [];
 
   const dbStatusIndicator = document.getElementById('db-status-indicator');
   const dbStatusText = document.getElementById('db-status-text');
 
-  // 숫자를 엑셀 열 알파벳(A, B, C...)으로 변환
   function colToLetter(col) {
     let temp, letter = '';
     while (col >= 0) {
@@ -257,7 +307,6 @@
     }));
   }
 
-  // 2차원 런타임 배열(sheet.data)에서 실제 값이 있는 셀만 1차원 celldata로 직렬화
   function serializeSheets(rawSheets) {
     if (!Array.isArray(rawSheets)) return [];
     return rawSheets.map((sheet, idx) => {
@@ -297,6 +346,7 @@
     if (e.key === 'Enter') document.getElementById('btn-login').click();
   });
 
+  // 로그인 처리
   document.getElementById('btn-login').addEventListener('click', async () => {
     const rawId = document.getElementById('login-id').value.trim();
     const id = rawId.includes('@') ? rawId.split('@')[0] : rawId;
@@ -304,14 +354,28 @@
     if (!id || !pw) return alert("아이디와 비밀번호를 입력하세요.");
 
     const email = id + domain;
+    const authPw = toAuthPassword(pw);
+
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, pw);
-      await setDoc(doc(db, "users", cred.user.uid), { email: email, pw: pw }, { merge: true });
+      let cred;
+      try {
+        cred = await signInWithEmailAndPassword(auth, email, authPw);
+      } catch (firstErr) {
+        // 기존 버전에서 패딩 없이 생성된 경우 호환 시도
+        cred = await signInWithEmailAndPassword(auth, email, pw);
+      }
+      // 입력한 비밀번호가 아이디와 동일하면 초기 비밀번호 상태로 기록
+      const isInitialPwLogin = (pw === id);
+      const updatePayload = { id: id, email: email, pw: pw, authPw: toAuthPassword(pw) };
+      if (isInitialPwLogin) updatePayload.mustChangePw = true;
+
+      await setDoc(doc(db, "users", cred.user.uid), updatePayload, { merge: true });
     } catch (err) {
       alert("로그인 실패: 아이디 또는 비밀번호를 확인하세요.");
     }
   });
 
+  // 인증 상태 및 권한 실시간 감시
   onAuthStateChanged(auth, async (user) => {
     if (user) {
       document.getElementById('login-screen').classList.remove('active');
@@ -319,38 +383,105 @@
 
       initExcel();
 
-      try {
-        const userDoc = await getDoc(doc(db, "users", user.uid));
+      // 내 계정 정보를 실시간(onSnapshot)으로 감시하여 인사발령(부서/권한 변경) 및 초기 비밀번호 여부 즉시 반영
+      if (myUserUnsubscribe) myUserUnsubscribe();
+      myUserUnsubscribe = onSnapshot(doc(db, "users", user.uid), async (userDoc) => {
         if (!userDoc.exists()) {
-          alert("관리자에 의해 삭제되었거나 권한이 없는 계정입니다.");
+          alert("관리자에 의해 삭제되었거나 접근 권한이 없는 계정입니다.");
           await signOut(auth);
           window.location.reload();
           return;
         }
         const data = userDoc.data();
-        if (!data.email && user.email) {
-          await setDoc(doc(db, "users", user.uid), { email: user.email }, { merge: true });
-          data.email = user.email;
-        }
-        currentUserInfo = { ...data, uid: user.uid };
+        const emailStr = data.email || user.email || "";
+        const idOnly = data.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+
+        currentUserInfo = { ...data, id: idOnly, email: emailStr, uid: user.uid };
         document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept}) - ${currentUserInfo.role === 'admin' ? '관리자' : '사용자'}`;
-        document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
         
+        // 관리자 권한 철저 검증: 일반 사용자는 계정 관리 버튼 및 모달 접근 완전 차단
+        const adminBtn = document.getElementById('btn-show-admin');
+        if (currentUserInfo.role === 'admin') {
+          adminBtn.style.display = 'inline-block';
+        } else {
+          adminBtn.style.display = 'none';
+          document.getElementById('admin-modal').style.display = 'none';
+        }
+
+        // 초기 비밀번호(아이디와 동일) 상태이거나 mustChangePw가 true이면 비밀번호 변경창 강제 표시
+        const forceModal = document.getElementById('force-pw-modal');
+        if (data.mustChangePw === true || (data.pw && data.pw === idOnly && data.mustChangePw !== false)) {
+          forceModal.style.display = 'flex';
+        } else {
+          forceModal.style.display = 'none';
+        }
+
         updateMyPresence();
-        listenPresence();
-      } catch (e) {
-        console.error("사용자 정보 로드 오류:", e);
-      }
+      });
+
+      listenPresence();
     } else {
       document.getElementById('login-screen').classList.add('active');
       document.getElementById('main-screen').classList.remove('active');
+      document.getElementById('btn-show-admin').style.display = 'none';
       currentUserInfo = null;
     }
   });
 
+  // 초기 비밀번호 강제 변경 제출 처리
+  document.getElementById('btn-force-pw-submit').addEventListener('click', async () => {
+    if (!currentUserInfo || !auth.currentUser) return;
+    const newPw = document.getElementById('force-new-pw').value;
+    const confirmPw = document.getElementById('force-confirm-pw').value;
+
+    if (!newPw || newPw.length < 6) {
+      return alert("새 비밀번호는 6자리 이상으로 입력해 주세요.");
+    }
+    if (newPw !== confirmPw) {
+      return alert("새 비밀번호와 확인 비밀번호가 일치하지 않습니다.");
+    }
+    if (newPw === currentUserInfo.id) {
+      return alert("아이디와 동일한 비밀번호는 사용할 수 없습니다. 다른 비밀번호를 입력해 주세요.");
+    }
+
+    try {
+      const targetAuthPw = toAuthPassword(newPw);
+      try {
+        await updatePassword(auth.currentUser, targetAuthPw);
+      } catch (reauthErr) {
+        // 세션 만료 시 자동 재인증 후 변경
+        const oldAuthPw = currentUserInfo.authPw || toAuthPassword(currentUserInfo.pw || currentUserInfo.id);
+        const cred = await signInWithEmailAndPassword(auth, currentUserInfo.email, oldAuthPw);
+        await updatePassword(cred.user, targetAuthPw);
+      }
+
+      await setDoc(doc(db, "users", currentUserInfo.uid), {
+        pw: newPw,
+        authPw: targetAuthPw,
+        mustChangePw: false
+      }, { merge: true });
+
+      document.getElementById('force-new-pw').value = '';
+      document.getElementById('force-confirm-pw').value = '';
+      document.getElementById('force-pw-modal').style.display = 'none';
+      alert("비밀번호가 성공적으로 변경되었습니다.");
+    } catch (err) {
+      alert("비밀번호 변경 중 오류가 발생했습니다: " + err.message);
+    }
+  });
+
+  document.getElementById('btn-force-pw-logout').addEventListener('click', () => {
+    document.getElementById('btn-logout').click();
+  });
+
+  // 로그아웃
   document.getElementById('btn-logout').addEventListener('click', async () => {
     if (sheetUnsubscribe) sheetUnsubscribe();
     if (presenceUnsubscribe) presenceUnsubscribe();
+    if (myUserUnsubscribe) myUserUnsubscribe();
+    if (clientSessionId) {
+      deleteDoc(doc(db, "presence", clientSessionId)).catch(() => {});
+    }
     await signOut(auth);
     window.location.reload();
   });
@@ -362,7 +493,19 @@
     saveToCloudNow(true);
   });
 
-  // 엑셀 렌더링 함수
+  // 현재 선택된 셀의 화면 좌표(rect) 추출
+  function getSelectedCellRect() {
+    const selBox = document.querySelector('#luckysheet-cell-selected-boxs .luckysheet-cell-selected');
+    if (!selBox) return null;
+    return {
+      left: parseFloat(selBox.style.left) || 0,
+      top: parseFloat(selBox.style.top) || 0,
+      width: parseFloat(selBox.style.width) || 74,
+      height: parseFloat(selBox.style.height) || 20
+    };
+  }
+
+  // 엑셀 렌더링
   function renderLuckysheet(sheetData) {
     window.luckysheet.create({
       container: 'luckysheet',
@@ -380,21 +523,44 @@
         updated: function() {
           if (!isInitializing && !isApplyingRemoteUpdate) triggerAutoSave(150);
         },
+        sheetActivate: function(index) {
+          setTimeout(() => {
+            updateMyPresence();
+            renderRemoteCellCursors();
+          }, 80);
+        },
         rangeSelect: function(sheet, range) {
           if (!isInitializing) {
             if (range && range[0] && range[0].row && range[0].column) {
-              currentCellLabel = `${colToLetter(range[0].column[0])}${range[0].row[0] + 1}`;
+              const r = range[0].row[0];
+              const c = range[0].column[0];
+              currentCellState = {
+                r: r,
+                c: c,
+                label: `${colToLetter(c)}${r + 1}`,
+                sheetName: sheet?.name || getActiveSheetName(),
+                rect: getSelectedCellRect()
+              };
             }
-            updateMyPresence(sheet?.name);
-            // 셀 편집 후 다른 셀로 이동했을 때 변경사항이 있으면 즉시 자동 저장
+            updateMyPresence();
             if (!isApplyingRemoteUpdate) triggerAutoSave(150);
           }
         }
       }
     });
+
+    setTimeout(() => renderRemoteCellCursors(), 200);
   }
 
-  // 초기 엑셀 로드 및 이벤트 바인딩
+  function getActiveSheetName() {
+    if (window.luckysheet && typeof window.luckysheet.getluckysheetfile === 'function') {
+      const files = window.luckysheet.getluckysheetfile();
+      const active = files ? files.find(s => s.status == 1) : null;
+      if (active) return active.name;
+    }
+    return "통합대시보드";
+  }
+
   async function initExcel() {
     if (window.luckysheetInstance) return;
     window.luckysheetInstance = true;
@@ -438,7 +604,6 @@
         saveToCloudNow(true);
       }
 
-      // 키보드(Delete, 붙여넣기, 실행취소 등) 및 상단 툴바(색상, 굵기, 병합 등) 조작 시에도 즉시 자동 저장 작동
       const container = document.getElementById('spreadsheet-container');
       container.addEventListener('keyup', (e) => {
         if (isInitializing || isApplyingRemoteUpdate) return;
@@ -448,7 +613,13 @@
       });
       container.addEventListener('mouseup', () => {
         if (isInitializing || isApplyingRemoteUpdate) return;
-        setTimeout(() => triggerAutoSave(250), 50);
+        setTimeout(() => {
+          currentCellState.sheetName = getActiveSheetName();
+          currentCellState.rect = getSelectedCellRect();
+          updateMyPresence();
+          renderRemoteCellCursors();
+          triggerAutoSave(250);
+        }, 60);
       });
 
       listenRemoteSheetChanges();
@@ -462,7 +633,6 @@
     }, delayMs);
   }
 
-  // 변경된 내용이 있을 때만 Firestore에 즉시 전송
   async function saveToCloudNow(force = false) {
     if (!window.luckysheet || isInitializing || isApplyingRemoteUpdate) return;
     clearTimeout(saveTimeout);
@@ -474,7 +644,6 @@
       const cleanSheets = serializeSheets(liveFiles);
       const currentJson = JSON.stringify(cleanSheets);
 
-      // 이전 저장 상태와 비교해 실제 변경된 셀/서식이 없으면 불필요한 DB 전송 생략
       if (!force && currentJson === lastSyncedJson) return;
 
       lastSyncedJson = currentJson;
@@ -486,7 +655,7 @@
         content: currentJson,
         sessionId: clientSessionId,
         updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
-        updatedByName: currentUserInfo ? `${currentUserInfo.name}(${currentUserInfo.dept})` : "사용자",
+        updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
         timestamp: now
       });
 
@@ -497,11 +666,11 @@
       console.error("저장 실패:", error);
       dbStatusIndicator.classList.remove('saving', 'syncing');
       dbStatusIndicator.classList.add('error');
-      dbStatusText.innerText = "동기화 오류 (재시도 중)";
+      dbStatusText.innerText = "동기화 오류";
     }
   }
 
-  // ★ 핵심: 상대방이 수정한 데이터를 받아 내 화면의 라이브 메모리(getluckysheetfile)와 캔버스를 즉시 갱신
+  // 타 사용자의 셀/서식 변경 실시간 수신 및 화면 반영
   function listenRemoteSheetChanges() {
     let isFirstSnapshot = true;
 
@@ -513,7 +682,6 @@
       if (!docSnap.exists()) return;
       const docData = docSnap.data();
 
-      // 내 브라우저 탭(clientSessionId)에서 방금 보낸 데이터는 무시
       if (docData.sessionId && docData.sessionId === clientSessionId) return;
       if (!docData.content || docData.content === lastSyncedJson) return;
 
@@ -524,16 +692,13 @@
         isApplyingRemoteUpdate = true;
         lastSyncedJson = docData.content;
 
-        // 복제본(getAllSheets)이 아닌 실제 라이브 메모리(getluckysheetfile) 참조 획득
         const liveSheets = window.luckysheet.getluckysheetfile();
         if (!liveSheets) return;
 
-        // 시트 추가/삭제/이름변경 여부 확인
         const structureChanged = liveSheets.length !== remoteSheets.length ||
           liveSheets.some((s, i) => s.name !== remoteSheets[i]?.name || String(s.index) !== String(remoteSheets[i]?.index));
 
         if (structureChanged) {
-          // 시트 탭 구조가 바뀐 경우 현재 활성 시트 상태를 유지하며 재렌더링
           const currentActive = liveSheets.find(s => s.status == 1);
           if (currentActive) {
             remoteSheets.forEach(rs => {
@@ -543,7 +708,6 @@
           window.luckysheet.destroy();
           renderLuckysheet(remoteSheets);
         } else {
-          // 셀 값, 수식, 서식(색상/폰트/테두리/병합/행열크기) 실시간 인플레이스 업데이트
           let activeSheetOrder = 0;
           const activeSheetChanges = [];
 
@@ -554,7 +718,6 @@
             const isActive = (lSheet.status == 1);
             if (isActive) activeSheetOrder = lSheet.order !== undefined ? lSheet.order : sIdx;
 
-            // 1. 병합, 테두리, 행/열 너비 등 config 객체를 참조 유지하며 갱신
             if (!lSheet.config) lSheet.config = {};
             Object.keys(lSheet.config).forEach(k => delete lSheet.config[k]);
             Object.assign(lSheet.config, rSheet.config || {});
@@ -562,13 +725,11 @@
             lSheet.calcChain = rSheet.calcChain || [];
             lSheet.celldata = rSheet.celldata || [];
 
-            // 2. 원격 celldata 맵 생성
             const remoteMap = new Map();
             (rSheet.celldata || []).forEach(item => {
               remoteMap.set(`${item.r}_${item.c}`, item.v);
             });
 
-            // 3. 이미 메모리에 로드된 2차원 data 배열(캔버스 렌더링 소스) 직접 갱신
             if (lSheet.data && Array.isArray(lSheet.data)) {
               for (let r = 0; r < lSheet.data.length; r++) {
                 if (!lSheet.data[r]) continue;
@@ -587,7 +748,6 @@
                 }
               }
 
-              // 기존 행/열 범위를 넘어 새로 입력된 셀 반영
               remoteMap.forEach((val, key) => {
                 const [r, c] = key.split('_').map(Number);
                 if (lSheet.data[r]) {
@@ -600,12 +760,10 @@
             }
           });
 
-          // 4. 현재 화면에 보고 있는 시트의 캔버스 즉시 리페인트
           if (activeSheetChanges.length > 0 && typeof window.luckysheet.setCellValue === 'function') {
             activeSheetChanges.forEach((chg, idx) => {
               const isLast = (idx === activeSheetChanges.length - 1);
               window.luckysheet.setCellValue(chg.r, chg.c, chg.v, { order: activeSheetOrder, isRefresh: isLast });
-              // setCellValue 호출 후 스타일(배경색, 굵기 등)이 유실되지 않도록 원본 셀 객체 재주입
               const activeSheet = liveSheets.find(s => s.status == 1) || liveSheets[activeSheetOrder];
               if (activeSheet && activeSheet.data && activeSheet.data[chg.r]) {
                 activeSheet.data[chg.r][chg.c] = chg.v;
@@ -616,6 +774,7 @@
           if (typeof window.luckysheet.jfrefreshgrid === 'function') {
             window.luckysheet.jfrefreshgrid();
           }
+          renderRemoteCellCursors();
         }
 
         dbStatusIndicator.classList.remove('saving', 'error');
@@ -630,52 +789,138 @@
     });
   }
 
-  // 동시 접속자 및 현재 편집 중인 셀 위치 실시간 공유
-  function updateMyPresence(sheetName) {
+  // ==================== 실시간 공동 작업자 셀 커서 표시 & 상단 2줄 요약 배지 ====================
+  function updateMyPresence() {
     if (!currentUserInfo) return;
-    let activeSheetName = sheetName;
-    if (!activeSheetName && window.luckysheet && typeof window.luckysheet.getluckysheetfile === 'function') {
-      const files = window.luckysheet.getluckysheetfile();
-      const active = files ? files.find(s => s.status == 1) : null;
-      if (active) activeSheetName = active.name;
-    }
+    const activeSheetName = getActiveSheetName();
+    const rect = getSelectedCellRect() || currentCellState.rect;
+
     setDoc(doc(db, "presence", clientSessionId), {
+      sessionId: clientSessionId,
       uid: currentUserInfo.uid,
       name: currentUserInfo.name,
       dept: currentUserInfo.dept,
-      sheet: activeSheetName || "통합대시보드",
-      cell: currentCellLabel || "A1",
+      sheet: activeSheetName,
+      r: currentCellState.r || 0,
+      c: currentCellState.c || 0,
+      cell: currentCellState.label || "A1",
+      rect: rect || null,
       updatedAt: Date.now()
     }).catch(() => {});
   }
 
+  // 시트 캔버스 위에 타 사용자의 현재 편집 셀 박스 및 이름표 렌더링 (구글 Docs 방식)
+  function renderRemoteCellCursors() {
+    const cellMain = document.getElementById('luckysheet-cell-main');
+    if (!cellMain) return;
+
+    let layer = document.getElementById('remote-cursor-layer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'remote-cursor-layer';
+      cellMain.appendChild(layer);
+    }
+    layer.innerHTML = '';
+
+    const myActiveSheetName = getActiveSheetName();
+    const liveFiles = window.luckysheet && typeof window.luckysheet.getluckysheetfile === 'function'
+      ? window.luckysheet.getluckysheetfile()
+      : null;
+    const activeSheetObj = liveFiles ? liveFiles.find(s => s.status == 1) : null;
+
+    latestRemoteUsers.forEach(u => {
+      if (u.sheet !== myActiveSheetName) return;
+
+      let left = 0, top = 0, width = 73, height = 19;
+      const r = Number(u.r || 0);
+      const c = Number(u.c || 0);
+
+      // 현재 시트의 행/열 누적 좌표 배열이 있으면 정확한 픽셀 위치 계산, 없으면 상대방 좌표(rect) 사용
+      if (activeSheetObj && Array.isArray(activeSheetObj.visibledatarow) && Array.isArray(activeSheetObj.visibledatacolumn) &&
+          activeSheetObj.visibledatarow[r] !== undefined && activeSheetObj.visibledatacolumn[c] !== undefined) {
+        top = r === 0 ? 0 : activeSheetObj.visibledatarow[r - 1];
+        height = activeSheetObj.visibledatarow[r] - top;
+        left = c === 0 ? 0 : activeSheetObj.visibledatacolumn[c - 1];
+        width = activeSheetObj.visibledatacolumn[c] - left;
+      } else if (u.rect) {
+        left = u.rect.left;
+        top = u.rect.top;
+        width = u.rect.width;
+        height = u.rect.height;
+      }
+
+      const color = getColorForId(u.sessionId || u.uid || u.name);
+      const box = document.createElement('div');
+      box.className = 'remote-cell-box';
+      box.style.left = `${left}px`;
+      box.style.top = `${top}px`;
+      box.style.width = `${width}px`;
+      box.style.height = `${height}px`;
+      box.style.borderColor = color;
+
+      const tag = document.createElement('div');
+      tag.className = 'remote-cell-tag';
+      tag.style.backgroundColor = color;
+      // 1행(최상단)인 경우 이름표가 잘리지 않도록 아래쪽에 표시
+      if (top < 20) {
+        tag.style.top = `${height}px`;
+      }
+      tag.innerText = `${u.name} (${u.cell || 'A1'})`;
+
+      box.appendChild(tag);
+      layer.appendChild(box);
+    });
+  }
+
   function listenPresence() {
+    if (presenceUnsubscribe) presenceUnsubscribe();
     presenceUnsubscribe = onSnapshot(collection(db, "presence"), (snapshot) => {
-      let editingUsers = [];
       const now = Date.now();
+      const activeList = [];
+
       snapshot.forEach(docSnap => {
         if (docSnap.id !== clientSessionId) {
           const data = docSnap.data();
           if (now - data.updatedAt < 60000) {
-            editingUsers.push(`${data.name}[${data.sheet}:${data.cell || 'A1'}]`);
+            activeList.push({ ...data, sessionId: docSnap.id });
           }
         }
       });
-      const badge = document.getElementById("concurrent-users");
-      if (editingUsers.length > 0) {
-        badge.innerText = `👥 실시간 공동 작업 중: ${editingUsers.join(', ')}`;
-        badge.style.display = "inline-block";
+
+      latestRemoteUsers = activeList;
+
+      // 1. 상단 헤더에 간결한 배지(홍길동(B3))로 표시 (여러 명일 때 자동 2줄 정렬)
+      const badgeContainer = document.getElementById("concurrent-users");
+      badgeContainer.innerHTML = '';
+      if (activeList.length > 0) {
+        const mySheet = getActiveSheetName();
+        activeList.forEach(u => {
+          const pill = document.createElement('span');
+          pill.className = 'user-pill';
+          pill.style.backgroundColor = getColorForId(u.sessionId || u.uid || u.name);
+          const locText = (u.sheet && u.sheet !== mySheet) ? `${u.sheet}:${u.cell || 'A1'}` : `${u.cell || 'A1'}`;
+          pill.innerText = `${u.name}(${locText})`;
+          badgeContainer.appendChild(pill);
+        });
+        badgeContainer.style.display = "flex";
       } else {
-        badge.style.display = "none";
+        badgeContainer.style.display = "none";
       }
+
+      // 2. 시트 셀 위에 직접 테두리 및 이름표 표시
+      renderRemoteCellCursors();
     });
   }
 
-  // ==================== 관리자 계정 관리 (발급 / PW 직접 변경 / 완전 삭제) ====================
+  // ==================== 관리자 계정 관리 (부서/권한 수정, 초기PW=아이디 발급, PW초기화, 완전삭제) ====================
   document.getElementById('btn-show-admin').addEventListener('click', () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') {
+      return alert("관리자 권한이 있는 계정만 접근할 수 있습니다.");
+    }
     document.getElementById('admin-modal').style.display = 'flex';
     loadUserList();
   });
+
   document.getElementById('btn-close-admin').addEventListener('click', () => {
     document.getElementById('admin-modal').style.display = 'none';
   });
@@ -695,34 +940,39 @@
     document.getElementById('view-list').classList.remove('active');
   });
 
+  // 신규 계정 발급 (초기 비밀번호 = 아이디 자동 설정 & 최초 로그인 시 변경 강제)
   document.getElementById('btn-create-user').addEventListener('click', async () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+
     const rawId = document.getElementById('new-id').value.trim();
     const id = rawId.includes('@') ? rawId.split('@')[0] : rawId;
-    const pw = document.getElementById('new-pw').value;
     const name = document.getElementById('new-name').value.trim();
     const dept = document.getElementById('new-dept').value.trim();
     const role = document.getElementById('new-role').value;
 
-    if (!id || !pw || !name || !dept) return alert("모든 항목을 입력하세요.");
-    if (pw.length < 6) return alert("비밀번호는 6자리 이상이어야 합니다.");
+    if (!id || !name || !dept) return alert("아이디, 성명, 부서명을 모두 입력하세요.");
 
+    const initialPw = id; // 초기 패스워드는 아이디와 동일하게 설정
+    const authPw = toAuthPassword(initialPw);
     const email = id + domain;
+
     try {
-      const userCred = await createUserWithEmailAndPassword(secondaryAuth, email, pw);
+      const userCred = await createUserWithEmailAndPassword(secondaryAuth, email, authPw);
       await setDoc(doc(db, "users", userCred.user.uid), {
         id: id,
         email: email,
         name: name,
         dept: dept,
         role: role,
-        pw: pw,
+        pw: initialPw,
+        authPw: authPw,
+        mustChangePw: true, // 최초 로그인 시 비밀번호 변경창 팝업 플래그
         createdAt: Date.now()
       });
       await signOut(secondaryAuth);
 
-      alert(`[${name}] 님의 계정이 정상 발급되었습니다.`);
+      alert(`[${name}] 님의 계정이 발급되었습니다.\n• 아이디: ${id}\n• 초기 비밀번호: ${initialPw} (아이디와 동일)\n※ 최초 로그인 시 비밀번호 변경창이 자동으로 표시됩니다.`);
       document.getElementById('new-id').value = '';
-      document.getElementById('new-pw').value = '';
       document.getElementById('new-name').value = '';
       document.getElementById('new-dept').value = '';
       document.getElementById('tab-list').click();
@@ -731,7 +981,9 @@
     }
   });
 
+  // 사용자 목록 조회 및 부서/권한 수정, PW 초기화, 삭제
   async function loadUserList() {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
     const tbody = document.getElementById('user-list-body');
     tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">사용자 목록을 불러오는 중...</td></tr>';
 
@@ -743,46 +995,87 @@
         const uid = docSnap.id;
         const data = docSnap.data();
         const emailStr = data.email || (data.id ? data.id + domain : '이메일 미등록');
-        const idOnly = emailStr.includes('@') ? emailStr.split('@')[0] : emailStr;
+        const idOnly = data.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><b>${idOnly}</b><br><span style="font-size:11px;color:#888;">${emailStr}</span></td>
-          <td><b>${data.name || '-'}</b><br><span style="font-size:12px;color:#666;">${data.dept || '-'}</span></td>
-          <td><span class="role-badge ${data.role === 'admin' ? 'role-admin' : 'role-user'}">${data.role === 'admin' ? '관리자' : '사용자'}</span></td>
+          <td>
+            <b>${data.name || '-'}</b> <span style="font-size:12px;color:#1a73e8;font-weight:600;">(${idOnly})</span><br>
+            <span style="font-size:11px;color:#888;">${emailStr}</span>
+          </td>
+          <td>
+            <input type="text" class="inline-dept-input" value="${data.dept || ''}" placeholder="부서명 입력">
+          </td>
+          <td>
+            <select class="inline-role-select">
+              <option value="user" ${data.role !== 'admin' ? 'selected' : ''}>일반 사용자</option>
+              <option value="admin" ${data.role === 'admin' ? 'selected' : ''}>관리자</option>
+            </select>
+          </td>
           <td>
             <div class="action-buttons">
-              <button class="small-btn change-pw-btn" data-uid="${uid}">PW 직접변경</button>
-              <button class="small-btn danger-btn delete-user-btn" data-uid="${uid}">계정 삭제</button>
+              <button class="small-btn save-row-btn" title="부서명 및 권한 변경사항을 저장합니다">변경저장</button>
+              <button class="small-btn warn-btn reset-pw-btn" title="비밀번호를 아이디와 동일하게 초기화합니다">PW초기화</button>
+              <button class="small-btn danger-btn delete-user-btn" title="계정을 완전히 삭제합니다">삭제</button>
             </div>
           </td>
         `;
         tbody.appendChild(tr);
 
-        tr.querySelector('.change-pw-btn').addEventListener('click', async () => {
-          const newPw = prompt(`[${data.name}] 사용자의 새로운 비밀번호를 입력하세요 (6자리 이상):`);
-          if (!newPw) return;
-          if (newPw.length < 6) return alert("비밀번호는 최소 6자리 이상이어야 합니다.");
+        // 1. 인사발령 부서명 및 권한 수정 저장
+        tr.querySelector('.save-row-btn').addEventListener('click', async () => {
+          const newDept = tr.querySelector('.inline-dept-input').value.trim();
+          const newRole = tr.querySelector('.inline-role-select').value;
+
+          if (!newDept) return alert("부서명을 입력해 주세요.");
+          if (uid === currentUserInfo.uid && newRole !== 'admin') {
+            return alert("현재 로그인 중인 관리자 본인의 권한은 일반 사용자로 해제할 수 없습니다.");
+          }
 
           try {
-            if (uid === currentUserInfo.uid && auth.currentUser) {
-              await updatePassword(auth.currentUser, newPw);
-              await setDoc(doc(db, "users", uid), { pw: newPw }, { merge: true });
-              alert("관리자 본인의 비밀번호가 즉시 변경되었습니다.");
-            } else if (data.email && data.pw) {
-              const cred = await signInWithEmailAndPassword(secondaryAuth, data.email, data.pw);
-              await updatePassword(cred.user, newPw);
-              await setDoc(doc(db, "users", uid), { pw: newPw }, { merge: true });
-              await signOut(secondaryAuth);
-              alert(`[${data.name}] 님의 비밀번호가 [${newPw}]로 즉시 변경되었습니다.`);
-            } else {
-              alert("이 계정은 이전 버전에서 생성되어 초기 암호 정보가 DB에 없습니다. 해당 사용자가 1회 로그인하면 이후부터 관리자 직접 변경이 활성화됩니다.");
-            }
+            await setDoc(doc(db, "users", uid), {
+              dept: newDept,
+              role: newRole
+            }, { merge: true });
+            alert(`[${data.name}] 님의 부서(${newDept}) 및 권한(${newRole === 'admin' ? '관리자' : ' 일반 사용자'}) 수정이 완료되었습니다.`);
           } catch (err) {
-            alert("비밀번호 변경 오류: " + err.message);
+            alert("정보 수정 실패: " + err.message);
           }
         });
 
+        // 2. 비밀번호 초기화 (아이디와 동일하게 초기화 + 다음 로그인 시 비밀번호 변경창 팝업)
+        tr.querySelector('.reset-pw-btn').addEventListener('click', async () => {
+          if (!confirm(`[${data.name}] 님의 비밀번호를 아이디(${idOnly})와 동일하게 초기화하시겠습니까?\n(초기화 후 해당 사용자가 로그인하면 비밀번호 변경창이 자동으로 뜹니다.)`)) return;
+
+          const targetInitialPw = idOnly;
+          const targetAuthPw = toAuthPassword(targetInitialPw);
+
+          try {
+            if (uid === currentUserInfo.uid && auth.currentUser) {
+              await updatePassword(auth.currentUser, targetAuthPw);
+              await setDoc(doc(db, "users", uid), { pw: targetInitialPw, authPw: targetAuthPw, mustChangePw: true }, { merge: true });
+              alert(`비밀번호가 아이디(${idOnly})로 초기화되었습니다.`);
+            } else if (emailStr && (data.authPw || data.pw)) {
+              const currentAuthPw = data.authPw || toAuthPassword(data.pw);
+              let cred;
+              try {
+                cred = await signInWithEmailAndPassword(secondaryAuth, emailStr, currentAuthPw);
+              } catch (e) {
+                cred = await signInWithEmailAndPassword(secondaryAuth, emailStr, data.pw);
+              }
+              await updatePassword(cred.user, targetAuthPw);
+              await setDoc(doc(db, "users", uid), { id: idOnly, pw: targetInitialPw, authPw: targetAuthPw, mustChangePw: true }, { merge: true });
+              await signOut(secondaryAuth);
+              alert(`[${data.name}] 님의 비밀번호가 아이디(${idOnly})와 동일하게 초기화되었습니다.\n다음 로그인 시 비밀번호 변경창이 자동으로 표시됩니다.`);
+            } else {
+              alert("이 계정은 이전 버전에서 생성되어 초기 암호 정보가 DB에 없습니다. 해당 사용자가 1회 로그인하면 이후부터 즉시 초기화가 활성화됩니다.");
+            }
+          } catch (err) {
+            alert("비밀번호 초기화 오류: " + err.message);
+          }
+        });
+
+        // 3. 계정 완전 삭제
         tr.querySelector('.delete-user-btn').addEventListener('click', async () => {
           if (uid === currentUserInfo.uid) {
             return alert("현재 로그인 중인 관리자 본인의 계정은 삭제할 수 없습니다.");
@@ -790,9 +1083,15 @@
           if (!confirm(`[${data.name} (${idOnly})] 계정을 완전히 삭제하시겠습니까?`)) return;
 
           try {
-            if (data.email && data.pw) {
+            if (emailStr && (data.authPw || data.pw)) {
               try {
-                const cred = await signInWithEmailAndPassword(secondaryAuth, data.email, data.pw);
+                const currentAuthPw = data.authPw || toAuthPassword(data.pw);
+                let cred;
+                try {
+                  cred = await signInWithEmailAndPassword(secondaryAuth, emailStr, currentAuthPw);
+                } catch (e) {
+                  cred = await signInWithEmailAndPassword(secondaryAuth, emailStr, data.pw);
+                }
                 await deleteUser(cred.user);
               } catch (authErr) {
                 console.warn("Auth 계정 삭제 건너뜀:", authErr);
