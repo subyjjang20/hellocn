@@ -72,7 +72,6 @@
     #btn-logout { background: #fff; color: #5f6368; border: 1px solid #dadce0; }
     #btn-logout:hover { background: #f8f9fa; color: #202124; }
 
-    /* 천단위 콤마(,) 전용 커스텀 툴바 버튼 스타일 */
     .comma-format-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 26px; background: #fff; border: 1px solid #dadce0; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; color: #3c4043; margin-right: 4px; vertical-align: middle; }
     .comma-format-btn:hover { background: #f1f3f4; border-color: #bdc1c6; }
 
@@ -213,7 +212,7 @@
       <div class="user-list-controls">
         <input type="text" id="user-search-input" class="user-search-input" placeholder="🔍 부서명, 사용자명, 아이디명으로 검색...">
         <span id="user-count-label" class="user-count-label">총 0명</span>
-        <button id="btn-reset-sort" class="sort-reset-btn" title="관리자 우선 → 부서명 가나다순 → 사용자명 가나다순으로 정렬">기본정렬 복귀</button>
+        <button id="btn-reset-sort" class="sort-reset-btn" title="관리자 우선 → 부서명 가나다순 → 사용자명 가나다순으로 정렬">기본정렉 복귀</button>
       </div>
       <div class="user-table-container">
         <table class="user-table">
@@ -821,16 +820,81 @@
         sheetKey: safeKey,
         sheetName: active.name,
         changes: batch,
-        config: active.config || {}, // 테두리 및 서식 설정 변경 실시간 동기화 포함
+        config: active.config || {},
         updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
         timestamp: Date.now()
       }).catch(() => {});
     }, 80);
   }
 
-  // ==================== 상단 툴바 및 우클릭 메뉴 전체 한글화 & 천단위 콤마 버튼 ====================
-  function injectKoreanUiAndCommaButton() {
-    // 1. 천단위 콤마(,) 버튼 주입
+  // ==================== ★ 강력한 실시간 DOM 감시 기반 전체 메뉴 한글화 엔진 ====================
+  function translateAllMenusToKorean() {
+    const koDictionary = {
+      'Undo': '실행 취소', 'Redo': '다시 실행', 'Format painter': '서식 복사', 'Clear format': '서식 지우기',
+      'Font': '글꼴', 'Font size': '글자 크기', 'Bold': '굵게', 'Italic': '기울임꼴', 'Strikethrough': '취소선', 'Underline': '밑줄',
+      'Text color': '글자 색상', 'Cell color': '셀 배경색', 'Borders': '테두리', 'Merge cells': '셀 병합',
+      'Horizontal alignment': '가로 정렬', 'Vertical alignment': '세로 정렬', 'Text wrapping': '텍스트 줄 바꿈',
+      'Auto sum': '자동 합계', 'Conditional formatting': '조건부 서식', 'Data validation': '데이터 유효성 검사',
+      'Freeze panes': '틀 고정', 'Filter': '필터', 'Chart': '차트', 'Comment': '메모',
+      'Copy': '복사', 'Paste': '붙여넣기', 'Cut': '잘라내기', 'Insert row': '행 삽입', 'Insert column': '열 삽입',
+      'Delete row': '행 삭제', 'Delete column': '열 삭제', 'Delete selected Row': '선택한 행 삭제', 'Delete selected Column': '선택한 컬럼 삭제', 'Cell delete': '셀 삭제', 'Cell delete': '셀 삭제', 'Clear content': '내용 지우기',
+      'Matrix operation': '행렬 연산', 'Sort': '정렬', 'Create chart': '차트 생성', 'Insert image': '이미지 삽입',
+      'Insert link': '링크 삽입', 'Data verification': '데이터 검증', 'Cell format config': '셀 서식 설정',
+      'Copy as': '다른 형식으로 복사', 'Json first line title': 'JSON (첫 줄 제목)', 'Json untitled': 'JSON (제목 없음)',
+      'One-dimensional array': '1차원 배열', 'Two-dimensional array': '2차원 배열', 'Multidimensional Arrays': '다차원 배열',
+      'Diagonal': '대각선', 'Anti-diagonal': '역대각선', 'Diagonal offset': '대각선 오프셋', 'Boolean': '부울',
+      'Sort ascending': '오름차순 정렬 (A-Z)', 'Sort descending': '내림차순 정렬 (Z-A)',
+      'Insert comment': '메모 삽입', 'Rename': '이름 변경', 'Delete': '삭제', 'Hide': '숨기기', 'Copy sheet': '시트 복제', 'Move': '시트 이동',
+      'Automatic': '자동', 'General': '일반', 'Number': '숫자', 'Percent': '백분율', 'Accounting': '회계',
+      'Short date': '간단한 날짜', 'Time': '시간', 'Scientific': '지수', 'Text': '텍스트',
+      'Percent format': '백분율 서식'
+    };
+
+    // 1. 툴바 툴팁 변환
+    document.querySelectorAll('[data-tips]').forEach(el => {
+      const tip = el.getAttribute('data-tips');
+      if (koDictionary[tip]) el.setAttribute('title', koDictionary[tip]);
+    });
+
+    // 2. 우클릭 메뉴, 서브메뉴, 드롭다운 텍스트 일괄 변환
+    const targets = document.querySelectorAll(
+      '.luckysheet-right-menu-item, .luckysheet-cols-menuitem, .luckysheet-mousedown-select-item, .luckysheet-toolbar-menu-item, .luckysheet-modal-dialog-title-text, .luckysheet-menubox-cell'
+    );
+    targets.forEach(el => {
+      // 자식 노드가 없는 순수 텍스트 노드이거나 단일 텍스트인 경우 대상 지정
+      const rawText = el.childNodes.length === 1 && el.childNodes[0].nodeType === 3 ? el.innerText.trim() : null;
+      if (rawText && koDictionary[rawText]) {
+        el.innerText = koDictionary[rawText];
+      } else {
+        // 하위 span이나 텍스트 조각이 포함된 경우 순회하며 치환
+        for (let key in koDictionary) {
+          if (el.innerText === key) {
+            el.innerText = koDictionary[key];
+            break;
+          }
+        }
+      }
+    });
+  }
+
+  // DOM에 메뉴가 동적으로 생성될 때(우클릭 시) 즉시 감지하여 한글화 실행
+  function initKoreanObserver() {
+    const observer = new MutationObserver((mutations) => {
+      let shouldTranslate = false;
+      for (let m of mutations) {
+        if (m.addedNodes.length > 0) {
+          shouldTranslate = true;
+          break;
+        }
+      }
+      if (shouldTranslate) {
+        translateAllMenusToKorean();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  }
+
+  function injectCommaButton() {
     const toolbar = document.querySelector('.luckysheet-toolbar');
     if (toolbar && !document.getElementById('custom-comma-btn')) {
       const percentBtn = toolbar.querySelector('[data-tips="Percent format"]');
@@ -852,33 +916,6 @@
         toolbar.appendChild(commaBtn);
       }
     }
-
-    // 2. 상단 툴바 버튼 및 드롭다운 한글화 맵핑
-    const koMap = {
-      'Undo': '실행 취소', 'Redo': '다시 실행', 'Format painter': '서식 복사', 'Clear format': '서식 지우기',
-      'Font': '글꼴', 'Font size': '글자 크기', 'Bold': '굵게', 'Italic': '기울임꼴', 'Strikethrough': '취소선', 'Underline': '밑줄',
-      'Text color': '글자 색상', 'Cell color': '셀 배경색', 'Borders': '테두리', 'Merge cells': '셀 병합',
-      'Horizontal alignment': '가로 정렬', 'Vertical alignment': '세로 정렬', 'Text wrapping': '텍스트 줄 바꿈',
-      'Auto sum': '자동 합계', 'Conditional formatting': '조건부 서식', 'Data validation': '데이터 유효성 검사',
-      'Freeze panes': '틀 고정', 'Filter': '필터', 'Chart': '차트', 'Comment': '메모',
-      'Copy': '복사', 'Paste': '붙여넣기', 'Cut': '잘라내기', 'Insert row': '행 삽입', 'Insert column': '열 삽입',
-      'Delete row': '행 삭제', 'Delete column': '열 삭제', 'Delete cell': '셀 삭제', 'Clear contents': '내용 지우기',
-      'Sort ascending': '오름차순 정렬', 'Sort descending': '내림차순 정렬', 'Insert comment': '메모 삽입',
-      'Rename': '이름 변경', 'Delete': '삭제', 'Hide': '숨기기', 'Copy sheet': '시트 복제', 'Move': '시트 이동',
-      'Automatic': '자동', 'General': '일반', 'Number': '숫자', 'Percent': '백분율', 'Accounting': '회계',
-      'Short date': '간단한 날짜', 'Time': '시간', 'Scientific': '지수', 'Text': '텍스트'
-    };
-
-    document.querySelectorAll('[data-tips]').forEach(el => {
-      const tip = el.getAttribute('data-tips');
-      if (koMap[tip]) el.setAttribute('title', koMap[tip]);
-    });
-
-    // 우클릭 메뉴 및 드롭다운 전체 한글화 적용
-    document.querySelectorAll('.luckysheet-right-menu-item, .luckysheet-cols-menuitem, .luckysheet-mousedown-select-item, .luckysheet-toolbar-menu-item').forEach(el => {
-      const txt = el.innerText.trim();
-      if (koMap[txt]) el.innerText = koMap[txt];
-    });
   }
 
   function renderLuckysheet(sheetData) {
@@ -911,7 +948,8 @@
             currentCellState.sheetName = getActiveSheetName();
             schedulePresenceUpdate(false);
             renderRemoteCellCursors();
-            injectKoreanUiAndCommaButton();
+            injectCommaButton();
+            translateAllMenusToKorean();
           }, 60);
         },
         rangeSelect: function(sheet, range) {
@@ -934,7 +972,8 @@
 
     setTimeout(() => {
       renderRemoteCellCursors();
-      injectKoreanUiAndCommaButton();
+      injectCommaButton();
+      translateAllMenusToKorean();
     }, 300);
   }
 
@@ -1000,6 +1039,7 @@
 
     requestAnimationFrame(() => {
       renderLuckysheet(sheetData);
+      initKoreanObserver(); // 실시간 메뉴 한글화 감시 시작
 
       isInitializing = false;
       document.getElementById('loading-mask').style.display = 'none';
@@ -1030,7 +1070,8 @@
       container.addEventListener('mouseup', () => {
         if (isInitializing || isApplyingRemoteUpdate) return;
         setTimeout(() => {
-          injectKoreanUiAndCommaButton();
+          injectCommaButton();
+          translateAllMenusToKorean();
         }, 100);
       });
 
@@ -1129,7 +1170,6 @@
     }
   }
 
-  // ==================== 실시간 수신 엔진 (테두리/서식 config 동기화 포함) ====================
   function listenRemoteSheetChanges() {
     let isFirstDelta = true;
     deltaUnsubscribe = onSnapshot(doc(db, "sheets", "realtime_delta"), (docSnap) => {
@@ -1149,7 +1189,6 @@
         const targetSheet = liveFiles.find(s => toSafeDocKey(s.index) === d.sheetKey);
         if (!targetSheet) return;
 
-        // 테두리 등 config 변경사항 동기화
         if (d.config) {
           targetSheet.config = d.config;
         }
