@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>헬로CN닥스 - 실시간 웹 엑셀</title>
+  <title>헬로CN 닥스</title>
 
   <!-- Luckysheet UI 라이브러리 -->
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/css/pluginsCss.css' />
@@ -140,11 +140,13 @@
     <div class="login-logo">N</div>
     <h2>헬로CN닥스</h2>
     <div class="id-wrapper">
-      <input type="text" id="login-id" placeholder="아이디 (예: suby20)" autocomplete="username">
+      <input type="text" id="login-id" placeholder="아이디 (이메일 아이디)" autocomplete="username">
       <span>@helloconnectn.com</span>
     </div>
-    <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호 (초기 비밀번호는 아이디와 동일)" autocomplete="current-password">
-    <button id="btn-login" class="primary-btn">시스템 접속</button>
+<form id="login-form" onsubmit="handleLogin(event)">
+  <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호" autocomplete="current-password">
+  <button type="submit" id="btn-login" class="primary-btn">시스템 접속</button>
+</form>
   </div>
 </div>
 
@@ -291,7 +293,17 @@
 
   // 브라우저 탭 고유 세션 ID
   const clientSessionId = "sess_" + Math.random().toString(36).substring(2, 10) + "_" + Date.now();
+// 엔터
 
+  function handleLogin(event) {
+  // 엔터나 버튼 클릭 시 페이지가 새로고침되는 현상 방지
+  event.preventDefault();
+
+  const password = document.getElementById('login-pw').value;
+  
+  // 로그인 처리 로직 실행
+  console.log('시스템 접속 시도:', password);
+}
   // 동시 접속자별 고유 색상 팔레트
   const CURSOR_COLORS = ['#e91e63', '#00897b', '#8e24aa', '#f4511e', '#3949ab', '#039be5', '#43a047', '#fb8c00'];
   function getColorForId(str) {
