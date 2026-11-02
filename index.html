@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>헬로CN 닥스</title>
+  <title>헬로CN닥스 - 실시간 웹 엑셀</title>
 
   <!-- Luckysheet UI 라이브러리 -->
   <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/css/pluginsCss.css' />
@@ -21,7 +21,7 @@
 
     /* 로그인 화면 */
     #login-screen { justify-content: center; align-items: center; background: #f0f2f5; }
-    .login-box { background: #ffffff; padding: 48px 40px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); width: 440px; text-align: center; box-sizing: border-box; }
+    .login-box { background: #ffffff; padding: 48px 40px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); width: 440px; text-align: center; box-sizing: border-box; margin: 0; }
     .login-logo { width: 50px; height: 50px; background: #1a73e8; color: white; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; margin-bottom: 20px; }
     .login-box h2 { margin: 0 0 30px 0; color: #202124; font-size: 24px; font-weight: 700; }
     
@@ -134,20 +134,18 @@
 </head>
 <body>
 
-<!-- 로그인 화면 -->
+<!-- 로그인 화면 (엔터키 즉시 접속을 위한 form 구조 적용) -->
 <div id="login-screen" class="screen active">
-  <div class="login-box">
+  <form id="login-form" class="login-box">
     <div class="login-logo">N</div>
     <h2>헬로CN닥스</h2>
     <div class="id-wrapper">
-      <input type="text" id="login-id" placeholder="아이디 (이메일 아이디)" autocomplete="username">
+      <input type="text" id="login-id" placeholder="아이디 (예: suby20)" autocomplete="username">
       <span>@helloconnectn.com</span>
     </div>
-<form id="login-form" onsubmit="handleLogin(event)">
-  <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호" autocomplete="current-password">
-  <button type="submit" id="btn-login" class="primary-btn">시스템 접속</button>
-</form>
-  </div>
+    <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호 (초기 비밀번호는 아이디와 동일)" autocomplete="current-password">
+    <button type="submit" id="btn-login" class="primary-btn">시스템 접속</button>
+  </form>
 </div>
 
 <!-- 메인 엑셀 화면 -->
@@ -293,17 +291,7 @@
 
   // 브라우저 탭 고유 세션 ID
   const clientSessionId = "sess_" + Math.random().toString(36).substring(2, 10) + "_" + Date.now();
-// 엔터
 
-  function handleLogin(event) {
-  // 엔터나 버튼 클릭 시 페이지가 새로고침되는 현상 방지
-  event.preventDefault();
-
-  const password = document.getElementById('login-pw').value;
-  
-  // 로그인 처리 로직 실행
-  console.log('시스템 접속 시도:', password);
-}
   // 동시 접속자별 고유 색상 팔레트
   const CURSOR_COLORS = ['#e91e63', '#00897b', '#8e24aa', '#f4511e', '#3949ab', '#039be5', '#43a047', '#fb8c00'];
   function getColorForId(str) {
@@ -322,6 +310,7 @@
   let saveTimeout = null;
   let isInitializing = true;
   let isApplyingRemoteUpdate = false;
+  let isLoggingIn = false;
   let lastSyncedJson = "";
   let sheetUnsubscribe = null;
   let presenceUnsubscribe = null;
@@ -399,18 +388,24 @@
     });
   }
 
-  // 엔터키 로그인
-  document.getElementById('login-pw').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('btn-login').click();
-  });
-
-  // 로그인 처리
-  document.getElementById('btn-login').addEventListener('click', async () => {
+  // ==================== 로그인 실행 및 엔터키(Enter) 완벽 연동 ====================
+  async function executeLogin() {
+    if (isLoggingIn) return;
     const rawId = document.getElementById('login-id').value.trim();
     const id = rawId.includes('@') ? rawId.split('@')[0] : rawId;
     const pw = document.getElementById('login-pw').value;
-    if (!id || !pw) return alert("아이디와 비밀번호를 입력하세요.");
 
+    if (!id) {
+      alert("아이디를 입력하세요.");
+      document.getElementById('login-id').focus();
+      return;
+    }
+    if (!pw) {
+      document.getElementById('login-pw').focus();
+      return;
+    }
+
+    isLoggingIn = true;
     const email = id + domain;
     const authPw = toAuthPassword(pw);
 
@@ -428,7 +423,35 @@
       await setDoc(doc(db, "users", cred.user.uid), updatePayload, { merge: true });
     } catch (err) {
       alert("로그인 실패: 아이디 또는 비밀번호를 확인하세요.");
+    } finally {
+      isLoggingIn = false;
     }
+  }
+
+  // 1) form 기본 submit 이벤트 연동 (버튼 클릭 및 입력창 엔터키 모두 감지)
+  document.getElementById('login-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    executeLogin();
+  });
+
+  // 2) 아이디/비밀번호 입력란에서 한글 입력기(IME) 상태나 숫자패드 엔터(NumpadEnter)를 눌러도 100% 동작하도록 추가 보장
+  ['login-id', 'login-pw'].forEach(inputId => {
+    document.getElementById(inputId).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
+        e.preventDefault();
+        executeLogin();
+      }
+    });
+  });
+
+  // 초기 비밀번호 변경창에서도 엔터키로 바로 변경되도록 지원
+  ['force-new-pw', 'force-confirm-pw'].forEach(inputId => {
+    document.getElementById(inputId).addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
+        e.preventDefault();
+        document.getElementById('btn-force-pw-submit').click();
+      }
+    });
   });
 
   // 인증 상태 및 권한 실시간 감시
@@ -985,14 +1008,12 @@
     document.getElementById('view-list').classList.remove('active');
   });
 
-  // 검색 입력 이벤트
   document.getElementById('user-search-input').addEventListener('input', (e) => {
     userSearchQuery = e.target.value.trim().toLowerCase();
     userCurrentPage = 1;
     renderUserTablePage();
   });
 
-  // 기본 정렬 복귀 버튼 (관리자 우선 -> 부서명 가나다순 -> 사용자명 가나다순)
   document.getElementById('btn-reset-sort').addEventListener('click', () => {
     userSortField = 'default';
     userSortOrder = 'asc';
@@ -1001,7 +1022,6 @@
     renderUserTablePage();
   });
 
-  // 컬럼 헤더 클릭 정렬 (부서명, 사용자명, 아이디명)
   function toggleColumnSort(field) {
     if (userSortField === field) {
       userSortOrder = (userSortOrder === 'asc') ? 'desc' : 'asc';
@@ -1031,7 +1051,6 @@
   document.getElementById('th-sort-name').addEventListener('click', () => toggleColumnSort('name'));
   document.getElementById('th-sort-id').addEventListener('click', () => toggleColumnSort('id'));
 
-  // 기본 정렬 비교 함수 (1순위: 관리자 맨 위, 2순위: 부서명 가나다순, 3순위: 사용자명 가나다순)
   function compareDefaultSort(a, b) {
     const roleA = a.role === 'admin' ? 0 : 1;
     const roleB = b.role === 'admin' ? 0 : 1;
@@ -1043,7 +1062,6 @@
     return (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true });
   }
 
-  // Firestore에서 전체 사용자 목록 불러오기
   async function loadUserList(resetState = false) {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
     if (resetState) {
@@ -1086,13 +1104,11 @@
     }
   }
 
-  // 검색 필터링 + 정렬 + 10명 페이지네이션 렌더링
   function renderUserTablePage() {
     const tbody = document.getElementById('user-list-body');
     const paginationEl = document.getElementById('user-pagination');
     const countLabel = document.getElementById('user-count-label');
 
-    // 1. 검색어 필터링 (부서명, 사용자명, 아이디명)
     let filtered = allUsersCache.filter(u => {
       if (!userSearchQuery) return true;
       const d = (u.dept || '').toLowerCase();
@@ -1101,7 +1117,6 @@
       return d.includes(userSearchQuery) || n.includes(userSearchQuery) || i.includes(userSearchQuery);
     });
 
-    // 2. 정렬 적용
     filtered.sort((a, b) => {
       if (userSortField === 'default') {
         return compareDefaultSort(a, b);
@@ -1117,7 +1132,6 @@
 
     countLabel.innerText = `총 ${filtered.length}명`;
 
-    // 3. 10명 단위 페이지 계산
     const totalPages = Math.max(1, Math.ceil(filtered.length / USERS_PER_PAGE));
     if (userCurrentPage > totalPages) userCurrentPage = totalPages;
     if (userCurrentPage < 1) userCurrentPage = 1;
@@ -1133,7 +1147,6 @@
       return;
     }
 
-    // 4. 순서: 부서명 | 사용자명 | 아이디명 | 권한조정 | 관리
     pageItems.forEach((userItem) => {
       const uid = userItem.uid;
       const idOnly = userItem.id;
@@ -1166,7 +1179,6 @@
       `;
       tbody.appendChild(tr);
 
-      // (1) 부서명 및 권한 변경저장
       tr.querySelector('.save-row-btn').addEventListener('click', async () => {
         const newDept = tr.querySelector('.inline-dept-input').value.trim();
         const newRole = tr.querySelector('.inline-role-select').value;
@@ -1190,7 +1202,6 @@
         }
       });
 
-      // (2) 비밀번호 초기화 (아이디와 동일하게 초기화)
       tr.querySelector('.reset-pw-btn').addEventListener('click', async () => {
         if (!confirm(`[${userItem.name}] 님의 비밀번호를 아이디(${idOnly})와 동일하게 초기화하시겠습니까?\n(초기화 후 해당 사용자가 로그인하면 비밀번호 변경창이 자동으로 뜹니다.)`)) return;
 
@@ -1226,7 +1237,6 @@
         }
       });
 
-      // (3) 계정 삭제
       tr.querySelector('.delete-user-btn').addEventListener('click', async () => {
         if (uid === currentUserInfo.uid) {
           return alert("현재 로그인 중인 관리자 본인의 계정은 삭제할 수 없습니다.");
@@ -1258,7 +1268,6 @@
       });
     });
 
-    // 5. 하단 페이지네이션 버튼 렌더링 (이전 / 페이지 번호 / 다음)
     paginationEl.innerHTML = '';
 
     const prevBtn = document.createElement('button');
