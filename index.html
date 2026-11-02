@@ -19,7 +19,6 @@
     .screen { display: none; width: 100%; height: 100%; flex-direction: column; }
     .screen.active { display: flex; }
 
-    /* 로그인 화면 */
     #login-screen { justify-content: center; align-items: center; background: #f0f2f5; }
     .login-box { background: #ffffff; padding: 48px 40px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); width: 440px; text-align: center; box-sizing: border-box; }
     .login-logo { width: 50px; height: 50px; background: #1a73e8; color: white; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; margin-bottom: 20px; }
@@ -35,9 +34,9 @@
     
     button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(26,115,232,0.3); }
     button.primary-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(26,115,232,0.4); }
-    button.small-btn { padding: 6px 12px; background: #ea4335; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; }
+    button.small-btn { padding: 6px 12px; background: #1a73e8; color: white; border: none; border-radius: 4px; font-size: 12px; cursor: pointer; }
+    button.danger-btn { background: #ea4335; }
 
-    /* 헤더바 */
     .header-bar { height: 64px; min-height: 64px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 0 24px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; }
     .header-left { display: flex; align-items: center; gap: 20px; }
     .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; margin-right: 10px; }
@@ -58,7 +57,6 @@
     #btn-logout { background: #fff; color: #5f6368; border: 1px solid #dadce0; }
     #btn-logout:hover { background: #f8f9fa; color: #202124; }
 
-    /* 엑셀 컨테이너 */
     #spreadsheet-container { flex: 1; width: 100vw; position: relative; height: calc(100vh - 64px); background: #fff; }
     #luckysheet { margin: 0; padding: 0; position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
 
@@ -66,7 +64,6 @@
     .spinner { width: 40px; height: 40px; border: 4px solid #e0e0e0; border-top: 4px solid #1a73e8; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    /* 관리자 팝업 탭 디자인 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
     .modal-content { background: white; padding: 32px; border-radius: 16px; width: 500px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -82,11 +79,11 @@
     .modal-content label { display: block; font-size: 13px; color: #5f6368; font-weight: 600; margin-bottom: 6px; }
     .modal-content input:not(#new-id), .modal-content select { width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
     
-    /* 사용자 목록 테이블 */
     .user-table-container { max-height: 300px; overflow-y: auto; }
     .user-table { width: 100%; border-collapse: collapse; font-size: 14px; }
     .user-table th, .user-table td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
     .user-table th { font-weight: 600; color: #5f6368; background: #f8f9fa; position: sticky; top: 0; }
+    .action-buttons { display: flex; gap: 5px; }
   </style>
 </head>
 <body>
@@ -123,7 +120,7 @@
   <div id="spreadsheet-container">
     <div id="loading-mask">
       <div class="spinner"></div>
-      <div>엑셀 데이터를 즉시 불러오는 중입니다...</div>
+      <div>엑셀 데이터를 불러오는 중입니다...</div>
     </div>
     <div id="luckysheet"></div>
   </div>
@@ -160,9 +157,9 @@
     <div id="view-list" class="modal-view">
       <div class="user-table-container">
         <table class="user-table">
-          <thead><tr><th>성명</th><th>부서명</th><th>권한</th><th>비밀번호 초기화</th></tr></thead>
+          <thead><tr><th>성명/부서</th><th>권한</th><th>작업</th></tr></thead>
           <tbody id="user-list-body">
-            <tr><td colspan="4" style="text-align:center;">데이터를 불러오는 중...</td></tr>
+            <tr><td colspan="3" style="text-align:center;">데이터를 불러오는 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -173,7 +170,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
   import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
-  import { getFirestore, doc, setDoc, getDoc, getDocs, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+  import { getFirestore, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
@@ -203,22 +200,26 @@
     return centers.map((center, index) => ({ name: center, status: index === 0 ? 1 : 0, order: index, row: 50, column: 20, celldata: [] }));
   }
 
-  onAuthStateChanged(auth, (user) => {
+  onAuthStateChanged(auth, async (user) => {
     if (user) {
-      // 1. 화면 즉시 전환 (Zero-delay)
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      
+      // 관리자에 의해 계정이 차단/삭제된 경우 강제 로그아웃
+      if (!userDoc.exists()) {
+        alert("접근이 차단되었거나 삭제된 계정입니다.");
+        await signOut(auth);
+        return;
+      }
+
+      currentUserInfo = { ...userDoc.data(), uid: user.uid };
+      
+      document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept})`;
       document.getElementById('login-screen').classList.remove('active');
       document.getElementById('main-screen').classList.add('active');
+      document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
       
-      // 2. 병렬 로딩: 엑셀 데이터를 즉시 불러오기 시작
       initExcel(); 
-      
-      // 3. 병렬 로딩: 사용자 프로필을 백그라운드에서 조회
-      getDoc(doc(db, "users", user.uid)).then(userDoc => {
-        currentUserInfo = userDoc.exists() ? { ...userDoc.data(), uid: user.uid } : { name: "알수없음", dept: "소속없음", role: "user", uid: user.uid };
-        document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept})`;
-        document.getElementById('btn-show-admin').style.display = currentUserInfo.role === 'admin' ? 'inline-block' : 'none';
-        listenPresence();
-      });
+      listenPresence();
     } else {
       document.getElementById('login-screen').classList.add('active');
       document.getElementById('main-screen').classList.remove('active');
@@ -237,7 +238,6 @@
     try { await signOut(auth); window.location.reload(); } catch(err) { alert("오류: " + err.message); }
   });
 
-  // 관리자 탭 제어 로직
   document.getElementById('btn-show-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'flex');
   document.getElementById('btn-close-admin').addEventListener('click', () => document.getElementById('admin-modal').style.display = 'none');
   
@@ -248,37 +248,69 @@
     document.getElementById('view-list').classList.remove('active');
   });
 
-  document.getElementById('tab-list').addEventListener('click', async () => {
+  document.getElementById('tab-list').addEventListener('click', loadUserList);
+
+  async function loadUserList() {
     document.getElementById('tab-list').classList.add('active');
     document.getElementById('tab-create').classList.remove('active');
     document.getElementById('view-list').classList.add('active');
     document.getElementById('view-create').classList.remove('active');
     
     const tbody = document.getElementById('user-list-body');
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;">데이터를 불러오는 중...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;">데이터를 불러오는 중...</td></tr>';
     
     try {
       const querySnapshot = await getDocs(collection(db, "users"));
       tbody.innerHTML = '';
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${data.name}</td><td>${data.dept}</td><td>${data.role === 'admin' ? '관리자' : '사용자'}</td><td><button class="small-btn reset-pw-btn" data-email="${data.email}">초기화 메일</button></td>`;
+        tr.innerHTML = `
+          <td><b>${data.name}</b><br><span style="font-size:12px;color:#888;">${data.dept}</span></td>
+          <td>${data.role === 'admin' ? '관리자' : '사용자'}</td>
+          <td class="action-buttons">
+            <button class="small-btn reset-pw-btn" data-email="${data.email}">PW초기화</button>
+            <button class="small-btn danger-btn delete-user-btn" data-uid="${docSnap.id}" data-name="${data.name}">차단(삭제)</button>
+          </td>
+        `;
         tbody.appendChild(tr);
       });
 
+      // 초기화 버튼 이벤트
       document.querySelectorAll('.reset-pw-btn').forEach(btn => {
         btn.addEventListener('click', async (e) => {
           const email = e.target.getAttribute('data-email');
-          if (confirm(`${email} 계정의 비밀번호 초기화 메일을 발송하시겠습니까?`)) {
-            try { await sendPasswordResetEmail(auth, email); alert('초기화 메일이 발송되었습니다.'); } catch (err) { alert('발송 실패: ' + err.message); }
+          if (confirm(`해당 이메일 주소로 비밀번호 재설정 링크를 발송합니다.`)) {
+            try { await sendPasswordResetEmail(auth, email); alert('발송 성공'); } 
+            catch (err) { alert('발송 실패: ' + err.message); }
           }
         });
       });
+
+      // 삭제(접근 차단) 버튼 이벤트
+      document.querySelectorAll('.delete-user-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const uid = e.target.getAttribute('data-uid');
+          const name = e.target.getAttribute('data-name');
+          if (uid === currentUserInfo.uid) {
+            return alert("자기 자신의 계정은 삭제할 수 없습니다.");
+          }
+          if (confirm(`[${name}] 사용자의 데이터 접근을 영구 차단하시겠습니까? (DB 프로필 삭제)`)) {
+            try {
+              await deleteDoc(doc(db, "users", uid));
+              alert('해당 계정의 접근이 차단되었습니다.');
+              loadUserList(); // 목록 새로고침
+            } catch (err) {
+              alert('삭제 실패: ' + err.message);
+            }
+          }
+        });
+      });
+
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:red;">불러오기 실패: ${err.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:red;">불러오기 실패</td></tr>`;
     }
-  });
+  }
 
   document.getElementById('btn-create-user').addEventListener('click', async () => {
     const id = document.getElementById('new-id').value.trim();
@@ -312,50 +344,38 @@
       } else {
         sheetData = getDefaultData();
       }
-    } catch (dbErr) {
-      console.warn("DB 연결 지연 또는 실패, 기본 템플릿으로 시작합니다.", dbErr);
-      sheetData = getDefaultData();
-    }
-
-    // ★ 안전한 100% 독립형 한글 패치 (외부 객체 참조 배제하여 에러 원천 차단)
-    const safeKoPatch = {
-      functionlist: [],
-      error: {"v":"#VALUE!","n":"#NAME?","na":"#N/A","ref":"#REF!","num":"#NUM!","null":"#NULL!","div":"#DIV/0!"},
-      format: {}
-    };
-
-    try {
+      
+      // 안정성이 검증된 100% 영문판 로딩 (한글 패치 코드 일체 삭제)
       window.luckysheetInstance = true;
       window.luckysheet.create({
         container: 'luckysheet',
-        lang: 'ko', 
+        lang: 'en', 
         title: '헬로CN닥스',
         data: sheetData,
-        locales: { ko: safeKoPatch },
         showinfobar: false,
         showsheetbar: true,
         enableAddRow: true,
         enableAddBackTop: true,
         hook: {
-          updated: function() { if(!isInitializing) autoSaveToCloud(); },
-          rangeSelect: function() { if(!isInitializing) updateMyPresence(); }
+          updated: function() {
+            if(!isInitializing) autoSaveToCloud();
+          },
+          rangeSelect: function() {
+            if(!isInitializing) updateMyPresence();
+          }
         }
       });
       
       isInitializing = false;
       document.getElementById('loading-mask').style.display = 'none';
-      dbStatusText.innerText = "DB 실시간 연결됨";
+      dbStatusText.innerText = "DB 연결 완료";
 
-    } catch (renderErr) {
-      console.error("한글 UI 렌더링 실패, 안전 모드(영문)로 전환합니다.", renderErr);
-      document.getElementById('luckysheet').innerHTML = '';
-      window.luckysheet.create({ container: 'luckysheet', lang: 'en', data: sheetData, showinfobar: false, showsheetbar: true });
-      isInitializing = false;
-      document.getElementById('loading-mask').style.display = 'none';
-      dbStatusText.innerText = "DB 연결 완료 (안전 모드)";
+    } catch (err) {
+      document.getElementById('loading-mask').innerHTML = `<div style='color:red;'>데이터 로드 오류: ${err.message}</div>`;
     }
   }
 
+  // 1초 단위 자동 저장으로 복구
   function autoSaveToCloud() {
     clearTimeout(saveTimeout);
     dbStatusIndicator.classList.add('saving');
@@ -373,7 +393,7 @@
       } catch (error) {
         dbStatusText.innerText = "DB 저장 오류";
       }
-    }, 3000); 
+    }, 1000); 
   }
 
   function updateMyPresence() {
