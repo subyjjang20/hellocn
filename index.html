@@ -50,6 +50,7 @@
     button.save-row-btn { background: #0f9d58; }
     button.warn-btn { background: #f29900; }
     button.danger-btn { background: #ea4335; }
+    button.purple-btn { background: #673ab7; }
 
     /* 상단 헤더바 */
     .header-bar { min-height: 60px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 6px 18px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; box-sizing: border-box; gap: 10px; }
@@ -57,7 +58,7 @@
     .header-title { font-size: 17px; font-weight: 800; color: #1a73e8; white-space: nowrap; }
 
     .file-switcher-wrap { display: inline-flex; align-items: center; gap: 4px; background: #e8f0fe; padding: 4px 8px; border-radius: 8px; border: 1px solid #d2e3fc; }
-    .file-switcher-select { border: none; background: transparent; color: #1967d2; font-size: 13px; font-weight: 700; outline: none; cursor: pointer; max-width: 200px; }
+    .file-switcher-select { border: none; background: transparent; color: #1967d2; font-size: 13px; font-weight: 700; outline: none; cursor: pointer; max-width: 220px; }
     .copy-link-btn { padding: 4px 8px; background: #ffffff; color: #1967d2; border: 1px solid #aecbfa; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: 0.15s; }
     .copy-link-btn:hover { background: #1a73e8; color: #ffffff; }
 
@@ -104,7 +105,7 @@
 
     /* 모달 공통 및 관리자 패널 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-    .modal-content { background: white; padding: 22px 26px; border-radius: 16px; width: 880px; max-width: 96vw; box-shadow: 0 10px 40px rgba(0,0,0,0.15); box-sizing: border-box; }
+    .modal-content { background: white; padding: 22px 26px; border-radius: 16px; width: 880px; max-width: 96vw; max-height: 92vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.15); box-sizing: border-box; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .modal-header h3 { margin: 0; font-size: 18px; color: #202124; }
     .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #5f6368; padding: 0; }
@@ -116,7 +117,7 @@
     .modal-view { display: none; }
     .modal-view.active { display: block; }
     .modal-content label { display: block; font-size: 13px; color: #5f6368; font-weight: 600; margin-bottom: 6px; }
-    .modal-content .form-input, .modal-content .form-select { width: 100%; padding: 11px 12px; margin-bottom: 14px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+    .modal-content .form-input, .modal-content .form-select { width: 100%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
 
     .user-list-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
     .user-search-input { flex: 1; padding: 8px 12px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; outline: none; }
@@ -139,13 +140,20 @@
     .inline-role-select { width: 100%; padding: 5px 6px; border: 1px solid #dadce0; border-radius: 5px; font-size: 13px; background: #fff; box-sizing: border-box; }
     .role-dot-admin { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #0f9d58; margin-right: 5px; vertical-align: middle; }
 
-    /* 사용자 선택 체크박스 박스 스타일 */
-    .perm-picker-box { border: 1px solid #dadce0; border-radius: 8px; max-height: 220px; overflow-y: auto; background: #fff; margin-bottom: 14px; padding: 4px; }
-    .perm-picker-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; background: #f8f9fa; border-bottom: 1px solid #eee; font-size: 12px; font-weight: 600; color: #5f6368; }
-    .perm-picker-toolbar a { color: #1a73e8; cursor: pointer; text-decoration: underline; }
-    .perm-picker-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f1f3f4; font-size: 13px; cursor: pointer; }
-    .perm-picker-item:hover { background: #f8f9fa; }
-    .perm-picker-item input { cursor: pointer; width: 16px; height: 16px; }
+    /* 파일 권한 선택기 (전체 / 부서별 버튼 / 이름·아이디 검색 및 체크박스) */
+    .perm-picker-wrapper { border: 1px solid #dadce0; border-radius: 10px; background: #fff; margin-bottom: 14px; overflow: hidden; }
+    .perm-mode-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; flex-wrap: wrap; gap: 8px; }
+    .perm-mode-label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #1a73e8; cursor: pointer; margin: 0 !important; }
+    .perm-dept-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; background: #fbfbfb; border-bottom: 1px solid #eee; align-items: center; }
+    .dept-chip-btn { padding: 4px 10px; border-radius: 14px; border: 1px solid #dadce0; background: #fff; color: #3c4043; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
+    .dept-chip-btn:hover { border-color: #1a73e8; color: #1a73e8; }
+    .dept-chip-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+    .perm-search-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #eee; }
+    .perm-search-bar input { flex: 1; padding: 6px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 12px; outline: none; }
+    .perm-user-list { max-height: 180px; overflow-y: auto; padding: 4px 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+    .perm-user-item { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; margin: 0 !important; color: #202124 !important; font-weight: 500 !important; }
+    .perm-user-item:hover { background: #f1f3f4; }
+    .perm-user-item input { width: 15px; height: 15px; cursor: pointer; margin: 0; }
 
     .pagination-bar { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 12px; min-height: 32px; }
     .page-btn { padding: 5px 11px; border: 1px solid #dadce0; background: #fff; color: #3c4043; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
@@ -153,7 +161,7 @@
     .page-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
     .page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
-    .info-notice { background: #e8f0fe; color: #1967d2; padding: 12px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 16px; line-height: 1.5; }
+    .info-notice { background: #e8f0fe; color: #1967d2; padding: 11px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 14px; line-height: 1.5; }
     .pw-rule-hint { font-size: 12px; color: #d93025; font-weight: 600; margin: -6px 0 12px 0; line-height: 1.4; }
   </style>
 </head>
@@ -239,35 +247,35 @@
 
 <!-- 다중 엑셀 파일(문서함) 및 접속 주소/권한 관리 모달 (관리자 전용) -->
 <div id="file-modal" class="modal-overlay">
-  <div class="modal-content" style="width: 820px;">
+  <div class="modal-content" style="width: 860px;">
     <div class="modal-header">
       <h3>📂 엑셀 문서함 및 파일별 권한·접속주소 관리 (관리자 전용)</h3>
       <button id="btn-close-files" class="close-btn">&times;</button>
     </div>
     <div class="admin-tabs">
-      <button id="tab-file-list" class="tab-btn active">등록된 엑셀 파일 목록 (권한/링크 관리)</button>
-      <button id="tab-file-create" class="tab-btn">+ 새 엑셀 파일 생성</button>
+      <button id="tab-file-list" class="tab-btn active">등록된 엑셀 파일 목록 (권한수정 / 링크복사)</button>
+      <button id="tab-file-create" class="tab-btn" id="btn-tab-file-form">+ 새 엑셀 파일 생성 / 권한 편집</button>
     </div>
 
-    <!-- 파일 목록 및 권한 수정 탭 -->
+    <!-- 파일 목록 탭 -->
     <div id="view-file-list" class="modal-view active">
       <div class="info-notice" style="margin-bottom: 10px; padding: 10px 14px;">
-        💡 각 파일마다 <b>고유 접속 주소(URL)</b>가 부여됩니다. 특정 부서나 사용자(일반 사용자 기준)를 지정하여 권한을 제한할 수 있습니다[cite: 1, 2].
+        💡 <b>관리자는 모든 파일을 볼 수 있습니다.</b> 각 파일의 <b>[권한수정]</b>을 누르면 일반 사용자 중에서 전체 공개, 부서별 선택, 이름/아이디 개별 선택을 설정할 수 있습니다.
       </div>
       <div class="user-table-container" style="max-height: 380px; overflow-y: auto;">
         <table class="user-table">
           <colgroup>
-            <col style="width: 26%;">
-            <col style="width: 16%;">
-            <col style="width: 34%;">
             <col style="width: 24%;">
+            <col style="width: 15%;">
+            <col style="width: 33%;">
+            <col style="width: 28%;">
           </colgroup>
           <thead>
             <tr>
               <th>엑셀 파일명</th>
               <th>파일코드(URL)</th>
-              <th>접근 허용 대상 (부서 또는 사용자)</th>
-              <th>관리 (열기 / 주소 / 삭제)</th>
+              <th>접근 허용된 일반 사용자 (관리자는 기본 포함)</th>
+              <th>관리 (열기 / 권한수정 / 주소 / 삭제)</th>
             </tr>
           </thead>
           <tbody id="file-list-body">
@@ -277,31 +285,55 @@
       </div>
     </div>
 
-    <!-- 새 엑셀 파일 생성 탭 (사용자 선택형 권한 부여 포함) -->
+    <!-- 새 파일 생성 및 기존 파일 권한 편집 겸용 탭 -->
     <div id="view-file-create" class="modal-view">
-      <div class="info-notice">
-        💡 새로운 독립 엑셀 파일을 생성합니다. 아래 목록에서 이 파일을 열람할 수 있는 일반 사용자를 선택해 주세요. (아무도 체크하지 않으면 전사 전체 공개)[cite: 1, 2]
+      <div class="info-notice" id="file-form-notice">
+        💡 새로운 독립 엑셀 파일을 생성하거나 기존 파일의 권한을 수정합니다. 관리자는 자동 포함되며, 아래에서 열람을 허용할 <b>일반 사용자</b>를 선택하세요.
       </div>
-      <label>엑셀 파일명 (화면에 표시될 제목)</label>
-      <input type="text" id="new-file-title" class="form-input" placeholder="예: 2026년 전기차 충전기 영업현황">
-      <label>파일 접속 코드 (영문/숫자/한글 가능, URL 주소에 사용됨)</label>
-      <input type="text" id="new-file-id" class="form-input" placeholder="예: ev_sales (비워두면 자동 생성)">
-      
-      <label>접근 권한 대상 선택 (일반 사용자 중 선택 / 미체크 시 전체 공개)</label>
-      <div class="perm-picker-box">
-        <div class="perm-picker-toolbar">
-          <span>등록된 일반 사용자 목록</span>
-          <div>
-            <a id="btn-select-all-users">전체 선택</a> &nbsp;|&nbsp; 
-            <a id="btn-deselect-all-users">전체 해제</a>
-          </div>
+      <input type="hidden" id="edit-mode-file-id" value="">
+      <div style="display:flex; gap:12px;">
+        <div style="flex:1;">
+          <label>엑셀 파일명 (화면에 표시될 제목)</label>
+          <input type="text" id="new-file-title" class="form-input" placeholder="예: TPS 영업현황">
         </div>
-        <div id="new-file-user-checkboxes">
-          <div style="font-size:12px; color:#888; text-align:center; padding: 12px;">등록된 일반 사용자가 없습니다.</div>
+        <div style="flex:1;">
+          <label>파일 접속 코드 (URL 주소 파라미터)</label>
+          <input type="text" id="new-file-id" class="form-input" placeholder="예: TPS (비워두면 자동 생성)">
         </div>
       </div>
 
-      <button id="btn-create-file" class="primary-btn">새 엑셀 파일 생성 및 바로 열기</button>
+      <label>일반 사용자 열람 권한 설정 (관리자는 항상 열람 가능)</label>
+      <div class="perm-picker-wrapper">
+        <!-- 1. 전체 공개 스위치 및 전체 선택/해제 -->
+        <div class="perm-mode-bar">
+          <label class="perm-mode-label">
+            <input type="checkbox" id="chk-file-public-all" checked>
+            <span>전사 전체 공개 (모든 일반 사용자 열람 허용)</span>
+          </label>
+          <div style="font-size:12px; font-weight:600;">
+            <a id="btn-select-all-users" style="color:#1a73e8; cursor:pointer; text-decoration:underline;">전체 체크</a> &nbsp;|&nbsp;
+            <a id="btn-deselect-all-users" style="color:#5f6368; cursor:pointer; text-decoration:underline;">전체 해제</a>
+          </div>
+        </div>
+        <!-- 2. 부서명으로 일괄 선택 버튼 영역 -->
+        <div class="perm-dept-chips" id="perm-dept-chips-container">
+          <span style="font-size:12px; color:#5f6368; font-weight:700;">부서별 빠른 선택:</span>
+        </div>
+        <!-- 3. 이름 / 아이디 / 부서명 실시간 검색 -->
+        <div class="perm-search-bar">
+          <input type="text" id="perm-user-search" placeholder="🔍 일반 사용자 이름, 아이디, 부서명으로 검색...">
+          <span id="perm-selected-count" style="font-size:12px; font-weight:700; color:#1a73e8; white-space:nowrap;">전체 공개</span>
+        </div>
+        <!-- 4. 일반 사용자 체크박스 리스트 -->
+        <div id="new-file-user-checkboxes" class="perm-user-list">
+          <div style="font-size:12px; color:#888; text-align:center; padding: 12px; grid-column: span 2;">일반 사용자 목록을 불러오는 중...</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px;">
+        <button id="btn-create-file" class="primary-btn" style="flex:2;">파일 및 권한 저장하기</button>
+        <button id="btn-cancel-file-edit" class="small-btn" style="flex:1; background:#f1f3f4; color:#3c4043; font-size:14px; display:none;">목록으로 취소</button>
+      </div>
     </div>
   </div>
 </div>
@@ -378,7 +410,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, deleteUser, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
+  import { getAuth, setPersistence, browserSessionPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, deleteUser, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
   import { initializeFirestore, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -394,6 +426,9 @@
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
   const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+
+  // ★ 1번 요청 반영: 인터넷 창(브라우저)을 닫으면 자동으로 로그아웃되도록 세션 유지 모드(SESSION) 설정
+  setPersistence(auth, browserSessionPersistence).catch(() => {});
 
   const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
   const secondaryAuth = getAuth(secondaryApp);
@@ -416,7 +451,7 @@
     for (const ep of endpoints) {
       try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 3500);
+        const timer = setTimeout(() => controller.abort(), 3000);
         const res = await fetch(ep.url, { cache: 'no-store', signal: controller.signal });
         clearTimeout(timer);
         if (!res.ok) continue;
@@ -502,6 +537,7 @@
   let currentFileId = toSafeFileId(urlParams.get('file') || urlParams.get('doc') || 'main') || 'main';
   let fileCatalogList = [];
   let catalogUnsubscribe = null;
+  let isCatalogInitialized = false;
 
   function getMetaDocName(fileId = currentFileId) {
     return fileId === 'main' ? 'workbook_meta' : `workbook_meta_${fileId}`;
@@ -515,14 +551,16 @@
 
   function canUserAccessFile(fileItem, userObj = currentUserInfo) {
     if (!userObj) return false;
-    if (userObj.role === 'admin') return true; // 관리자는 모든 파일 접근 가능
+    if (userObj.role === 'admin') return true; // 관리자는 항상 모든 파일 접근 가능
+    const depts = Array.isArray(fileItem.allowedDepts) ? fileItem.allowedDepts.filter(Boolean) : [];
     const users = Array.isArray(fileItem.allowedUsers) ? fileItem.allowedUsers.filter(Boolean) : [];
-    if (users.length === 0) return true; // 지정된 사용자가 없으면 전체 공개
+    if (depts.length === 0 && users.length === 0) return true; // 전체 공개
+    if (userObj.dept && depts.includes(userObj.dept)) return true;
     if (userObj.id && users.includes(userObj.id)) return true;
     return false;
   }
 
-  function getKoreanAuthErrorMessage(err, context = '') {
+  function getKoreanAuthErrorMessage(err) {
     const code = err?.code || '';
     switch (code) {
       case 'auth/invalid-email':
@@ -534,23 +572,23 @@
       case 'auth/invalid-login-credentials':
         return '아이디 또는 비밀번호가 일치하지 않습니다. 대소문자와 입력값을 확인해 주세요.';
       case 'auth/email-already-in-use':
-        return '이미 Firebase 인증 서버에 등록되어 있는 아이디입니다. 다른 아이디를 사용하거나 기존 계정을 먼저 정리해 주세요.';
+        return '이미 Firebase 인증 서버에 등록되어 있는 아이디입니다.';
       case 'auth/weak-password':
-        return '비밀번호 보안 수준이 너무 낮습니다. 영문, 숫자, 특수문자 조합 8자리 이상으로 설정해 주세요.';
+        return '비밀번호 보안 수준이 낮습니다. 영문, 숫자, 특수문자 조합 8자리 이상으로 설정해 주세요.';
       case 'auth/too-many-requests':
-        return '단시간에 너무 많은 요청이 발생하여 일시적으로 보호 조치되었습니다. 약 1분 후 다시 시도해 주세요.';
+        return '단시간에 많은 요청이 발생하여 잠시 차단되었습니다. 1분 후 다시 시도해 주세요.';
       case 'auth/network-request-failed':
         return '네트워크 연결이 불안정합니다. 인터넷 연결 상태를 확인해 주세요.';
       case 'auth/requires-recent-login':
-        return '보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.';
+        return '보안을 위해 재인증이 필요합니다. 다시 로그인하여 시도해 주세요.';
       case 'permission-denied':
-        return '데이터베이스 접근 권한이 없습니다. 관리자 권한 여부를 확인해 주세요.';
+        return '데이터베이스 접근 권한이 없습니다.';
       default:
         return `오류가 발생했습니다 (${code || err?.message || '알 수 없는 오류'}).`;
     }
   }
 
-  // ==================== 엑셀 엔진 내부 언어팩 원천 한글 패치 + 세부 팝업 사전 ====================
+  // ==================== 엑셀 UI 한글 변환 사전 ====================
   const KO_TEXT_MAP = {
     'Undo (Ctrl+Z)': '실행 취소 (Ctrl+Z)', 'Redo (Ctrl+Y)': '다시 실행 (Ctrl+Y)', 'Undo': '실행 취소', 'Redo': '다시 실행',
     'Paint format': '서식 복사', 'Format painter': '서식 복사', 'Clear format': '서식 지우기',
@@ -608,17 +646,22 @@
     'include': '다음 텍스트를 포함함', 'exclude': '다음 텍스트를 포함하지 않음', 'earlier than': '다음 날짜 이전', 'later than': '다음 날짜 이후'
   };
 
-  function applyNativeKoreanLocalePatch() {
+  // 배열이나 객체 구조는 절대 건드리지 않고 문자열(string)만 안전하게 한글로 패치하여 Loading 멈춤 원천 방지
+  function applySafeKoreanLocalePatch() {
     const en = window.luckysheet?.locales?.en;
-    if (!en || en.__koPatched) return;
-    en.__koPatched = true;
+    if (!en || en.__koSafePatched) return;
+    en.__koSafePatched = true;
 
-    const patchDict = (targetObj, patchObj) => {
+    const safePatchStringsOnly = (targetObj, patchObj) => {
       if (!targetObj || typeof targetObj !== 'object') return;
-      Object.assign(targetObj, patchObj);
+      for (const k of Object.keys(patchObj)) {
+        if (typeof targetObj[k] === 'string') {
+          targetObj[k] = patchObj[k];
+        }
+      }
     };
 
-    patchDict(en.toolbar, {
+    safePatchStringsOnly(en.toolbar, {
       undo: '실행 취소', redo: '다시 실행', paintFormat: '서식 복사', currencyFormat: '통화 서식',
       percentageFormat: '백분율 서식', numberDecrease: '소수점 줄임', numberIncrease: '소수점 늘림',
       moreFormats: '표시 형식', font: '글꼴', fontSize: '글자 크기', bold: '굵게', italic: '기울임꼴',
@@ -634,7 +677,7 @@
       protection: '시트 보호', print: '인쇄', more: '더보기', close: '닫기', clearFormat: '서식 지우기'
     });
 
-    patchDict(en.rightclick, {
+    safePatchStringsOnly(en.rightclick, {
       copy: '복사', copyAs: '다른 형식으로 복사', paste: '붙여넣기',
       insert: '삽입', delete: '삭제', deleteCell: '셀 삭제', deleteSelected: '선택한 ',
       hide: '숨기기', hideSelected: '선택한 ', showHide: '숨기기 취소 ',
@@ -646,24 +689,16 @@
       link: '링크 삽입', data: '데이터 유효성 검사', cellFormat: '셀 서식 설정'
     });
 
-    patchDict(en.button, {
+    safePatchStringsOnly(en.button, {
       confirm: '확인', cancel: '취소', close: '닫기', update: '업데이트', delete: '삭제',
       insert: '삽입', prevPage: '이전', nextPage: '다음'
     });
 
-    patchDict(en.format, {
-      moreCurrency: '통화 형식 더보기', moreDateTime: '날짜 및 시간 형식 더보기', moreNumber: '숫자 형식 더보기',
-      titleCurrency: '통화 형식', titleDateTime: '날짜 및 시간 형식', titleNumber: '숫자 형식',
-      automatic: '자동', general: '일반', number: '숫자', percent: '백분율', accounting: '회계',
-      date: '날짜', time: '시간', scientific: '지수', text: '텍스트'
-    });
-
-    patchDict(en.dataVerification, {
+    safePatchStringsOnly(en.dataVerification, {
       cellRange: '적용할 셀 범위', verificationCondition: '유효성 검사 조건',
       dropdown: '드롭다운 목록', checkbox: '체크박스', number: '숫자', number_integer: '숫자 (정수)',
       number_decimal: '숫자 (소수)', text_content: '텍스트 내용', text_length: '텍스트 길이',
       date: '날짜', validity: '유효성 형식', placeholder1: '목록 항목을 쉼표(,)로 구분하여 입력하거나 셀 범위를 선택하세요',
-      placeholder2: '내용 입력', placeholder3: '숫자 입력', placeholder4: '길이 입력', placeholder5: '날짜 입력',
       remote: '원격 옵션 자동 가져오기', prohibitInput: '유효하지 않은 데이터 입력 시 거부',
       hintShow: '셀 선택 시 안내 문구 표시', deleteVerification: '유효성 검사 삭제',
       verification: '데이터 유효성 검사', between: '사이', notBetween: '사이에 없음',
@@ -672,12 +707,7 @@
       earlierThan: '이전 날짜', laterThan: '이후 날짜'
     });
 
-    patchDict(en.sort, {
-      title: '정렬', confirm: '정렬 실행', close: '닫기', addSort: '정렬 기준 추가',
-      hasTitle: '데이터에 머리글(제목 행) 포함', sortBy: '정렬 기준', asc: '오름차순 (A→Z)', desc: '내림차순 (Z→A)'
-    });
-
-    patchDict(en.sheetconfig, {
+    safePatchStringsOnly(en.sheetconfig, {
       delete: '시트 삭제', copy: '시트 복제', rename: '이름 변경', move: '시트 이동',
       hide: '시트 숨기기', unhide: '숨기기 취소', color: '탭 색상', resetColor: '색상 초기화',
       left: '왼쪽으로 이동', right: '오른쪽으로 이동'
@@ -719,6 +749,144 @@
         }
       }
     });
+  }
+
+  let currentUserInfo = null;
+  let saveTimeout = null;
+  let deltaFlushTimeout = null;
+  let isInitializing = true;
+  let isApplyingRemoteUpdate = false;
+  let isSavingInProgress = false;
+  let pendingSaveAfterCurrent = false;
+  let isLoggingIn = false;
+
+  const serializedSheetCache = new Map();
+  const sheetVersionMap = new Map();
+  const dirtySheetKeys = new Set();
+  let structureDirty = false;
+  let pendingDeltaCells = [];
+
+  let metaUnsubscribe = null;
+  let deltaUnsubscribe = null;
+  let presenceUnsubscribe = null;
+  let myUserUnsubscribe = null;
+
+  let currentCellState = { r: 0, c: 0, label: "A1", sheetName: "통합대시보드", rect: null };
+  let lastPresenceSentAt = 0;
+  let presenceTimer = null;
+  let lastPresenceSignature = "";
+  let latestRemoteUsers = [];
+
+  let allUsersCache = [];
+  let userSearchQuery = "";
+  let userSortField = "default";
+  let userSortOrder = "asc";
+  let userCurrentPage = 1;
+  const USERS_PER_PAGE = 10;
+
+  // 파일 권한 설정용 일반 사용자 캐시 및 선택 집합
+  let normalUsersForPerm = [];
+  const selectedPermUserSet = new Set();
+  let permUserSearchFilter = "";
+
+  const dbStatusIndicator = document.getElementById('db-status-indicator');
+  const dbStatusText = document.getElementById('db-status-text');
+
+  function colToLetter(col) {
+    let temp, letter = '';
+    while (col >= 0) {
+      temp = col % 26;
+      letter = String.fromCharCode(temp + 65) + letter;
+      col = Math.floor((col - temp) / 26) - 1;
+    }
+    return letter;
+  }
+
+  function getDefaultData() {
+    if (currentFileId !== 'main') {
+      return [{
+        name: 'Sheet1',
+        index: '0',
+        order: 0,
+        status: 1,
+        row: 50,
+        column: 20,
+        config: {},
+        celldata: []
+      }];
+    }
+    const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
+    return centers.map((center, idx) => ({
+      name: center,
+      index: String(idx),
+      order: idx,
+      status: idx === 0 ? 1 : 0,
+      row: 50,
+      column: 20,
+      config: {},
+      celldata: []
+    }));
+  }
+
+  // ==================== ★ 복구 완료된 시트 제어 핵심 함수 4종 ====================
+  function getSelectedCellRect() {
+    const selBox = document.querySelector('#luckysheet-cell-selected-boxs .luckysheet-cell-selected');
+    if (!selBox) return null;
+    return {
+      left: parseFloat(selBox.style.left) || 0,
+      top: parseFloat(selBox.style.top) || 0,
+      width: parseFloat(selBox.style.width) || 74,
+      height: parseFloat(selBox.style.height) || 20
+    };
+  }
+
+  function getActiveSheetObj() {
+    if (window.luckysheet && typeof window.luckysheet.getluckysheetfile === 'function') {
+      const files = window.luckysheet.getluckysheetfile();
+      if (files && files.length > 0) {
+        return files.find(s => s.status == 1) || files[0];
+      }
+    }
+    return null;
+  }
+
+  function getActiveSheetName() {
+    const active = getActiveSheetObj();
+    return active ? active.name : (currentFileId === 'main' ? "통합대시보드" : "Sheet1");
+  }
+
+  function markActiveSheetDirty() {
+    const active = getActiveSheetObj();
+    if (active) {
+      dirtySheetKeys.add(toSafeDocKey(active.index));
+    }
+  }
+
+  function queueRealtimeCellDelta(r, c, newVal) {
+    const active = getActiveSheetObj();
+    if (!active) return;
+    const safeKey = toSafeDocKey(active.index);
+    pendingDeltaCells.push({
+      r: r,
+      c: c,
+      v: compactCell(newVal)
+    });
+
+    clearTimeout(deltaFlushTimeout);
+    deltaFlushTimeout = setTimeout(() => {
+      if (pendingDeltaCells.length === 0) return;
+      const batch = pendingDeltaCells.splice(0, 100);
+      setDoc(doc(db, "sheets", getDeltaDocName()), {
+        sessionId: clientSessionId,
+        fileId: currentFileId,
+        sheetKey: safeKey,
+        sheetName: active.name,
+        changes: batch,
+        config: active.config || {},
+        updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
+        timestamp: Date.now()
+      }).catch(() => {});
+    }, 80);
   }
 
   function injectCommaButton() {
@@ -776,66 +944,6 @@
     } else if (toolbar) {
       toolbar.appendChild(commaBtn);
     }
-  }
-
-  let currentUserInfo = null;
-  let saveTimeout = null;
-  let deltaFlushTimeout = null;
-  let isInitializing = true;
-  let isApplyingRemoteUpdate = false;
-  let isSavingInProgress = false;
-  let pendingSaveAfterCurrent = false;
-  let isLoggingIn = false;
-
-  const serializedSheetCache = new Map();
-  const sheetVersionMap = new Map();
-  const dirtySheetKeys = new Set();
-  let structureDirty = false;
-  let pendingDeltaCells = [];
-
-  let metaUnsubscribe = null;
-  let deltaUnsubscribe = null;
-  let presenceUnsubscribe = null;
-  let myUserUnsubscribe = null;
-
-  let currentCellState = { r: 0, c: 0, label: "A1", sheetName: "통합대시보드", rect: null };
-  let lastPresenceSentAt = 0;
-  let presenceTimer = null;
-  let lastPresenceSignature = "";
-  let latestRemoteUsers = [];
-
-  let allUsersCache = [];
-  let userSearchQuery = "";
-  let userSortField = "default";
-  let userSortOrder = "asc";
-  let userCurrentPage = 1;
-  const USERS_PER_PAGE = 10;
-
-  const dbStatusIndicator = document.getElementById('db-status-indicator');
-  const dbStatusText = document.getElementById('db-status-text');
-
-  function colToLetter(col) {
-    let temp, letter = '';
-    while (col >= 0) {
-      temp = col % 26;
-      letter = String.fromCharCode(temp + 65) + letter;
-      col = Math.floor((col - temp) / 26) - 1;
-    }
-    return letter;
-  }
-
-  function getDefaultData() {
-    const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
-    return centers.map((center, idx) => ({
-      name: center,
-      index: String(idx),
-      order: idx,
-      status: idx === 0 ? 1 : 0,
-      row: 50,
-      column: 20,
-      config: {},
-      celldata: []
-    }));
   }
 
   function compactCell(cell) {
@@ -1077,8 +1185,7 @@
 
     try {
       const userPayload = { id, email, pw: rawPw, authPw: authPw, forceResetToId: forceResetFlag };
-      if (!isInitial) userPayload.mustChangePw = false;
-      else userPayload.mustChangePw = true;
+      userPayload.mustChangePw = isInitial;
       if (pwUpdatedAtTimestamp !== null) userPayload.pwUpdatedAt = pwUpdatedAtTimestamp;
       await setDoc(doc(db, "users", uid), userPayload, { merge: true });
     } catch (_) {}
@@ -1116,6 +1223,9 @@
     const authPw = toAuthPassword(pw);
 
     try {
+      // 창을 닫으면 자동 로그아웃되도록 로그인 시점에 세션 모드 적용
+      await setPersistence(auth, browserSessionPersistence);
+
       let cred = null;
       let loggedInViaFallbackReset = false;
 
@@ -1219,6 +1329,7 @@
     });
   });
 
+  // ==================== IP 검증 완료 후 인증 및 엑셀 시작 ====================
   enforceIpGate().then((allowed) => {
     if (!allowed) return;
 
@@ -1305,7 +1416,12 @@
             forceModal.style.display = 'none';
           }
 
-          await initFileCatalogAndStartExcel();
+          if (!isCatalogInitialized) {
+            isCatalogInitialized = true;
+            await initFileCatalogAndStartExcel();
+          } else {
+            renderFileSwitcherDropdown();
+          }
           schedulePresenceUpdate(true);
         });
 
@@ -1399,7 +1515,7 @@
     saveDirtySheetsToCloud(true);
   });
 
-  // ==================== ★ 1번 구현: 등록된 일반 사용자 목록에서 선택/전체선택 기능 포함한 파일 권한 관리 ====================
+  // ==================== 다중 엑셀 파일(문서함) & 권한 선택기 (전체/부서별/이름·아이디 검색) ====================
   async function initFileCatalogAndStartExcel() {
     if (!currentUserInfo) return;
 
@@ -1409,7 +1525,7 @@
           fileCatalogList = snap.data().files;
         } else {
           fileCatalogList = [
-            { id: 'main', title: '기본 통합문서', allowedUsers: [], createdAt: Date.now() }
+            { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
           ];
         }
         renderFileSwitcherDropdown();
@@ -1424,7 +1540,7 @@
       fileCatalogList = catSnap.data().files;
     } else {
       fileCatalogList = [
-        { id: 'main', title: '기본 통합문서', allowedUsers: [], createdAt: Date.now() }
+        { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
       ];
       await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() }).catch(() => {});
     }
@@ -1448,7 +1564,7 @@
     }
 
     renderFileSwitcherDropdown();
-    initExcel();
+    await initExcel();
   }
 
   function renderFileSwitcherDropdown() {
@@ -1493,8 +1609,7 @@
   document.getElementById('btn-show-files').addEventListener('click', async () => {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
     document.getElementById('file-modal').style.display = 'flex';
-    renderFileAdminTable();
-    await renderUserPermissionCheckboxesForNewFile();
+    document.getElementById('tab-file-list').click();
   });
 
   document.getElementById('btn-close-files').addEventListener('click', () => {
@@ -1503,63 +1618,215 @@
 
   document.getElementById('tab-file-list').addEventListener('click', () => {
     document.getElementById('tab-file-list').classList.add('active');
-    document.getElementById('tab-file-create').classList.remove('active');
+    document.getElementById('btn-tab-file-form').classList.remove('active');
     document.getElementById('view-file-list').classList.add('active');
     document.getElementById('view-file-create').classList.remove('active');
     renderFileAdminTable();
   });
 
-  document.getElementById('tab-file-create').addEventListener('click', async () => {
-    document.getElementById('tab-file-create').classList.add('active');
+  document.getElementById('btn-tab-file-form').addEventListener('click', async () => {
+    await openFileFormForCreateOrEdit(null);
+  });
+
+  document.getElementById('btn-cancel-file-edit').addEventListener('click', () => {
+    document.getElementById('tab-file-list').click();
+  });
+
+  // 새 파일 생성 또는 기존 파일 권한 수정 폼 열기
+  async function openFileFormForCreateOrEdit(targetFileObj = null) {
+    document.getElementById('btn-tab-file-form').classList.add('active');
     document.getElementById('tab-file-list').classList.remove('active');
     document.getElementById('view-file-create').classList.add('active');
     document.getElementById('view-file-list').classList.remove('active');
-    await renderUserPermissionCheckboxesForNewFile();
-  });
 
-  async function renderUserPermissionCheckboxesForNewFile(selectedUserIds = []) {
-    const container = document.getElementById('new-file-user-checkboxes');
-    if (!container) return;
-    container.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding: 12px;">사용자 목록을 불러오는 중...</div>';
+    const editIdInput = document.getElementById('edit-mode-file-id');
+    const titleInput = document.getElementById('new-file-title');
+    const codeInput = document.getElementById('new-file-id');
+    const publicChk = document.getElementById('chk-file-public-all');
+    const cancelBtn = document.getElementById('btn-cancel-file-edit');
+    const submitBtn = document.getElementById('btn-create-file');
+    const searchInput = document.getElementById('perm-user-search');
 
+    searchInput.value = '';
+    permUserSearchFilter = '';
+    selectedPermUserSet.clear();
+
+    await fetchNormalUsersForPermPicker();
+
+    if (targetFileObj) {
+      // 기존 파일 권한 수정 모드
+      editIdInput.value = targetFileObj.id;
+      titleInput.value = targetFileObj.title || '';
+      codeInput.value = targetFileObj.id;
+      codeInput.disabled = true;
+      cancelBtn.style.display = 'inline-block';
+      submitBtn.innerText = `[${targetFileObj.title}] 파일명 및 권한 저장하기`;
+
+      const existingUsers = Array.isArray(targetFileObj.allowedUsers) ? targetFileObj.allowedUsers.filter(Boolean) : [];
+      const existingDepts = Array.isArray(targetFileObj.allowedDepts) ? targetFileObj.allowedDepts.filter(Boolean) : [];
+
+      if (existingUsers.length === 0 && existingDepts.length === 0) {
+        publicChk.checked = true;
+      } else {
+        publicChk.checked = false;
+        existingUsers.forEach(id => selectedPermUserSet.add(id));
+        if (existingDepts.length > 0) {
+          normalUsersForPerm.forEach(u => {
+            if (existingDepts.includes(u.dept)) selectedPermUserSet.add(u.id);
+          });
+        }
+      }
+    } else {
+      // 새 파일 생성 모드
+      editIdInput.value = '';
+      titleInput.value = '';
+      codeInput.value = '';
+      codeInput.disabled = false;
+      cancelBtn.style.display = 'none';
+      submitBtn.innerText = '새 엑셀 파일 생성 및 바로 열기';
+      publicChk.checked = true;
+    }
+
+    renderPermDeptChipsAndUserList();
+  }
+
+  // 일반 사용자(role !== 'admin') 목록 로드
+  async function fetchNormalUsersForPermPicker() {
     try {
       const snap = await getDocs(collection(db, "users"));
-      const userList = [];
+      normalUsersForPerm = [];
       snap.forEach(d => {
         const u = d.data();
-        if (u.role !== 'admin') { // 관리자 제외, 일반 사용자만 대상
-          userList.push({ uid: d.id, id: u.id || '', name: u.name || '', dept: u.dept || '' });
+        const emailStr = u.email || '';
+        const idOnly = u.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+        if (u.role !== 'admin' && idOnly) {
+          normalUsersForPerm.push({
+            uid: d.id,
+            id: idOnly,
+            name: u.name || idOnly,
+            dept: u.dept || '미지정'
+          });
         }
       });
-
-      if (userList.length === 0) {
-        container.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding: 12px;">등록된 일반 사용자가 없습니다.</div>';
-        return;
-      }
-
-      userList.sort((a, b) => (a.dept || '').localeCompare(b.dept || '', 'ko'));
-      container.innerHTML = '';
-
-      userList.forEach(u => {
-        const label = document.createElement('label');
-        label.className = 'perm-picker-item';
-        const isChecked = selectedUserIds.includes(u.id);
-        label.innerHTML = `
-          <input type="checkbox" class="new-file-user-chk" value="${u.id}" ${isChecked ? 'checked' : ''}>
-          <span><b>${u.name}</b> (${u.id}) - <span style="color:#666;">${u.dept || '부서미지정'}</span></span>
-        `;
-        container.appendChild(label);
+      normalUsersForPerm.sort((a, b) => {
+        const dCmp = (a.dept || '').localeCompare(b.dept || '', 'ko', { numeric: true });
+        if (dCmp !== 0) return dCmp;
+        return (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true });
       });
     } catch (err) {
-      container.innerHTML = `<div style="font-size:12px; color:red; text-align:center; padding: 12px;">로드 실패: ${err.message}</div>`;
+      console.warn("일반 사용자 로드 실패:", err);
     }
   }
 
-  document.getElementById('btn-select-all-users').addEventListener('click', () => {
-    document.querySelectorAll('.new-file-user-chk').forEach(chk => chk.checked = true);
+  function renderPermDeptChipsAndUserList() {
+    const deptContainer = document.getElementById('perm-dept-chips-container');
+    const listContainer = document.getElementById('new-file-user-checkboxes');
+    const countLabel = document.getElementById('perm-selected-count');
+    const publicChk = document.getElementById('chk-file-public-all');
+
+    // 1. 부서별 빠른 선택 칩 버튼 렌더링
+    const uniqueDepts = [...new Set(normalUsersForPerm.map(u => u.dept).filter(Boolean))];
+    deptContainer.innerHTML = '<span style="font-size:12px; color:#5f6368; font-weight:700;">부서별 선택:</span>';
+
+    if (uniqueDepts.length === 0) {
+      deptContainer.innerHTML += '<span style="font-size:12px; color:#999;">등록된 일반 사용자 부서 없음</span>';
+    } else {
+      uniqueDepts.forEach(deptName => {
+        const deptUsers = normalUsersForPerm.filter(u => u.dept === deptName);
+        const allInDeptSelected = deptUsers.length > 0 && deptUsers.every(u => selectedPermUserSet.has(u.id));
+
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'dept-chip-btn' + (!publicChk.checked && allInDeptSelected ? ' active' : '');
+        chip.innerText = `${deptName} (${deptUsers.length})`;
+        chip.addEventListener('click', () => {
+          publicChk.checked = false;
+          if (allInDeptSelected) {
+            deptUsers.forEach(u => selectedPermUserSet.delete(u.id));
+          } else {
+            deptUsers.forEach(u => selectedPermUserSet.add(u.id));
+          }
+          renderPermDeptChipsAndUserList();
+        });
+        deptContainer.appendChild(chip);
+      });
+    }
+
+    // 2. 상태 표시 업데이트
+    if (publicChk.checked) {
+      countLabel.innerText = '전사 전체 공개 (모든 사용자 허용)';
+      countLabel.style.color = '#0f9d58';
+    } else {
+      countLabel.innerText = `선택된 일반 사용자: ${selectedPermUserSet.size}명 (관리자 기본 포함)`;
+      countLabel.style.color = '#1a73e8';
+    }
+
+    // 3. 검색 필터링된 일반 사용자 체크박스 렌더링
+    listContainer.innerHTML = '';
+    if (normalUsersForPerm.length === 0) {
+      listContainer.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding: 14px; grid-column: span 2;">등록된 일반 사용자가 없습니다. (관리자는 기본으로 모든 파일을 볼 수 있습니다)</div>';
+      return;
+    }
+
+    const filteredUsers = normalUsersForPerm.filter(u => {
+      if (!permUserSearchFilter) return true;
+      const q = permUserSearchFilter.toLowerCase();
+      return u.name.toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || u.dept.toLowerCase().includes(q);
+    });
+
+    if (filteredUsers.length === 0) {
+      listContainer.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding: 14px; grid-column: span 2;">검색 조건에 맞는 일반 사용자가 없습니다.</div>';
+      return;
+    }
+
+    filteredUsers.forEach(u => {
+      const itemLabel = document.createElement('label');
+      itemLabel.className = 'perm-user-item';
+      const isChecked = publicChk.checked || selectedPermUserSet.has(u.id);
+      itemLabel.innerHTML = `
+        <input type="checkbox" value="${u.id}" ${isChecked ? 'checked' : ''}>
+        <span><b>${u.name}</b> <span style="color:#1a73e8;">(${u.id})</span> · <span style="color:#666;">${u.dept}</span></span>
+      `;
+      const chk = itemLabel.querySelector('input');
+      chk.addEventListener('change', () => {
+        if (publicChk.checked) {
+          // 전체 공개 상태에서 특정인을 해제하면 나머지 인원만 선택된 상태로 전환
+          publicChk.checked = false;
+          normalUsersForPerm.forEach(nu => {
+            if (nu.id !== u.id) selectedPermUserSet.add(nu.id);
+          });
+        } else {
+          if (chk.checked) selectedPermUserSet.add(u.id);
+          else selectedPermUserSet.delete(u.id);
+        }
+        renderPermDeptChipsAndUserList();
+      });
+      listContainer.appendChild(itemLabel);
+    });
+  }
+
+  document.getElementById('chk-file-public-all').addEventListener('change', (e) => {
+    if (e.target.checked) {
+      selectedPermUserSet.clear();
+    }
+    renderPermDeptChipsAndUserList();
   });
+
+  document.getElementById('btn-select-all-users').addEventListener('click', () => {
+    document.getElementById('chk-file-public-all').checked = false;
+    normalUsersForPerm.forEach(u => selectedPermUserSet.add(u.id));
+    renderPermDeptChipsAndUserList();
+  });
+
   document.getElementById('btn-deselect-all-users').addEventListener('click', () => {
-    document.querySelectorAll('.new-file-user-chk').forEach(chk => chk.checked = false);
+    document.getElementById('chk-file-public-all').checked = false;
+    selectedPermUserSet.clear();
+    renderPermDeptChipsAndUserList();
+  });
+
+  document.getElementById('perm-user-search').addEventListener('input', (e) => {
+    permUserSearchFilter = e.target.value.trim();
+    renderPermDeptChipsAndUserList();
   });
 
   function renderFileAdminTable() {
@@ -1569,24 +1836,34 @@
 
     fileCatalogList.forEach((fItem) => {
       const tr = document.createElement('tr');
-      const usersText = Array.isArray(fItem.allowedUsers) && fItem.allowedUsers.length > 0 ? fItem.allowedUsers.join(', ') : '(전체 공개)';
+      const allowedUsers = Array.isArray(fItem.allowedUsers) ? fItem.allowedUsers.filter(Boolean) : [];
+      const allowedDepts = Array.isArray(fItem.allowedDepts) ? fItem.allowedDepts.filter(Boolean) : [];
+
+      let summaryText = '전사 전체 공개 (모든 사용자)';
+      if (allowedUsers.length > 0 || allowedDepts.length > 0) {
+        const parts = [];
+        if (allowedDepts.length > 0) parts.push(`부서: ${allowedDepts.join(', ')}`);
+        if (allowedUsers.length > 0) parts.push(`사용자(${allowedUsers.length}명): ${allowedUsers.join(', ')}`);
+        summaryText = parts.join(' / ');
+      }
 
       tr.innerHTML = `
-        <td>
-          <input type="text" class="inline-dept-input file-title-inp" value="${fItem.title || ''}" placeholder="파일명">
+        <td title="${fItem.title}">
+          <b>${fItem.title || '-'}</b>
         </td>
         <td title="?file=${fItem.id}">
           <span style="color:#673ab7; font-weight:700;">?file=${fItem.id}</span>
         </td>
-        <td>
-          <span style="font-size:12px; color:#1967d2; font-weight:600;" title="${usersText}">
-            ${usersText}
+        <td title="${summaryText}">
+          <span style="font-size:12px; color:${allowedUsers.length === 0 && allowedDepts.length === 0 ? '#0f9d58' : '#1967d2'}; font-weight:600;">
+            ${summaryText}
           </span>
         </td>
         <td>
           <div class="action-buttons">
             <button class="small-btn open-file-btn" title="이 엑셀 파일로 즉시 이동합니다">열기</button>
-            <button class="small-btn warn-btn copy-url-btn" title="이 파일의 접속 링크를 복사합니다">주소</button>
+            <button class="small-btn purple-btn edit-perm-btn" title="이 파일의 열람 권한(부서/사용자)을 선택하여 수정합니다">권한수정</button>
+            <button class="small-btn warn-btn copy-url-btn" title="이 파일의 접속 링크를 복사합니다">주소복사</button>
             ${fItem.id !== 'main' ? '<button class="small-btn danger-btn del-file-btn" title="파일을 목록에서 삭제합니다">삭제</button>' : ''}
           </div>
         </td>
@@ -1597,6 +1874,10 @@
         const nextUrl = new URL(window.location.href);
         nextUrl.searchParams.set('file', fItem.id);
         window.location.href = nextUrl.toString();
+      });
+
+      tr.querySelector('.edit-perm-btn').addEventListener('click', async () => {
+        await openFileFormForCreateOrEdit(fItem);
       });
 
       tr.querySelector('.copy-url-btn').addEventListener('click', () => {
@@ -1625,52 +1906,101 @@
     });
   }
 
+  // 새 파일 생성 또는 기존 파일 권한 저장 처리
   document.getElementById('btn-create-file').addEventListener('click', async () => {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+    const editFileId = document.getElementById('edit-mode-file-id').value.trim();
     const title = document.getElementById('new-file-title').value.trim();
     const rawCode = document.getElementById('new-file-id').value.trim();
+    const isPublicAll = document.getElementById('chk-file-public-all').checked;
 
-    if (!title) return alert("생성할 엑셀 파일명을 입력해 주세요.");
-    const fileId = toSafeFileId(rawCode || ('doc_' + Date.now().toString(36)));
-    if (!fileId) return alert("올바른 파일 코드를 입력해 주세요.");
-    if (fileCatalogList.some(f => f.id === fileId)) {
-      return alert("이미 사용 중인 파일 코드입니다. 다른 코드를 입력해 주세요.");
+    if (!title) return alert("엑셀 파일명을 입력해 주세요.");
+
+    const finalAllowedUsers = isPublicAll ? [] : Array.from(selectedPermUserSet);
+    if (!isPublicAll && finalAllowedUsers.length === 0) {
+      if (!confirm("선택된 일반 사용자가 0명입니다. 관리자만 볼 수 있는 전용 문서로 저장하시겠습니까?\n(전사 전체 공개를 원하시면 상단의 '전사 전체 공개'를 체크해 주세요.)")) {
+        return;
+      }
+      finalAllowedUsers.push('__ADMIN_ONLY__');
     }
 
-    const selectedUsers = [];
-    document.querySelectorAll('.new-file-user-chk:checked').forEach(chk => {
-      selectedUsers.push(chk.value);
-    });
+    try {
+      if (editFileId) {
+        // 기존 파일 수정
+        const target = fileCatalogList.find(f => f.id === editFileId);
+        if (target) {
+          target.title = title;
+          target.allowedDepts = [];
+          target.allowedUsers = finalAllowedUsers;
+        }
+        await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() });
+        alert(`[${title}] 파일의 권한 설정이 저장되었습니다.`);
+        renderFileSwitcherDropdown();
+        document.getElementById('tab-file-list').click();
+      } else {
+        // 신규 파일 생성: DB에 초기 시트 메타와 첫 시트를 즉시 함께 생성하여 Loading 멈춤 원천 차단!
+        const fileId = toSafeFileId(rawCode || ('doc_' + Date.now().toString(36)));
+        if (!fileId) return alert("올바른 파일 코드를 입력해 주세요.");
+        if (fileCatalogList.some(f => f.id === fileId)) {
+          return alert("이미 사용 중인 파일 코드입니다. 다른 코드를 입력해 주세요.");
+        }
 
-    fileCatalogList.push({
-      id: fileId,
-      title: title,
-      allowedDepts: [],
-      allowedUsers: selectedUsers,
-      createdAt: Date.now()
-    });
+        const now = Date.now();
+        const initialSheet = {
+          name: 'Sheet1',
+          index: '0',
+          order: 0,
+          status: 1,
+          row: 50,
+          column: 20,
+          config: {},
+          calcChain: [],
+          frozen: null,
+          celldata: []
+        };
 
-    await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() });
-    alert(`[${title}] 파일이 생성되었습니다. 해당 파일 화면으로 이동합니다.`);
-    const nextUrl = new URL(window.location.href);
-    nextUrl.searchParams.set('file', fileId);
-    window.location.href = nextUrl.toString();
+        await saveSingleSheetDocToFirestore('0', initialSheet, now, fileId);
+        await setDoc(doc(db, "sheets", getMetaDocName(fileId)), {
+          version: 2,
+          fileId: fileId,
+          sheetOrder: [{ index: '0', safeKey: '0', name: 'Sheet1', order: 0, updatedAt: now }],
+          changedSheets: ['0'],
+          sessionId: clientSessionId,
+          updatedBy: currentUserInfo.uid,
+          updatedByName: currentUserInfo.name,
+          timestamp: now
+        });
+
+        fileCatalogList.push({
+          id: fileId,
+          title: title,
+          allowedDepts: [],
+          allowedUsers: finalAllowedUsers,
+          createdAt: now
+        });
+
+        await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: now });
+        alert(`[${title}] 새 엑셀 파일이 생성되었습니다. 해당 파일로 즉시 이동합니다.`);
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('file', fileId);
+        window.location.href = nextUrl.toString();
+      }
+    } catch (err) {
+      alert("파일 저장 중 오류가 발생했습니다: " + getKoreanAuthErrorMessage(err));
+    }
   });
 
-  // ==================== 엑셀 엔진 초기화 및 속도 최적화 로딩 ====================
-  function getSelectedCellRect() {
-    const selBox = document.querySelector('#luckysheet-cell-selected-boxs .luckysheet-cell-selected');
-    if (!selBox) return null;
-    return {
-      left: parseFloat(selBox.style.left) || 0,
-      top: parseFloat(selBox.style.top) || 0,
-      width: parseFloat(selBox.style.width) || 74,
-      height: parseFloat(selBox.style.height) || 20
-    };
+  // ==================== 엑셀 렌더링 및 초고속 병렬 로딩 ====================
+  function clearInternalLuckysheetLoading() {
+    const internalLoader = document.getElementById('luckysheet-cell-loading');
+    if (internalLoader) internalLoader.style.display = 'none';
+    document.querySelectorAll('.luckysheet-loading-mask').forEach(el => {
+      el.style.display = 'none';
+    });
   }
 
   function renderLuckysheet(sheetData) {
-    applyNativeKoreanLocalePatch();
+    applySafeKoreanLocalePatch();
     const currentFileTitle = fileCatalogList.find(f => f.id === currentFileId)?.title || '헬로CN닥스';
 
     window.luckysheet.create({
@@ -1683,6 +2013,11 @@
       enableAddRow: true,
       enableAddBackTop: true,
       hook: {
+        workbookCreateAfter: function() {
+          clearInternalLuckysheetLoading();
+          injectCommaButton();
+          translateUiElements();
+        },
         cellUpdated: function(r, c, oldVal, newVal) {
           if (isInitializing || isApplyingRemoteUpdate) return;
           markActiveSheetDirty();
@@ -1725,10 +2060,11 @@
     });
 
     setTimeout(() => {
+      clearInternalLuckysheetLoading();
       renderRemoteCellCursors();
       injectCommaButton();
       translateUiElements();
-    }, 200);
+    }, 150);
   }
 
   async function initExcel() {
@@ -1736,13 +2072,12 @@
     window.luckysheetInstance = true;
 
     let sheetData = null;
-    let migratedFromLegacy = false;
+    let needsInitialCloudSave = false;
 
     try {
       const metaSnap = await getDoc(doc(db, "sheets", getMetaDocName()));
       if (metaSnap.exists() && Array.isArray(metaSnap.data().sheetOrder) && metaSnap.data().sheetOrder.length > 0) {
         const metaList = metaSnap.data().sheetOrder;
-        // ★ 2번 해결: 병렬 비동기 고속 로딩(Promise.all) 적용으로 엑셀 접속 및 렌더링 속도 대폭 향상
         const loadedSheets = await Promise.all(
           metaList.map(async (m, idx) => {
             const sKey = m.safeKey || toSafeDocKey(m.index);
@@ -1776,7 +2111,7 @@
             return deserializeSingleSheet(slim, idx);
           });
           structureDirty = true;
-          migratedFromLegacy = true;
+          needsInitialCloudSave = true;
         }
       }
     } catch (err) {
@@ -1788,8 +2123,16 @@
       sheetData = defaults.map((s, idx) => {
         const sKey = toSafeDocKey(s.index);
         serializedSheetCache.set(sKey, s);
+        dirtySheetKeys.add(sKey);
         return deserializeSingleSheet(s, idx);
       });
+      structureDirty = true;
+      needsInitialCloudSave = true;
+    }
+
+    // 최소 1개의 시트는 반드시 활성화(status: 1) 상태가 되도록 보장
+    if (!sheetData.some(s => s.status == 1) && sheetData[0]) {
+      sheetData[0].status = 1;
     }
 
     requestAnimationFrame(() => {
@@ -1797,11 +2140,12 @@
 
       isInitializing = false;
       document.getElementById('loading-mask').style.display = 'none';
+      clearInternalLuckysheetLoading();
       dbStatusIndicator.classList.remove('saving', 'error', 'syncing');
       dbStatusText.innerText = "DB 실시간 연결됨";
 
-      if (migratedFromLegacy) {
-        setTimeout(() => saveDirtySheetsToCloud(true), 500);
+      if (needsInitialCloudSave) {
+        setTimeout(() => saveDirtySheetsToCloud(true), 400);
       }
 
       const container = document.getElementById('spreadsheet-container');
@@ -2092,9 +2436,9 @@
   }
 
   function schedulePresenceUpdate(force = false) {
-    if (!currentUserInfo) return;
+    if (!currentUserInfo || !currentUserInfo.uid) return;
     const activeSheetName = getActiveSheetName();
-    const sig = `${activeSheetName}_${currentCellState.r}_${currentCellState.c}`;
+    const sig = `${currentFileId}_${activeSheetName}_${currentCellState.r}_${currentCellState.c}`;
     if (!force && sig === lastPresenceSignature) return;
 
     const now = Date.now();
@@ -2103,13 +2447,13 @@
     } else {
       clearTimeout(presenceTimer);
       presenceTimer = setTimeout(() => {
-        executePresenceWrite(getActiveSheetName(), `${getActiveSheetName()}_${currentCellState.r}_${currentCellState.c}`);
+        executePresenceWrite(getActiveSheetName(), `${currentFileId}_${getActiveSheetName()}_${currentCellState.r}_${currentCellState.c}`);
       }, 450);
     }
   }
 
   function executePresenceWrite(activeSheetName, sig) {
-    if (!currentUserInfo) return;
+    if (!currentUserInfo || !currentUserInfo.uid) return;
     lastPresenceSentAt = Date.now();
     lastPresenceSignature = sig;
     const rect = getSelectedCellRect() || currentCellState.rect;
@@ -2559,7 +2903,7 @@
 
           alert(`[${userItem.name} (${idOnly})] 님의 비밀번호 초기화가 완료되었습니다.\n• 초기화된 비밀번호: ${idOnly}\n※ 이제 기존 비밀번호로 접속이 차단되며, 로그인 시 새 비밀번호 설정창이 자동으로 표시됩니다.`);
         } catch (err) {
-          alert("비밀번호 초기화 실패: " + getKoreanAuthErrorMessage(err, 'admin'));
+          alert("비밀번호 초기화 실패: " + getKoreanAuthErrorMessage(err));
         }
       });
 
@@ -2592,7 +2936,7 @@
             alert(`[${userItem.name} (${idOnly})] 계정의 시스템 접근 권한(DB)이 완전히 삭제되어 로그인이 즉시 차단되었습니다.`);
           }
         } catch (err) {
-          alert("계정 삭제 실패: " + getKoreanAuthErrorMessage(err, 'admin'));
+          alert("계정 삭제 실패: " + getKoreanAuthErrorMessage(err));
         }
       });
     });
