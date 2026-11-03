@@ -55,7 +55,8 @@
     /* 상단 헤더바 */
     .header-bar { min-height: 60px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 6px 18px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; box-sizing: border-box; gap: 10px; }
     .header-left { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; flex: 1; min-width: 0; }
-    .header-title { font-size: 17px; font-weight: 800; color: #1a73e8; white-space: nowrap; }
+    .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; white-space: nowrap; cursor: pointer; user-select: none; padding: 4px 6px; border-radius: 6px; transition: background 0.15s; }
+    .header-title:hover { background: #e8f0fe; }
 
     .file-switcher-wrap { display: inline-flex; align-items: center; gap: 4px; background: #e8f0fe; padding: 4px 8px; border-radius: 8px; border: 1px solid #d2e3fc; }
     .file-switcher-select { border: none; background: transparent; color: #1967d2; font-size: 13px; font-weight: 700; outline: none; cursor: pointer; max-width: 220px; }
@@ -79,8 +80,6 @@
     
     .header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
     .header-actions button { padding: 8px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap; }
-    #btn-manual-save { background: #1a73e8; color: white; }
-    #btn-manual-save:hover { background: #1557b0; }
     #btn-show-files { background: #673ab7; color: white; display: none; }
     #btn-show-files:hover { background: #512da8; }
     #btn-show-admin { background: #34a853; color: white; display: none; }
@@ -195,7 +194,7 @@
 <div id="main-screen" class="screen">
   <div class="header-bar">
     <div class="header-left">
-      <div class="header-title">헬로CN닥스</div>
+      <div id="header-logo-title" class="header-title" title="클릭하면 화면을 새로고침합니다">헬로CN닥스</div>
       <!-- 다중 엑셀 파일 선택 드롭다운 및 현재 파일 전용 접속 링크 복사 -->
       <div class="file-switcher-wrap">
         <span style="font-size:13px;">📄</span>
@@ -210,7 +209,6 @@
       <div id="concurrent-users"></div>
     </div>
     <div class="header-actions">
-      <button id="btn-manual-save" title="현재 시트 내용을 즉시 서버에 저장합니다">즉시 저장</button>
       <button id="btn-show-files" style="display: none;">📂 문서함/권한</button>
       <button id="btn-show-admin" style="display: none;">계정 관리(관리자)</button>
       <button id="btn-logout">로그아웃</button>
@@ -254,7 +252,7 @@
     </div>
     <div class="admin-tabs">
       <button id="tab-file-list" class="tab-btn active">등록된 엑셀 파일 목록 (권한수정 / 링크복사)</button>
-      <button id="tab-file-create" class="tab-btn" id="btn-tab-file-form">+ 새 엑셀 파일 생성 / 권한 편집</button>
+      <button id="tab-file-create" class="tab-btn">+ 새 엑셀 파일 생성 / 권한 편집</button>
     </div>
 
     <!-- 파일 목록 탭 -->
@@ -427,12 +425,18 @@
   const auth = getAuth(app);
   const db = initializeFirestore(app, { experimentalForceLongPolling: true });
 
-  // ★ 1번 요청 반영: 인터넷 창(브라우저)을 닫으면 자동으로 로그아웃되도록 세션 유지 모드(SESSION) 설정
+  // 인터넷 창(브라우저)을 닫으면 자동으로 로그아웃되도록 세션 유지 모드 설정
   setPersistence(auth, browserSessionPersistence).catch(() => {});
 
   const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
   const secondaryAuth = getAuth(secondaryApp);
   const domain = "@helloconnectn.com";
+
+  // 안전한 이벤트 등록 헬퍼 함수 (특정 요소가 없더라도 스크립트 전체가 멈추지 않도록 보호)
+  function bindEvent(id, eventName, handler) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(eventName, handler);
+  }
 
   const ALLOWED_COMPANY_IP = "203.132.166.132";
   const PW_EXPIRE_DAYS = 180;
@@ -535,7 +539,9 @@
 
   const urlParams = new URLSearchParams(window.location.search);
   let currentFileId = toSafeFileId(urlParams.get('file') || urlParams.get('doc') || 'main') || 'main';
-  let fileCatalogList = [];
+  let fileCatalogList = [
+    { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
+  ];
   let catalogUnsubscribe = null;
   let isCatalogInitialized = false;
 
@@ -551,10 +557,10 @@
 
   function canUserAccessFile(fileItem, userObj = currentUserInfo) {
     if (!userObj) return false;
-    if (userObj.role === 'admin') return true; // 관리자는 항상 모든 파일 접근 가능
+    if (userObj.role === 'admin') return true;
     const depts = Array.isArray(fileItem.allowedDepts) ? fileItem.allowedDepts.filter(Boolean) : [];
     const users = Array.isArray(fileItem.allowedUsers) ? fileItem.allowedUsers.filter(Boolean) : [];
-    if (depts.length === 0 && users.length === 0) return true; // 전체 공개
+    if (depts.length === 0 && users.length === 0) return true;
     if (userObj.dept && depts.includes(userObj.dept)) return true;
     if (userObj.id && users.includes(userObj.id)) return true;
     return false;
@@ -646,7 +652,6 @@
     'include': '다음 텍스트를 포함함', 'exclude': '다음 텍스트를 포함하지 않음', 'earlier than': '다음 날짜 이전', 'later than': '다음 날짜 이후'
   };
 
-  // 배열이나 객체 구조는 절대 건드리지 않고 문자열(string)만 안전하게 한글로 패치하여 Loading 멈춤 원천 방지
   function applySafeKoreanLocalePatch() {
     const en = window.luckysheet?.locales?.en;
     if (!en || en.__koSafePatched) return;
@@ -784,7 +789,6 @@
   let userCurrentPage = 1;
   const USERS_PER_PAGE = 10;
 
-  // 파일 권한 설정용 일반 사용자 캐시 및 선택 집합
   let normalUsersForPerm = [];
   const selectedPermUserSet = new Set();
   let permUserSearchFilter = "";
@@ -828,7 +832,6 @@
     }));
   }
 
-  // ==================== ★ 복구 완료된 시트 제어 핵심 함수 4종 ====================
   function getSelectedCellRect() {
     const selBox = document.querySelector('#luckysheet-cell-selected-boxs .luckysheet-cell-selected');
     if (!selBox) return null;
@@ -1223,7 +1226,6 @@
     const authPw = toAuthPassword(pw);
 
     try {
-      // 창을 닫으면 자동 로그아웃되도록 로그인 시점에 세션 모드 적용
       await setPersistence(auth, browserSessionPersistence);
 
       let cred = null;
@@ -1306,13 +1308,13 @@
     }
   }
 
-  document.getElementById('login-form').addEventListener('submit', (e) => {
+  bindEvent('login-form', 'submit', (e) => {
     e.preventDefault();
     executeLogin();
   });
 
   ['login-id', 'login-pw'].forEach(inputId => {
-    document.getElementById(inputId).addEventListener('keydown', (e) => {
+    bindEvent(inputId, 'keydown', (e) => {
       if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
         e.preventDefault();
         executeLogin();
@@ -1321,15 +1323,22 @@
   });
 
   ['force-new-pw', 'force-confirm-pw'].forEach(inputId => {
-    document.getElementById(inputId).addEventListener('keydown', (e) => {
+    bindEvent(inputId, 'keydown', (e) => {
       if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
         e.preventDefault();
-        document.getElementById('btn-force-pw-submit').click();
+        document.getElementById('btn-force-pw-submit')?.click();
       }
     });
   });
 
-  // ==================== IP 검증 완료 후 인증 및 엑셀 시작 ====================
+  // 좌측 상단 "헬로CN닥스" 클릭 시 저장 후 새로고침
+  bindEvent('header-logo-title', 'click', async () => {
+    if (dirtySheetKeys.size > 0 || structureDirty) {
+      await saveDirtySheetsToCloud(false);
+    }
+    window.location.reload();
+  });
+
   enforceIpGate().then((allowed) => {
     if (!allowed) return;
 
@@ -1436,7 +1445,7 @@
     });
   });
 
-  document.getElementById('btn-force-pw-submit').addEventListener('click', async () => {
+  bindEvent('btn-force-pw-submit', 'click', async () => {
     if (!currentUserInfo || !auth.currentUser) return;
     const newPw = document.getElementById('force-new-pw').value;
     const confirmPw = document.getElementById('force-confirm-pw').value;
@@ -1484,11 +1493,11 @@
     }
   });
 
-  document.getElementById('btn-force-pw-logout').addEventListener('click', () => {
-    document.getElementById('btn-logout').click();
+  bindEvent('btn-force-pw-logout', 'click', () => {
+    document.getElementById('btn-logout')?.click();
   });
 
-  document.getElementById('btn-logout').addEventListener('click', async () => {
+  bindEvent('btn-logout', 'click', async () => {
     if (metaUnsubscribe) metaUnsubscribe();
     if (deltaUnsubscribe) deltaUnsubscribe();
     if (presenceUnsubscribe) presenceUnsubscribe();
@@ -1507,15 +1516,7 @@
     }
   });
 
-  document.getElementById('btn-manual-save').addEventListener('click', () => {
-    if (window.luckysheet && typeof window.luckysheet.exitEditMode === 'function') {
-      window.luckysheet.exitEditMode();
-    }
-    markActiveSheetDirty();
-    saveDirtySheetsToCloud(true);
-  });
-
-  // ==================== 다중 엑셀 파일(문서함) & 권한 선택기 (전체/부서별/이름·아이디 검색) ====================
+  // ==================== 다중 엑셀 파일(문서함) & 권한 선택기 ====================
   async function initFileCatalogAndStartExcel() {
     if (!currentUserInfo) return;
 
@@ -1529,7 +1530,7 @@
           ];
         }
         renderFileSwitcherDropdown();
-        if (document.getElementById('file-modal').style.display === 'flex') {
+        if (document.getElementById('file-modal')?.style.display === 'flex') {
           renderFileAdminTable();
         }
       });
@@ -1583,7 +1584,7 @@
     });
   }
 
-  document.getElementById('file-switcher-select').addEventListener('change', async (e) => {
+  bindEvent('file-switcher-select', 'change', async (e) => {
     const nextFileId = e.target.value;
     if (!nextFileId || nextFileId === currentFileId) return;
     if (dirtySheetKeys.size > 0 || structureDirty) {
@@ -1594,7 +1595,7 @@
     window.location.href = nextUrl.toString();
   });
 
-  document.getElementById('btn-copy-file-link').addEventListener('click', () => {
+  bindEvent('btn-copy-file-link', 'click', () => {
     const shareUrl = new URL(window.location.origin + window.location.pathname);
     shareUrl.searchParams.set('file', currentFileId);
     const currentTitle = fileCatalogList.find(f => f.id === currentFileId)?.title || currentFileId;
@@ -1606,38 +1607,44 @@
     });
   });
 
-  document.getElementById('btn-show-files').addEventListener('click', async () => {
+  bindEvent('btn-show-files', 'click', async () => {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
     document.getElementById('file-modal').style.display = 'flex';
-    document.getElementById('tab-file-list').click();
+    // 파일 목록이 비어있다면 즉시 DB에서 최신 목록 조회
+    try {
+      const catSnap = await getDoc(doc(db, "sheets", "file_catalog"));
+      if (catSnap.exists() && Array.isArray(catSnap.data().files) && catSnap.data().files.length > 0) {
+        fileCatalogList = catSnap.data().files;
+      }
+    } catch (_) {}
+    document.getElementById('tab-file-list')?.click();
   });
 
-  document.getElementById('btn-close-files').addEventListener('click', () => {
+  bindEvent('btn-close-files', 'click', () => {
     document.getElementById('file-modal').style.display = 'none';
   });
 
-  document.getElementById('tab-file-list').addEventListener('click', () => {
-    document.getElementById('tab-file-list').classList.add('active');
-    document.getElementById('btn-tab-file-form').classList.remove('active');
-    document.getElementById('view-file-list').classList.add('active');
-    document.getElementById('view-file-create').classList.remove('active');
+  bindEvent('tab-file-list', 'click', () => {
+    document.getElementById('tab-file-list')?.classList.add('active');
+    document.getElementById('tab-file-create')?.classList.remove('active');
+    document.getElementById('view-file-list')?.classList.add('active');
+    document.getElementById('view-file-create')?.classList.remove('active');
     renderFileAdminTable();
   });
 
-  document.getElementById('btn-tab-file-form').addEventListener('click', async () => {
+  bindEvent('tab-file-create', 'click', async () => {
     await openFileFormForCreateOrEdit(null);
   });
 
-  document.getElementById('btn-cancel-file-edit').addEventListener('click', () => {
-    document.getElementById('tab-file-list').click();
+  bindEvent('btn-cancel-file-edit', 'click', () => {
+    document.getElementById('tab-file-list')?.click();
   });
 
-  // 새 파일 생성 또는 기존 파일 권한 수정 폼 열기
   async function openFileFormForCreateOrEdit(targetFileObj = null) {
-    document.getElementById('btn-tab-file-form').classList.add('active');
-    document.getElementById('tab-file-list').classList.remove('active');
-    document.getElementById('view-file-create').classList.add('active');
-    document.getElementById('view-file-list').classList.remove('active');
+    document.getElementById('tab-file-create')?.classList.add('active');
+    document.getElementById('tab-file-list')?.classList.remove('active');
+    document.getElementById('view-file-create')?.classList.add('active');
+    document.getElementById('view-file-list')?.classList.remove('active');
 
     const editIdInput = document.getElementById('edit-mode-file-id');
     const titleInput = document.getElementById('new-file-title');
@@ -1654,7 +1661,6 @@
     await fetchNormalUsersForPermPicker();
 
     if (targetFileObj) {
-      // 기존 파일 권한 수정 모드
       editIdInput.value = targetFileObj.id;
       titleInput.value = targetFileObj.title || '';
       codeInput.value = targetFileObj.id;
@@ -1669,7 +1675,9 @@
         publicChk.checked = true;
       } else {
         publicChk.checked = false;
-        existingUsers.forEach(id => selectedPermUserSet.add(id));
+        existingUsers.forEach(id => {
+          if (id !== '__ADMIN_ONLY__') selectedPermUserSet.add(id);
+        });
         if (existingDepts.length > 0) {
           normalUsersForPerm.forEach(u => {
             if (existingDepts.includes(u.dept)) selectedPermUserSet.add(u.id);
@@ -1677,7 +1685,6 @@
         }
       }
     } else {
-      // 새 파일 생성 모드
       editIdInput.value = '';
       titleInput.value = '';
       codeInput.value = '';
@@ -1690,7 +1697,6 @@
     renderPermDeptChipsAndUserList();
   }
 
-  // 일반 사용자(role !== 'admin') 목록 로드
   async function fetchNormalUsersForPermPicker() {
     try {
       const snap = await getDocs(collection(db, "users"));
@@ -1724,7 +1730,6 @@
     const countLabel = document.getElementById('perm-selected-count');
     const publicChk = document.getElementById('chk-file-public-all');
 
-    // 1. 부서별 빠른 선택 칩 버튼 렌더링
     const uniqueDepts = [...new Set(normalUsersForPerm.map(u => u.dept).filter(Boolean))];
     deptContainer.innerHTML = '<span style="font-size:12px; color:#5f6368; font-weight:700;">부서별 선택:</span>';
 
@@ -1752,7 +1757,6 @@
       });
     }
 
-    // 2. 상태 표시 업데이트
     if (publicChk.checked) {
       countLabel.innerText = '전사 전체 공개 (모든 사용자 허용)';
       countLabel.style.color = '#0f9d58';
@@ -1761,7 +1765,6 @@
       countLabel.style.color = '#1a73e8';
     }
 
-    // 3. 검색 필터링된 일반 사용자 체크박스 렌더링
     listContainer.innerHTML = '';
     if (normalUsersForPerm.length === 0) {
       listContainer.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding: 14px; grid-column: span 2;">등록된 일반 사용자가 없습니다. (관리자는 기본으로 모든 파일을 볼 수 있습니다)</div>';
@@ -1790,7 +1793,6 @@
       const chk = itemLabel.querySelector('input');
       chk.addEventListener('change', () => {
         if (publicChk.checked) {
-          // 전체 공개 상태에서 특정인을 해제하면 나머지 인원만 선택된 상태로 전환
           publicChk.checked = false;
           normalUsersForPerm.forEach(nu => {
             if (nu.id !== u.id) selectedPermUserSet.add(nu.id);
@@ -1805,26 +1807,26 @@
     });
   }
 
-  document.getElementById('chk-file-public-all').addEventListener('change', (e) => {
+  bindEvent('chk-file-public-all', 'change', (e) => {
     if (e.target.checked) {
       selectedPermUserSet.clear();
     }
     renderPermDeptChipsAndUserList();
   });
 
-  document.getElementById('btn-select-all-users').addEventListener('click', () => {
+  bindEvent('btn-select-all-users', 'click', () => {
     document.getElementById('chk-file-public-all').checked = false;
     normalUsersForPerm.forEach(u => selectedPermUserSet.add(u.id));
     renderPermDeptChipsAndUserList();
   });
 
-  document.getElementById('btn-deselect-all-users').addEventListener('click', () => {
+  bindEvent('btn-deselect-all-users', 'click', () => {
     document.getElementById('chk-file-public-all').checked = false;
     selectedPermUserSet.clear();
     renderPermDeptChipsAndUserList();
   });
 
-  document.getElementById('perm-user-search').addEventListener('input', (e) => {
+  bindEvent('perm-user-search', 'input', (e) => {
     permUserSearchFilter = e.target.value.trim();
     renderPermDeptChipsAndUserList();
   });
@@ -1834,13 +1836,21 @@
     if (!tbody) return;
     tbody.innerHTML = '';
 
+    if (!Array.isArray(fileCatalogList) || fileCatalogList.length === 0) {
+      fileCatalogList = [
+        { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
+      ];
+    }
+
     fileCatalogList.forEach((fItem) => {
       const tr = document.createElement('tr');
       const allowedUsers = Array.isArray(fItem.allowedUsers) ? fItem.allowedUsers.filter(Boolean) : [];
       const allowedDepts = Array.isArray(fItem.allowedDepts) ? fItem.allowedDepts.filter(Boolean) : [];
 
       let summaryText = '전사 전체 공개 (모든 사용자)';
-      if (allowedUsers.length > 0 || allowedDepts.length > 0) {
+      if (allowedUsers.includes('__ADMIN_ONLY__')) {
+        summaryText = '관리자 전용 (일반 사용자 비공개)';
+      } else if (allowedUsers.length > 0 || allowedDepts.length > 0) {
         const parts = [];
         if (allowedDepts.length > 0) parts.push(`부서: ${allowedDepts.join(', ')}`);
         if (allowedUsers.length > 0) parts.push(`사용자(${allowedUsers.length}명): ${allowedUsers.join(', ')}`);
@@ -1906,8 +1916,7 @@
     });
   }
 
-  // 새 파일 생성 또는 기존 파일 권한 저장 처리
-  document.getElementById('btn-create-file').addEventListener('click', async () => {
+  bindEvent('btn-create-file', 'click', async () => {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
     const editFileId = document.getElementById('edit-mode-file-id').value.trim();
     const title = document.getElementById('new-file-title').value.trim();
@@ -1926,7 +1935,6 @@
 
     try {
       if (editFileId) {
-        // 기존 파일 수정
         const target = fileCatalogList.find(f => f.id === editFileId);
         if (target) {
           target.title = title;
@@ -1936,9 +1944,8 @@
         await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() });
         alert(`[${title}] 파일의 권한 설정이 저장되었습니다.`);
         renderFileSwitcherDropdown();
-        document.getElementById('tab-file-list').click();
+        document.getElementById('tab-file-list')?.click();
       } else {
-        // 신규 파일 생성: DB에 초기 시트 메타와 첫 시트를 즉시 함께 생성하여 Loading 멈춤 원천 차단!
         const fileId = toSafeFileId(rawCode || ('doc_' + Date.now().toString(36)));
         if (!fileId) return alert("올바른 파일 코드를 입력해 주세요.");
         if (fileCatalogList.some(f => f.id === fileId)) {
@@ -2130,7 +2137,6 @@
       needsInitialCloudSave = true;
     }
 
-    // 최소 1개의 시트는 반드시 활성화(status: 1) 상태가 되도록 보장
     if (!sheetData.some(s => s.status == 1) && sheetData[0]) {
       sheetData[0].status = 1;
     }
@@ -2585,7 +2591,7 @@
   }
 
   // ==================== 관리자 계정 관리 ====================
-  document.getElementById('btn-show-admin').addEventListener('click', () => {
+  bindEvent('btn-show-admin', 'click', () => {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') {
       return alert("관리자 권한이 있는 계정만 접근할 수 있습니다.");
     }
@@ -2593,32 +2599,32 @@
     loadUserList(true);
   });
 
-  document.getElementById('btn-close-admin').addEventListener('click', () => {
+  bindEvent('btn-close-admin', 'click', () => {
     document.getElementById('admin-modal').style.display = 'none';
   });
 
-  document.getElementById('tab-list').addEventListener('click', () => {
-    document.getElementById('tab-list').classList.add('active');
-    document.getElementById('tab-create').classList.remove('active');
-    document.getElementById('view-list').classList.add('active');
-    document.getElementById('view-create').classList.remove('active');
+  bindEvent('tab-list', 'click', () => {
+    document.getElementById('tab-list')?.classList.add('active');
+    document.getElementById('tab-create')?.classList.remove('active');
+    document.getElementById('view-list')?.classList.add('active');
+    document.getElementById('view-create')?.classList.remove('active');
     loadUserList(false);
   });
 
-  document.getElementById('tab-create').addEventListener('click', () => {
-    document.getElementById('tab-create').classList.add('active');
-    document.getElementById('tab-list').classList.remove('active');
-    document.getElementById('view-create').classList.add('active');
-    document.getElementById('view-list').classList.remove('active');
+  bindEvent('tab-create', 'click', () => {
+    document.getElementById('tab-create')?.classList.add('active');
+    document.getElementById('tab-list')?.classList.remove('active');
+    document.getElementById('view-create')?.classList.add('active');
+    document.getElementById('view-list')?.classList.remove('active');
   });
 
-  document.getElementById('user-search-input').addEventListener('input', (e) => {
+  bindEvent('user-search-input', 'input', (e) => {
     userSearchQuery = e.target.value.trim().toLowerCase();
     userCurrentPage = 1;
     renderUserTablePage();
   });
 
-  document.getElementById('btn-reset-sort').addEventListener('click', () => {
+  bindEvent('btn-reset-sort', 'click', () => {
     userSortField = 'default';
     userSortOrder = 'asc';
     userCurrentPage = 1;
@@ -2651,9 +2657,9 @@
     });
   }
 
-  document.getElementById('th-sort-dept').addEventListener('click', () => toggleColumnSort('dept'));
-  document.getElementById('th-sort-name').addEventListener('click', () => toggleColumnSort('name'));
-  document.getElementById('th-sort-id').addEventListener('click', () => toggleColumnSort('id'));
+  bindEvent('th-sort-dept', 'click', () => toggleColumnSort('dept'));
+  bindEvent('th-sort-name', 'click', () => toggleColumnSort('name'));
+  bindEvent('th-sort-id', 'click', () => toggleColumnSort('id'));
 
   function compareDefaultSort(a, b) {
     const roleA = a.role === 'admin' ? 0 : 1;
@@ -2979,7 +2985,7 @@
     paginationEl.appendChild(nextBtn);
   }
 
-  document.getElementById('btn-create-user').addEventListener('click', async () => {
+  bindEvent('btn-create-user', 'click', async () => {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
 
     const rawId = document.getElementById('new-id').value.trim();
@@ -3032,7 +3038,7 @@
       document.getElementById('new-id').value = '';
       document.getElementById('new-name').value = '';
       document.getElementById('new-dept').value = '';
-      document.getElementById('tab-list').click();
+      document.getElementById('tab-list')?.click();
       loadUserList(false);
     } catch (error) {
       alert("계정 발급 실패: " + getKoreanAuthErrorMessage(error));
