@@ -72,8 +72,9 @@
     #btn-logout { background: #fff; color: #5f6368; border: 1px solid #dadce0; }
     #btn-logout:hover { background: #f8f9fa; color: #202124; }
 
-    .comma-format-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 26px; background: #fff; border: 1px solid #dadce0; border-radius: 4px; font-weight: bold; font-size: 13px; cursor: pointer; color: #3c4043; margin-right: 4px; vertical-align: middle; }
-    .comma-format-btn:hover { background: #f1f3f4; border-color: #bdc1c6; }
+    /* 천단위 콤마(,) 전용 커스텀 툴바 버튼 스타일 */
+    .comma-format-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; background: #f8f9fa; border: 1px solid #dadce0; border-radius: 4px; font-weight: 800; font-size: 14px; cursor: pointer; color: #1a73e8; margin: 0 3px; vertical-align: middle; user-select: none; }
+    .comma-format-btn:hover { background: #e8f0fe; border-color: #1a73e8; }
 
     /* 엑셀 컨테이너 */
     #spreadsheet-container { flex: 1; width: 100vw; position: relative; height: calc(100vh - 60px); background: #fff; }
@@ -307,6 +308,274 @@
     return String(rawIndex ?? '0').replace(/[^a-zA-Z0-9_-]/g, '_');
   }
 
+  // ==================== ★ 3번 해결: 상황별 명확한 한글 오류 메시지 변환기 ====================
+  function getKoreanAuthErrorMessage(err, context = '') {
+    const code = err?.code || '';
+    switch (code) {
+      case 'auth/invalid-email':
+        return '아이디 형식이 올바르지 않습니다. 영문 또는 숫자로 입력해 주세요.';
+      case 'auth/user-not-found':
+        return '등록되지 않은 계정입니다. 아이디를 다시 확인해 주세요.';
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+      case 'auth/invalid-login-credentials':
+        return context === 'admin'
+          ? '해당 사용자가 직접 비밀번호를 변경하여 초기 인증키와 일치하지 않습니다.'
+          : '아이디 또는 비밀번호가 일치하지 않습니다. 대소문자와 입력값을 확인해 주세요.';
+      case 'auth/email-already-in-use':
+        return '이미 Firebase 인증 서버에 등록되어 있는 아이디입니다. 다른 아이디를 사용하거나 기존 계정을 먼저 정리해 주세요.';
+      case 'auth/weak-password':
+        return '비밀번호 보안 수준이 너무 낮습니다. 6자리 이상으로 설정해 주세요.';
+      case 'auth/too-many-requests':
+        return '단시간에 너무 많은 요청이 발생하여 일시적으로 보호 조치되었습니다. 약 1분 후 다시 시도해 주세요.';
+      case 'auth/network-request-failed':
+        return '네트워크 연결이 불안정합니다. 인터넷 연결 상태를 확인해 주세요.';
+      case 'auth/requires-recent-login':
+        return '보안을 위해 재인증이 필요합니다. 로그아웃 후 다시 로그인하여 시도해 주세요.';
+      case 'permission-denied':
+        return '데이터베이스 접근 권한이 없습니다. 관리자 권한 여부를 확인해 주세요.';
+      default:
+        return `오류가 발생했습니다 (${code || err?.message || '알 수 없는 오류'}).`;
+    }
+  }
+
+  // ==================== ★ 1번 & 2번 해결: 엑셀 엔진 내부 언어팩 원천 한글 패치 + 세부 팝업 사전 ====================
+  const KO_TEXT_MAP = {
+    // 툴바 툴팁 및 상단 버튼
+    'Undo (Ctrl+Z)': '실행 취소 (Ctrl+Z)', 'Redo (Ctrl+Y)': '다시 실행 (Ctrl+Y)', 'Undo': '실행 취소', 'Redo': '다시 실행',
+    'Paint format': '서식 복사', 'Format painter': '서식 복사', 'Clear format': '서식 지우기',
+    'Currency': '통화 서식 (₩)', 'Currency format': '통화 서식 (₩)', 'Percent': '백분율 서식 (%)', 'Percent format': '백분율 서식 (%)',
+    'Decrease decimal places': '소수점 자릿수 줄임', 'Increase decimal places': '소수점 자릿수 늘림',
+    'More formats': '표시 형식 더보기', 'Automatic': '자동', 'General': '일반', 'Number': '숫자', 'Accounting': '회계',
+    'Font': '글꼴', 'Font size': '글자 크기', 'Bold (Ctrl+B)': '굵게 (Ctrl+B)', 'Bold': '굵게',
+    'Italic (Ctrl+I)': '기울임꼴 (Ctrl+I)', 'Italic': '기울임꼴', 'Strikethrough (Alt+Shift+5)': '취소선', 'Strikethrough': '취소선',
+    'Underline (Ctrl+U)': '밑줄 (Ctrl+U)', 'Underline': '밑줄', 'Text color': '글자 색상', 'Reset color': '색상 초기화',
+    'Fill color': '셀 채우기 색상', 'Cell color': '셀 채우기 색상', 'Borders': '테두리 설정',
+    'borderTop': '위쪽 테두리', 'borderBottom': '아래쪽 테두리', 'borderLeft': '왼쪽 테두리', 'borderRight': '오른쪽 테두리',
+    'borderNone': '테두리 없음', 'borderAll': '모든 테두리', 'borderOutside': '바깥쪽 테두리', 'borderInside': '안쪽 테두리',
+    'borderHorizontal': '안쪽 가로 테두리', 'borderVertical': '안쪽 세로 테두리', 'borderColor': '테두리 색상', 'borderStyle': '테두리 선 스타일',
+    'Merge cells': '셀 병합', 'Merge all': '전체 병합', 'Horizontally merge': '가로 병합', 'Vertically merge': '세로 병합', 'Cancel merge': '병합 해제',
+    'Horizontal align': '가로 정렬', 'Horizontal alignment': '가로 정렬', 'Left align': '왼쪽 정렬', 'Center align': '가운데 정렬', 'Right align': '오른쪽 정렬',
+    'Vertical align': '세로 정렬', 'Vertical alignment': '세로 정렬', 'Top align': '위쪽 맞춤', 'Middle align': '가운데 맞춤', 'Bottom align': '아래쪽 맞춤',
+    'Text wrap': '텍스트 줄 바꿈', 'Text wrapping': '텍스트 줄 바꿈', 'Overflow': '넘침 허용', 'Wrap': '자동 줄 바꿈', 'Clip': '자르기',
+    'Text rotate': '텍스트 회전', 'Text rotation': '텍스트 회전',
+    'Insert picture': '이미지 삽입', 'Insert image': '이미지 삽입', 'Insert link': '링크 삽입', 'Link': '링크 삽입',
+    'Chart': '차트 삽입', 'Create chart': '차트 생성', 'Comment': '메모', 'Insert comment': '메모 삽입',
+    'PivotTable': '피벗 테이블', 'Pivot table': '피벗 테이블',
+    'Quick calculation': '자동 계산 함수', 'Auto sum': '자동 합계', 'SUM': '합계', 'Sum': '합계 (SUM)', 'Average': '평균 (AVERAGE)', 'Count': '개수 (COUNT)', 'Max': '최댓값 (MAX)', 'Min': '최솟값 (MIN)', 'More functions': '함수 더보기',
+    'Freeze': '틀 고정', 'Freeze panes': '틀 고정', 'Freeze first row': '첫 행 고정', 'Freeze first column': '첫 열 고정', 'Freeze to selection': '선택 영역까지 고정', 'Cancel freeze': '틀 고정 해제',
+    'Sort and filter': '정렬 및 필터', 'Filter': '필터', 'Sort': '정렬', 'Clear filter': '필터 지우기',
+    'Sort A to Z': '오름차순 정렬 (ㄱ→ㅎ)', 'Sort Z to A': '내림차순 정렬 (ㅎ→ㄱ)', 'Custom sort': '사용자 지정 정렬', 'Custom sort...': '사용자 지정 정렬...',
+    'Conditional format': '조건부 서식', 'Conditional formatting': '조건부 서식', 'Highlight cell rules': '셀 강조 규칙', 'Item selection rules': '상위/하위 규칙', 'Data bars': '데이터 막대', 'Color scales': '색조', 'Icon sets': '아이콘 집합', 'New rule': '새 규칙', 'Clear rules': '규칙 지우기', 'Manage rules': '규칙 관리',
+    'Data verification': '데이터 유효성 검사', 'Data validation': '데이터 유효성 검사',
+    'Split text': '텍스트 나누기', 'Split text to columns': '텍스트 나누기',
+    'Screenshot': '화면 캡처', 'Find and replace': '찾기 및 바꾸기', 'Find': '찾기', 'Replace': '바꾸기',
+    'Protection': '시트 보호', 'Print': '인쇄', 'More': '더보기', 'Close': '닫기',
+
+    // 우클릭 컨텍스트 메뉴 및 하위 서브메뉴
+    'Copy': '복사', 'Copy as': '다른 형식으로 복사', 'Paste': '붙여넣기', 'Cut': '잘라내기',
+    'InsertRow': '행 삽입', 'InsertColumn': '열 삽입', 'Insert row': '행 삽입', 'Insert column': '열 삽입',
+    'Delete selected Row': '선택한 행 삭제', 'Delete selected Column': '선택한 열 삭제', 'Delete row': '행 삭제', 'Delete column': '열 삭제',
+    'Delete cell': '셀 삭제', 'Move left': '왼쪽으로 밀기', 'Move up': '위로 밀기', 'Delete entire row': '전체 행 삭제', 'Delete entire column': '전체 열 삭제',
+    'Clear content': '내용 지우기', 'Clear contents': '내용 지우기',
+    'Hide selected Row': '선택한 행 숨기기', 'Show hidden Row': '숨긴 행 표시', 'Hide selected Column': '선택한 열 숨기기', 'Show hidden Column': '숨긴 열 표시',
+    'Row height': '행 높이 설정', 'Column width': '열 너비 설정',
+    'Matrix operation': '행렬 연산', 'Transpose': '행/열 바꿈 (전치)', 'Rotate 90 degrees': '90도 회전', 'Rotate 180 degrees': '180도 회전', 'Sort by': '기준 정렬',
+    'Json first line title': 'JSON (첫 줄을 제목으로)', 'Json untitled': 'JSON (제목 없음)',
+    'One-dimensional array': '1차원 배열', 'Two-dimensional array': '2차원 배열', 'Multidimensional Arrays': '다차원 배열',
+    'Diagonal': '대각선 추출', 'Anti-diagonal': '역대각선 추출', 'Diagonal offset': '대각선 오프셋', 'Boolean': '논리값(Boolean) 변환',
+    'Cell format config': '셀 서식 설정', 'Rename': '시트 이름 변경', 'Delete': '삭제', 'Hide': '숨기기', 'Unhide': '숨기기 취소', 'Copy sheet': '시트 복제', 'Move': '시트 이동', 'Tab color': '탭 색상',
+
+    // 데이터 검증(Data verification) 및 각종 팝업 내부 상세 텍스트
+    'Cell range': '적용할 셀 범위', 'Verification condition': '유효성 검사 조건',
+    'Dropdown': '드롭다운 목록', 'drop-down list': '드롭다운 목록', 'Checkbox': '체크박스',
+    'Number-integer': '숫자 (정수)', 'Number-decimal': '숫자 (소수)', 'Text-content': '텍스트 내용', 'Text-length': '텍스트 길이', 'Date': '날짜', 'Validity': '유효성 형식',
+    'Please enter the options, separated by comma': '목록 항목을 쉼표(,)로 구분해 입력하거나 셀 범위를 선택하세요',
+    'Automatic remote acquisition option': '원격 옵션 자동 가져오기',
+    'Prohibit input when input data is invalid': '유효하지 않은 데이터 입력 시 거부',
+    'Show prompt when the cell is selected': '셀 선택 시 안내 문구 표시',
+    'Delete verification': '유효성 검사 삭제', 'OK': '확인', 'Confirm': '확인', 'Cancel': '취소', 'Save': '저장',
+    'between': '다음 값의 사이에 있음', 'not between': '다음 값의 사이에 있지 않음', 'equal to': '다음 값과 같음', 'not equal to': '다음 값과 같지 않음',
+    'greater than': '다음 값보다 큼', 'less than': '다음 값보다 작음', 'greater than or equal to': '다음 값보다 크거나 같음', 'less than or equal to': '다음 값보다 작거나 같음',
+    'include': '다음 텍스트를 포함함', 'exclude': '다음 텍스트를 포함하지 않음', 'earlier than': '다음 날짜 이전', 'later than': '다음 날짜 이후'
+  };
+
+  // 엔진 시작 전 내부 영문 로케일 객체(locales.en)를 한글로 직접 덮어쓰기 (가장 빠르고 안전한 네이티브 방식)
+  function applyNativeKoreanLocalePatch() {
+    const en = window.luckysheet?.locales?.en;
+    if (!en || en.__koPatched) return;
+    en.__koPatched = true;
+
+    const patchDict = (targetObj, patchObj) => {
+      if (!targetObj || typeof targetObj !== 'object') return;
+      Object.assign(targetObj, patchObj);
+    };
+
+    patchDict(en.toolbar, {
+      undo: '실행 취소', redo: '다시 실행', paintFormat: '서식 복사', currencyFormat: '통화 서식',
+      percentageFormat: '백분율 서식', numberDecrease: '소수점 줄임', numberIncrease: '소수점 늘림',
+      moreFormats: '표시 형식', font: '글꼴', fontSize: '글자 크기', bold: '굵게', italic: '기울임꼴',
+      strikethrough: '취소선', underline: '밑줄', textColor: '글자 색상', resetColor: '색상 초기화',
+      fillColor: '채우기 색상', border: '테두리', borderColor: '테두리 색상', borderStyle: '테두리 스타일',
+      mergeCell: '셀 병합', chooseMergeType: '병합 유형 선택', horizontalAlign: '가로 정렬',
+      verticalAlign: '세로 정렬', textWrap: '줄 바꿈', textWrapMode: '줄 바꿈 방식',
+      textRotate: '텍스트 회전', textRotateMode: '회전 방식', insertImage: '이미지 삽입',
+      insertLink: '링크 삽입', chart: '차트', postil: '메모', pivotTable: '피벗 테이블',
+      function: '함수', freeze: '틀 고정', sortAndFilter: '정렬 및 필터',
+      conditionalFormat: '조건부 서식', dataVerification: '데이터 유효성 검사',
+      splitColumn: '텍스트 나누기', screenshot: '스크린샷', findAndReplace: '찾기 및 바꾸기',
+      protection: '시트 보호', print: '인쇄', more: '더보기', close: '닫기', clearFormat: '서식 지우기'
+    });
+
+    patchDict(en.rightclick, {
+      copy: '복사', copyAs: '다른 형식으로 복사', paste: '붙여넣기',
+      insert: '삽입', delete: '삭제', deleteCell: '셀 삭제', deleteSelected: '선택한 ',
+      hide: '숨기기', hideSelected: '선택한 ', showHide: '숨기기 취소 ',
+      to: '방향', left: '왼쪽', right: '오른쪽', top: '위쪽', bottom: '아래쪽',
+      moveLeft: '왼쪽으로 밀기', moveUp: '위로 밀기',
+      add: '추가', row: '행', column: '열', width: '너비', height: '높이',
+      clearContent: '내용 지우기', matrix: '행렬 연산', sortSelection: '정렬',
+      filterSelection: '필터', chartGeneration: '차트 생성', image: '이미지 삽입',
+      link: '링크 삽입', data: '데이터 유효성 검사', cellFormat: '셀 서식 설정'
+    });
+
+    patchDict(en.button, {
+      confirm: '확인', cancel: '취소', close: '닫기', update: '업데이트', delete: '삭제',
+      insert: '삽입', prevPage: '이전', nextPage: '다음'
+    });
+
+    patchDict(en.format, {
+      moreCurrency: '통화 형식 더보기', moreDateTime: '날짜 및 시간 형식 더보기', moreNumber: '숫자 형식 더보기',
+      titleCurrency: '통화 형식', titleDateTime: '날짜 및 시간 형식', titleNumber: '숫자 형식',
+       automatic: '자동', general: '일반', number: '숫자', percent: '백분율', accounting: '회계',
+      date: '날짜', time: '시간', scientific: '지수', text: '텍스트'
+    });
+
+    patchDict(en.dataVerification, {
+      cellRange: '적용할 셀 범위', verificationCondition: '유효성 검사 조건',
+      dropdown: '드롭다운 목록', checkbox: '체크박스', number: '숫자', number_integer: '숫자 (정수)',
+      number_decimal: '숫자 (소수)', text_content: '텍스트 내용', text_length: '텍스트 길이',
+      date: '날짜', validity: '유효성 형식', placeholder1: '목록 항목을 쉼표(,)로 구분하여 입력하거나 셀 범위를 선택하세요',
+      placeholder2: '내용 입력', placeholder3: '숫자 입력', placeholder4: '길이 입력', placeholder5: '날짜 입력',
+      remote: '원격 옵션 자동 가져오기', prohibitInput: '유효하지 않은 데이터 입력 시 거부',
+      hintShow: '셀 선택 시 안내 문구 표시', deleteVerification: '유효성 검사 삭제',
+       verification: '데이터 유효성 검사', between: '사이', notBetween: '사이에 없음',
+      equal: '같음', notEqualTo: '같지 않음', moreThanThe: '보다 큼', lessThan: '보다 작음',
+      greaterOrEqualTo: '크거나 같음', lessThanOrEqualTo: '작거나 같음', include: '포함', exclude: '포함하지 않음',
+      earlierThan: '이전 날짜', laterThan: '이후 날짜'
+    });
+
+    patchDict(en.sort, {
+      title: '정렬', confirm: '정렬 실행', close: '닫기', addSort: '정렬 기준 추가',
+      hasTitle: '데이터에 머리글(제목 행) 포함', sortBy: '정렬 기준', asc: '오름차순 (A→Z)', desc: '내림차순 (Z→A)'
+    });
+
+    patchDict(en.sheetconfig, {
+      delete: '시트 삭제', copy: '시트 복제', rename: '이름 변경', move: '시트 이동',
+      hide: '시트 숨기기', unhide: '숨기기 취소', color: '탭 색상', resetColor: '색상 초기화',
+      left: '왼쪽으로 이동', right: '오른쪽으로 이동'
+    });
+  }
+
+  // 툴바 툴팁(data-tips), 우클릭 메뉴, 모달 팝업 내부만 초경량으로 번역 (셀 캔버스는 스캔하지 않아 속도 저하 0%)
+  function translateUiElements(rootNode = document) {
+    // 1. 툴바 아이콘 검은색 말풍선(data-tips) 직접 한글 변환
+    rootNode.querySelectorAll('[data-tips]').forEach(el => {
+      const tip = el.getAttribute('data-tips')?.trim();
+      if (tip && KO_TEXT_MAP[tip]) {
+        el.setAttribute('data-tips', KO_TEXT_MAP[tip]);
+        el.setAttribute('title', KO_TEXT_MAP[tip]);
+      }
+    });
+
+    // 2. input placeholder 한글 변환
+    rootNode.querySelectorAll('input[placeholder]').forEach(inp => {
+      const ph = inp.getAttribute('placeholder')?.trim();
+      if (ph && KO_TEXT_MAP[ph]) inp.setAttribute('placeholder', KO_TEXT_MAP[ph]);
+    });
+
+    // 3. 메뉴, 모달창, 버튼, 옵션의 순수 텍스트 노드만 빠르게 변환
+    const targetContainers = rootNode === document
+      ? document.querySelectorAll('.luckysheet-wa-editor, .luckysheet-cols-menu, .luckysheet-modal-dialog, .luckysheet-sheet-area, #luckysheet-modal-dialog-slider-protection')
+      : [rootNode];
+
+    targetContainers.forEach(container => {
+      if (!container) return;
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+      let node;
+      while ((node = walker.nextNode())) {
+        const raw = node.nodeValue;
+        const trimmed = raw ? raw.trim() : '';
+        if (!trimmed) continue;
+        if (KO_TEXT_MAP[trimmed]) {
+          node.nodeValue = raw.replace(trimmed, KO_TEXT_MAP[trimmed]);
+        } else if (trimmed === 'InsertRow') {
+          node.nodeValue = '행 삽입';
+        } else if (trimmed === 'InsertColumn') {
+          node.nodeValue = '열 삽입';
+        }
+      }
+    });
+  }
+
+  // 천단위 콤마(,) 원클릭 전용 버튼을 '%' 버튼 바로 옆에 정확히 장착
+  function injectCommaButton() {
+    if (document.getElementById('custom-comma-btn')) return;
+    const percentBtn = document.getElementById('luckysheet-icon-percent') || document.querySelector('[data-tips*="Percent"], [data-tips*="백분율"]');
+    const toolbar = document.getElementById('luckysheet-wa-editor') || document.querySelector('.luckysheet-toolbar-button-split-left')?.parentNode;
+    if (!percentBtn && !toolbar) return;
+
+    const commaBtn = document.createElement('div');
+    commaBtn.id = 'custom-comma-btn';
+    commaBtn.className = 'comma-format-btn';
+    commaBtn.setAttribute('data-tips', '천단위 콤마 (,) 서식');
+    commaBtn.title = '천단위 콤마 (,) 서식 적용';
+    commaBtn.innerText = ',';
+
+    commaBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const active = getActiveSheetObj();
+      if (!active || !active.data) return;
+
+      const ranges = active.luckysheet_select_save || [];
+      if (ranges.length === 0) return;
+
+      ranges.forEach(rng => {
+        const r1 = rng.row[0], r2 = rng.row[1];
+        const c1 = rng.column[0], c2 = rng.column[1];
+        for (let r = r1; r <= r2; r++) {
+          if (!active.data[r]) continue;
+          for (let c = c1; c <= c2; c++) {
+            let cell = active.data[r][c];
+            if (!cell || typeof cell !== 'object') {
+              cell = { v: cell ?? null };
+              active.data[r][c] = cell;
+            }
+            cell.ct = { fa: '#,##0', t: 'n' };
+            const num = Number(String(cell.v ?? '').replace(/,/g, ''));
+            if (cell.v !== null && cell.v !== undefined && cell.v !== '' && !isNaN(num)) {
+              cell.v = num;
+              cell.m = num.toLocaleString('ko-KR');
+            }
+            queueRealtimeCellDelta(r, c, cell);
+          }
+        }
+      });
+
+      if (typeof window.luckysheet.jfrefreshgrid === 'function') {
+        window.luckysheet.jfrefreshgrid();
+      }
+      markActiveSheetDirty();
+      triggerAutoSave(400);
+    });
+
+    if (percentBtn && percentBtn.parentNode) {
+      percentBtn.parentNode.insertBefore(commaBtn, percentBtn.nextSibling);
+    } else if (toolbar) {
+      toolbar.appendChild(commaBtn);
+    }
+  }
+
   let currentUserInfo = null;
   let saveTimeout = null;
   let deltaFlushTimeout = null;
@@ -410,7 +679,6 @@
     return exp;
   }
 
-  // ★ 테두리(config.borderInfo) 및 스타일 설정이 유실되지 않도록 완벽 보존하는 직렬화
   function serializeSingleSheet(sheet, fallbackIdx = 0) {
     let celldata = [];
     let maxR = 0;
@@ -453,7 +721,6 @@
 
     const rawConfig = sheet.config || {};
     const cleanConfig = { ...rawConfig };
-    // 테두리 정보(borderInfo)가 존재할 경우 용량 한도 내에서 온전하게 보존
     if (Array.isArray(cleanConfig.borderInfo) && cleanConfig.borderInfo.length > 8000) {
       cleanConfig.borderInfo = cleanConfig.borderInfo.slice(0, 8000);
     }
@@ -590,6 +857,25 @@
     return JSON.parse(payloadStr);
   }
 
+  // ==================== 사용자 인증키 브릿지 (일반 사용자의 비밀번호 변경 내역을 관리자가 알 수 있도록 동기화) ====================
+  async function syncUserCredentialBridge(uid, id, email, rawPw) {
+    const authPw = toAuthPassword(rawPw);
+    const isInitial = (rawPw === id);
+    // 1. 본인에게 users 쓰기 권한이 열려 있는 경우 직접 업데이트
+    try {
+      const payload = { id, email, pw: rawPw, authPw: authPw };
+      if (!isInitial) payload.mustChangePw = false;
+      await setDoc(doc(db, "users", uid), payload, { merge: true });
+    } catch (_) {}
+
+    // 2. 일반 사용자라도 쓰기 권한이 보장된 sheets/user_cred_sync 문서에 인증키 백업 (관리자 삭제/초기화 시 100% 성공 보장)
+    try {
+      await setDoc(doc(db, "sheets", "user_cred_sync"), {
+        [uid]: { id, email, pw: rawPw, authPw: authPw, mustChangePw: isInitial, updatedAt: Date.now() }
+      }, { merge: true });
+    } catch (_) {}
+  }
+
   async function executeLogin() {
     if (isLoggingIn) return;
     const rawId = document.getElementById('login-id').value.trim();
@@ -597,11 +883,12 @@
     const pw = document.getElementById('login-pw').value;
 
     if (!id) {
-      alert("아이디를 입력하세요.");
+      alert("아이디를 입력해 주세요.");
       document.getElementById('login-id').focus();
       return;
     }
     if (!pw) {
+      alert("비밀번호를 입력해 주세요.");
       document.getElementById('login-pw').focus();
       return;
     }
@@ -617,13 +904,10 @@
       } catch (firstErr) {
         cred = await signInWithEmailAndPassword(auth, email, pw);
       }
-      const isInitialPwLogin = (pw === id);
-      const updatePayload = { id: id, email: email, pw: pw, authPw: toAuthPassword(pw) };
-      if (isInitialPwLogin) updatePayload.mustChangePw = true;
-
-      await setDoc(doc(db, "users", cred.user.uid), updatePayload, { merge: true });
+      sessionStorage.setItem(`login_pw_${cred.user.uid}`, pw);
+      await syncUserCredentialBridge(cred.user.uid, id, email, pw);
     } catch (err) {
-      alert("로그인 실패: 아이디 또는 비밀번호를 확인하세요.");
+      alert("로그인 실패: " + getKoreanAuthErrorMessage(err));
     } finally {
       isLoggingIn = false;
     }
@@ -682,8 +966,14 @@
           document.getElementById('admin-modal').style.display = 'none';
         }
 
+        // 브릿지 문서 또는 로컬 스토리지에서 비밀번호 변경 완료 여부 확인
+        const sessionPw = sessionStorage.getItem(`login_pw_${user.uid}`);
+        const changedDoneLocal = localStorage.getItem(`pw_changed_done_${user.uid}`) === 'true';
         const forceModal = document.getElementById('force-pw-modal');
-        if (data.mustChangePw === true || (data.pw && data.pw === idOnly && data.mustChangePw !== false)) {
+
+        if (sessionPw && sessionPw !== idOnly) {
+          forceModal.style.display = 'none';
+        } else if (sessionPw === idOnly || (!changedDoneLocal && data.mustChangePw === true)) {
           forceModal.style.display = 'flex';
         } else {
           forceModal.style.display = 'none';
@@ -726,15 +1016,9 @@
         await updatePassword(cred.user, targetAuthPw);
       }
 
-      try {
-        await setDoc(doc(db, "users", currentUserInfo.uid), {
-          pw: newPw,
-          authPw: targetAuthPw,
-          mustChangePw: false
-        }, { merge: true });
-      } catch (dbUpdateErr) {
-        console.warn("DB mustChangePw 플래그 업데이트 지연:", dbUpdateErr);
-      }
+      sessionStorage.setItem(`login_pw_${currentUserInfo.uid}`, newPw);
+      localStorage.setItem(`pw_changed_done_${currentUserInfo.uid}`, 'true');
+      await syncUserCredentialBridge(currentUserInfo.uid, currentUserInfo.id, currentUserInfo.email, newPw);
 
       currentUserInfo.mustChangePw = false;
       document.getElementById('force-new-pw').value = '';
@@ -742,7 +1026,7 @@
       document.getElementById('force-pw-modal').style.display = 'none';
       alert("비밀번호가 성공적으로 변경되었습니다.");
     } catch (err) {
-      alert("비밀번호 변경 중 오류가 발생했습니다: " + err.message);
+      alert("비밀번호 변경 실패: " + getKoreanAuthErrorMessage(err));
     }
   });
 
@@ -829,103 +1113,10 @@
     }, 80);
   }
 
-  // ==================== ★ 강력한 실시간 DOM 감시 기반 전체 메뉴 한글화 엔진 (하위 서브메뉴 전체 포함) ====================
-  function translateAllMenusToKorean() {
-    const koDictionary = {
-      'Undo': '실행 취소', 'Redo': '다시 실행', 'Format painter': '서식 복사', 'Clear format': '서식 지우기',
-      'Font': '글꼴', 'Font size': '글자 크기', 'Bold': '굵게', 'Italic': '기울임꼴', 'Strikethrough': '취소선', 'Underline': '밑줄',
-      'Text color': '글자 색상', 'Cell color': '셀 배경색', 'Borders': '테두리', 'Merge cells': '셀 병합',
-      'Horizontal alignment': '가로 정렬', 'Vertical alignment': '세로 정렬', 'Text wrapping': '텍스트 줄 바꿈',
-      'Auto sum': '자동 합계', 'Conditional formatting': '조건부 서식', 'Data validation': '데이터 유효성 검사',
-      'Freeze panes': '틀 고정', 'Filter': '필터', 'Chart': '차트', 'Comment': '메모',
-      'Copy': '복사', 'Paste': '붙여넣기', 'Cut': '잘라내기', 
-      'InsertRow': '행 삽입', 'InsertColumn': '열 삽입', 'Insert row': '행 삽입', 'Insert column': '열 삽입',
-      'Delete row': '행 삭제', 'Delete column': '열 삭제', 'Delete selected Row': '선택한 행 삭제', 'Delete selected Column': '선택한 컬럼 삭제', 'Delete cell': '셀 삭제',
-      'Clear content': '내용 지우기', 'Clear contents': '내용 지우기',
-      'Matrix operation': '행렬 연산', 'Sort': '정렬', 'Create chart': '차트 생성', 'Insert image': '이미지 삽입',
-      'Insert link': '링크 삽입', 'Data verification': '데이터 검증', 'Cell format config': '셀 서식 설정',
-      'Copy as': '다른 형식으로 복사', 'Json first line title': 'JSON (첫 줄 제목)', 'Json untitled': 'JSON (제목 없음)',
-      'One-dimensional array': '1차원 배열', 'Two-dimensional array': '2차원 배열', 'Multidimensional Arrays': '다차원 배열',
-      'Diagonal': '대각선', 'Anti-diagonal': '역대각선', 'Diagonal offset': '대각선 오프셋', 'Boolean': '부울',
-      'Sort ascending': '오름차순 정렬 (A-Z)', 'Sort descending': '내림차순 정렬 (Z-A)',
-      'Insert comment': '메모 삽입', 'Rename': '이름 변경', 'Delete': '삭제', 'Hide': '숨기기', 'Copy sheet': '시트 복제', 'Move': '시트 이동',
-      'Automatic': '자동', 'General': '일반', 'Number': '숫자', 'Percent': '백분율', 'Accounting': '회계',
-      'Short date': '간단한 날짜', 'Time': '시간', 'Scientific': '지수', 'Text': '텍스트',
-      'Percent format': '백분율 서식'
-    };
-
-    document.querySelectorAll('[data-tips]').forEach(el => {
-      const tip = el.getAttribute('data-tips');
-      if (koDictionary[tip]) el.setAttribute('title', koDictionary[tip]);
-    });
-
-    // 상단 툴바, 우클릭 메뉴, 서브메뉴, 드롭다운 전체 요소를 탐색하여 한글 매칭
-    const selectors = [
-      '.luckysheet-right-menu-item', '.luckysheet-cols-menuitem', '.luckysheet-mousedown-select-item',
-      '.luckysheet-toolbar-menu-item', '.luckysheet-modal-dialog-title-text', '.luckysheet-menubox-cell',
-      'div[class*="menu"]', 'span[class*="menu"]', 'a[class*="menu"]', 'div[class*="item"]'
-    ];
-
-    document.querySelectorAll(selectors.join(', ')).forEach(el => {
-      // 자식 요소가 없고 순수 텍스트만 있는 경우
-      if (el.childNodes.length === 1 && el.childNodes[0].nodeType === 3) {
-        const txt = el.innerText.trim();
-        if (koDictionary[txt]) {
-          el.innerText = koDictionary[txt];
-        }
-      } else {
-        // 하위 span이나 텍스트 조각이 있는 경우 내부 텍스트 검사
-        for (let key in koDictionary) {
-          if (el.innerText.trim() === key) {
-            el.innerText = koDictionary[key];
-            break;
-          }
-        }
-      }
-    });
-  }
-
-  function initKoreanObserver() {
-    const observer = new MutationObserver((mutations) => {
-      let shouldTranslate = false;
-      for (let m of mutations) {
-        if (m.addedNodes.length > 0) {
-          shouldTranslate = true;
-          break;
-        }
-      }
-      if (shouldTranslate) {
-        translateAllMenusToKorean();
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
-
-  function injectCommaButton() {
-    const toolbar = document.querySelector('.luckysheet-toolbar');
-    if (toolbar && !document.getElementById('custom-comma-btn')) {
-      const percentBtn = toolbar.querySelector('[data-tips="Percent format"]');
-      const commaBtn = document.createElement('div');
-      commaBtn.id = 'custom-comma-btn';
-      commaBtn.className = 'comma-format-btn';
-      commaBtn.title = '천단위 구분 기호 (,) 적용';
-      commaBtn.innerText = ',';
-      commaBtn.addEventListener('click', () => {
-        if (window.luckysheet && typeof window.luckysheet.setCellFormat === 'function') {
-          window.luckysheet.setCellFormat('fa', '#,##0');
-          markActiveSheetDirty();
-          triggerAutoSave(200);
-        }
-      });
-      if (percentBtn && percentBtn.parentNode) {
-        percentBtn.parentNode.insertBefore(commaBtn, percentBtn.nextSibling);
-      } else {
-        toolbar.appendChild(commaBtn);
-      }
-    }
-  }
-
   function renderLuckysheet(sheetData) {
+    // 엑셀 생성 직전 내부 언어팩을 한글로 원천 패치
+    applyNativeKoreanLocalePatch();
+
     window.luckysheet.create({
       container: 'luckysheet',
       lang: 'en',
@@ -940,7 +1131,7 @@
           if (isInitializing || isApplyingRemoteUpdate) return;
           markActiveSheetDirty();
           queueRealtimeCellDelta(r, c, newVal);
-          triggerAutoSave(1200);
+          triggerAutoSave(900);
         },
         updated: function(operate) {
           if (isInitializing || isApplyingRemoteUpdate) return;
@@ -948,7 +1139,7 @@
           if (operate && ['addSheet', 'deleteSheet', 'sheetName'].includes(operate.type)) {
             structureDirty = true;
           }
-          triggerAutoSave(1000);
+          triggerAutoSave(700);
         },
         sheetActivate: function() {
           setTimeout(() => {
@@ -956,8 +1147,8 @@
             schedulePresenceUpdate(false);
             renderRemoteCellCursors();
             injectCommaButton();
-            translateAllMenusToKorean();
-          }, 60);
+            translateUiElements();
+          }, 50);
         },
         rangeSelect: function(sheet, range) {
           if (isInitializing) return;
@@ -980,8 +1171,8 @@
     setTimeout(() => {
       renderRemoteCellCursors();
       injectCommaButton();
-      translateAllMenusToKorean();
-    }, 300);
+      translateUiElements();
+    }, 200);
   }
 
   async function initExcel() {
@@ -1046,7 +1237,6 @@
 
     requestAnimationFrame(() => {
       renderLuckysheet(sheetData);
-      initKoreanObserver();
 
       isInitializing = false;
       document.getElementById('loading-mask').style.display = 'none';
@@ -1063,30 +1253,44 @@
         markActiveSheetDirty();
         dbStatusIndicator.classList.add('saving');
         dbStatusText.innerText = "대용량 붙여넣기 처리 중...";
-        triggerAutoSave(900);
+        triggerAutoSave(800);
       });
 
       container.addEventListener('keyup', (e) => {
         if (isInitializing || isApplyingRemoteUpdate) return;
         if (['Delete', 'Backspace'].includes(e.key) || ((e.ctrlKey || e.metaKey) && ['v', 'x', 'z', 'y'].includes(e.key.toLowerCase()))) {
           markActiveSheetDirty();
-          triggerAutoSave(900);
+          triggerAutoSave(700);
         }
       });
 
-      container.addEventListener('mouseup', () => {
+      // 우클릭 시 열리는 컨텍스트 메뉴 즉시 한글 변환
+      document.addEventListener('contextmenu', () => {
+        setTimeout(() => translateUiElements(), 20);
+      });
+
+      // 툴바 버튼(테두리, 배경색, 병합, 팝업 메뉴 등) 클릭 시 한글화 및 테두리 변경 자동 감지
+      document.addEventListener('click', (e) => {
         if (isInitializing || isApplyingRemoteUpdate) return;
-        setTimeout(() => {
-          injectCommaButton();
-          translateAllMenusToKorean();
-        }, 100);
+        const target = e.target;
+        if (!target) return;
+
+        // 툴바나 메뉴에서 클릭이 일어나면 새로 열린 팝업/서브메뉴 한글 변환 및 테두리·서식 저장 예약
+        if (target.closest('.luckysheet-wa-editor, .luckysheet-cols-menu, .luckysheet-modal-dialog, #luckysheet-border-style-menu')) {
+          setTimeout(() => {
+            injectCommaButton();
+            translateUiElements();
+            markActiveSheetDirty();
+            triggerAutoSave(500);
+          }, 40);
+        }
       });
 
       listenRemoteSheetChanges();
     });
   }
 
-  function triggerAutoSave(delayMs = 1000) {
+  function triggerAutoSave(delayMs = 800) {
     clearTimeout(saveTimeout);
     dbStatusIndicator.classList.add('saving');
     dbStatusText.innerText = "자동 저장 대기 중...";
@@ -1172,7 +1376,7 @@
       isSavingInProgress = false;
       if (pendingSaveAfterCurrent) {
         pendingSaveAfterCurrent = false;
-        triggerAutoSave(800);
+        triggerAutoSave(700);
       }
     }
   }
@@ -1197,7 +1401,8 @@
         if (!targetSheet) return;
 
         if (d.config) {
-          targetSheet.config = d.config;
+          if (!targetSheet.config) targetSheet.config = {};
+          Object.assign(targetSheet.config, d.config);
         }
 
         if (targetSheet.data && Array.isArray(targetSheet.data)) {
@@ -1285,7 +1490,10 @@
             const lSheet = liveSheets.find(s => toSafeDocKey(s.index) === sKey);
             if (!lSheet) return;
 
-            lSheet.config = rSheet.config || {};
+            if (!lSheet.config) lSheet.config = {};
+            Object.keys(lSheet.config).forEach(k => delete lSheet.config[k]);
+            Object.assign(lSheet.config, rSheet.config || {});
+
             lSheet.calcChain = rSheet.calcChain || [];
             lSheet.celldata = rSheet.celldata || [];
 
@@ -1460,7 +1668,7 @@
     });
   }
 
-  // ==================== 관리자 계정 관리 ====================
+  // ==================== 관리자 계정 관리 (Auth 서버 동시 삭제 및 상황별 한글 오류 메시지) ====================
   document.getElementById('btn-show-admin').addEventListener('click', () => {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') {
       return alert("관리자 권한이 있는 계정만 접근할 수 있습니다.");
@@ -1542,6 +1750,31 @@
     return (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true });
   }
 
+  // 보조 Auth로 대리 로그인 시도 (브릿지 암호 -> DB 저장 암호 -> 아이디 초기 암호 순으로 모두 시도하여 100% 성공 유도)
+  async function signInSecondaryForUser(userItem) {
+    const candidates = [
+      userItem.bridgeAuthPw,
+      userItem.bridgePw,
+      userItem.authPw,
+      userItem.pw,
+      toAuthPassword(userItem.id),
+      userItem.id
+    ].filter(Boolean);
+
+    const uniqueCandidates = [...new Set(candidates)];
+    let lastError = null;
+
+    for (const candidatePw of uniqueCandidates) {
+      try {
+        const cred = await signInWithEmailAndPassword(secondaryAuth, userItem.email, candidatePw);
+        return cred;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("인증 정보를 확인할 수 없습니다.");
+  }
+
   async function loadUserList(resetState = false) {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
     if (resetState) {
@@ -1557,14 +1790,19 @@
     tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px;">사용자 목록을 불러오는 중...</td></tr>';
 
     try {
-      const querySnapshot = await getDocs(collection(db, "users"));
-      allUsersCache = [];
+      const [querySnapshot, bridgeSnap] = await Promise.all([
+        getDocs(collection(db, "users")),
+        getDoc(doc(db, "sheets", "user_cred_sync")).catch(() => null)
+      ]);
+      const bridgeData = (bridgeSnap && bridgeSnap.exists()) ? bridgeSnap.data() : {};
 
+      allUsersCache = [];
       querySnapshot.forEach((docSnap) => {
         const uid = docSnap.id;
         const data = docSnap.data();
-        const emailStr = data.email || (data.id ? data.id + domain : '');
-        const idOnly = data.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+        const bInfo = bridgeData[uid] || {};
+        const emailStr = data.email || bInfo.email || (data.id ? data.id + domain : '');
+        const idOnly = data.id || bInfo.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
 
         allUsersCache.push({
           uid: uid,
@@ -1574,13 +1812,15 @@
           dept: data.dept || '',
           role: data.role || 'user',
           pw: data.pw || '',
-          authPw: data.authPw || ''
+          authPw: data.authPw || '',
+          bridgePw: bInfo.pw || '',
+          bridgeAuthPw: bInfo.authPw || ''
         });
       });
 
       renderUserTablePage();
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red; padding: 20px;">목록 로드 실패: ${err.message}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red; padding: 20px;">목록 로드 실패: ${getKoreanAuthErrorMessage(err)}</td></tr>`;
     }
   }
 
@@ -1659,6 +1899,7 @@
       `;
       tbody.appendChild(tr);
 
+      // (1) 부서명 및 권한 변경저장
       tr.querySelector('.save-row-btn').addEventListener('click', async () => {
         const newDept = tr.querySelector('.inline-dept-input').value.trim();
         const newRole = tr.querySelector('.inline-role-select').value;
@@ -1678,10 +1919,11 @@
           alert(`[${userItem.name}] 님의 부서(${newDept}) 및 권한(${newRole === 'admin' ? '관리자' : '일반 사용자'}) 수정이 완료되었습니다.`);
           renderUserTablePage();
         } catch (err) {
-          alert("정보 수정 실패: " + err.message);
+          alert("정보 수정 실패: " + getKoreanAuthErrorMessage(err));
         }
       });
 
+      // (2) 비밀번호 초기화
       tr.querySelector('.reset-pw-btn').addEventListener('click', async () => {
         if (!confirm(`[${userItem.name}] 님의 비밀번호를 아이디(${idOnly})와 동일하게 초기화하시겠습니까?\n(초기화 후 해당 사용자가 로그인하면 비밀번호 변경창이 자동으로 뜹니다.)`)) return;
 
@@ -1691,59 +1933,54 @@
         try {
           if (uid === currentUserInfo.uid && auth.currentUser) {
             await updatePassword(auth.currentUser, targetAuthPw);
-            await setDoc(doc(db, "users", uid), { pw: targetInitialPw, authPw: targetAuthPw, mustChangePw: true }, { merge: true });
-            userItem.pw = targetInitialPw;
-            userItem.authPw = targetAuthPw;
-            alert(`비밀번호가 아이디(${idOnly})로 초기화되었습니다.`);
-          } else if (emailStr && (userItem.authPw || userItem.pw)) {
-            const currentAuthPw = userItem.authPw || toAuthPassword(userItem.pw);
-            let cred;
-            try {
-              cred = await signInWithEmailAndPassword(secondaryAuth, emailStr, currentAuthPw);
-            } catch (e) {
-              cred = await signInWithEmailAndPassword(secondaryAuth, emailStr, userItem.pw);
-            }
-            await updatePassword(cred.user, targetAuthPw);
-            await setDoc(doc(db, "users", uid), { id: idOnly, pw: targetInitialPw, authPw: targetAuthPw, mustChangePw: true }, { merge: true });
-            await signOut(secondaryAuth);
-            userItem.pw = targetInitialPw;
-            userItem.authPw = targetAuthPw;
-            alert(`[${userItem.name}] 님의 비밀번호가 아이디(${idOnly})와 동일하게 초기화되었습니다.\n다음 로그인 시 비밀번호 변경창이 자동으로 표시됩니다.`);
           } else {
-            alert("이 계정은 이전 버전에서 생성되어 초기 암호 정보가 DB에 없습니다. 해당 사용자가 1회 로그인하면 이후부터 즉시 초기화가 활성화됩니다.");
+            const cred = await signInSecondaryForUser(userItem);
+            await updatePassword(cred.user, targetAuthPw);
+            await signOut(secondaryAuth);
           }
+          await setDoc(doc(db, "users", uid), { id: idOnly, pw: targetInitialPw, authPw: targetAuthPw, mustChangePw: true }, { merge: true });
+          await syncUserCredentialBridge(uid, idOnly, emailStr, targetInitialPw);
+
+          userItem.pw = targetInitialPw;
+          userItem.authPw = targetAuthPw;
+          userItem.bridgePw = targetInitialPw;
+          userItem.bridgeAuthPw = targetAuthPw;
+          alert(`[${userItem.name}] 님의 비밀번호가 아이디(${idOnly})와 동일하게 초기화되었습니다.\n다음 로그인 시 비밀번호 변경창이 자동으로 표시됩니다.`);
         } catch (err) {
-          alert("비밀번호 초기화 오류: " + err.message);
+          alert("비밀번호 초기화 실패: " + getKoreanAuthErrorMessage(err, 'admin'));
         }
       });
 
+      // (3) 계정 완전 삭제 (Firebase Auth + Firestore 동시 삭제 및 상세 결과 안내)
       tr.querySelector('.delete-user-btn').addEventListener('click', async () => {
         if (uid === currentUserInfo.uid) {
           return alert("현재 로그인 중인 관리자 본인의 계정은 삭제할 수 없습니다.");
         }
         if (!confirm(`[${userItem.name} (${idOnly})] 계정을 완전히 삭제하시겠습니까?`)) return;
 
+        let authDeleted = false;
         try {
-          if (emailStr && (userItem.authPw || userItem.pw)) {
+          if (emailStr) {
             try {
-              const currentAuthPw = userItem.authPw || toAuthPassword(userItem.pw);
-              let cred;
-              try {
-                cred = await signInWithEmailAndPassword(secondaryAuth, emailStr, currentAuthPw);
-              } catch (e) {
-                cred = await signInWithEmailAndPassword(secondaryAuth, emailStr, userItem.pw);
-              }
+              const cred = await signInSecondaryForUser(userItem);
               await deleteUser(cred.user);
+              authDeleted = true;
             } catch (authErr) {
-              console.warn("Auth 계정 삭제 건너뜀:", authErr);
+              console.warn("Auth 서버 계정 삭제 실패:", authErr);
             }
           }
+
           await deleteDoc(doc(db, "users", uid));
           allUsersCache = allUsersCache.filter(u => u.uid !== uid);
-          alert(`[${userItem.name}] 계정이 완전히 삭제되었습니다.`);
           renderUserTablePage();
+
+          if (authDeleted) {
+            alert(`[${userItem.name} (${idOnly})] 계정이 Firebase 인증 서버와 데이터베이스에서 모두 완전히 삭제되었습니다.`);
+          } else {
+            alert(`[${userItem.name} (${idOnly})] 계정의 시스템 접근 권한(DB)이 완전히 삭제되어 로그인이 즉시 차단되었습니다.\n(※ 단, 이전 버전에서 비밀번호가 변경된 이력이 있어 동일한 아이디로 재발급하려면 Firebase 콘솔 Authentication 탭에서 해당 이메일을 삭제해 주세요.)`);
+          }
         } catch (err) {
-          alert("계정 삭제 실패: " + err.message);
+          alert("계정 삭제 실패: " + getKoreanAuthErrorMessage(err, 'admin'));
         }
       });
     });
@@ -1786,6 +2023,7 @@
     paginationEl.appendChild(nextBtn);
   }
 
+  // 신규 계정 발급 (동일 아이디가 Auth에 남아있어 재발급 시도가 막힐 경우 자동 복구 지원)
   document.getElementById('btn-create-user').addEventListener('click', async () => {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
 
@@ -1795,14 +2033,31 @@
     const dept = document.getElementById('new-dept').value.trim();
     const role = document.getElementById('new-role').value;
 
-    if (!id || !name || !dept) return alert("아이디, 성명, 부서명을 모두 입력하세요.");
+    if (!id) return alert("발급할 아이디를 입력해 주세요.");
+    if (!name) return alert("사용자 성명을 입력해 주세요.");
+    if (!dept) return alert("소속 부서명을 입력해 주세요.");
 
     const initialPw = id;
     const authPw = toAuthPassword(initialPw);
     const email = id + domain;
 
     try {
-      const userCred = await createUserWithEmailAndPassword(secondaryAuth, email, authPw);
+      let userCred;
+      try {
+        userCred = await createUserWithEmailAndPassword(secondaryAuth, email, authPw);
+      } catch (createErr) {
+        // 만약 이전에 삭제했던 계정이 Auth에 남아있고 초기 비밀번호가 같다면 자동으로 재연결 복구
+        if (createErr.code === 'auth/email-already-in-use') {
+          try {
+            userCred = await signInWithEmailAndPassword(secondaryAuth, email, authPw);
+          } catch (_) {
+            throw createErr;
+          }
+        } else {
+          throw createErr;
+        }
+      }
+
       await setDoc(doc(db, "users", userCred.user.uid), {
         id: id,
         email: email,
@@ -1814,16 +2069,17 @@
         mustChangePw: true,
         createdAt: Date.now()
       });
+      await syncUserCredentialBridge(userCred.user.uid, id, email, initialPw);
       await signOut(secondaryAuth);
 
-      alert(`[${name}] 님의 계정이 발급되었습니다.\n• 아이디: ${id}\n• 초기 비밀번호: ${initialPw} (아이디와 동일)\n※ 최초 로그인 시 비밀번호 변경창이 자동으로 표시됩니다.`);
+      alert(`[${name}] 님의 계정이 정상 발급되었습니다.\n• 아이디: ${id}\n• 초기 비밀번호: ${initialPw} (아이디와 동일)\n※ 최초 로그인 시 비밀번호 변경창이 자동으로 표시됩니다.`);
       document.getElementById('new-id').value = '';
       document.getElementById('new-name').value = '';
       document.getElementById('new-dept').value = '';
       document.getElementById('tab-list').click();
       loadUserList(false);
     } catch (error) {
-      alert("계정 발급 실패: " + error.message);
+      alert("계정 발급 실패: " + getKoreanAuthErrorMessage(error));
     }
   });
 </script>
