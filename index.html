@@ -1,1 +1,2958 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>헬로CN닥스 - 실시간 웹 엑셀</title>
 
+  <!-- Luckysheet UI 라이브러리 -->
+  <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/css/pluginsCss.css' />
+  <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/plugins.css' />
+  <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/css/luckysheet.css' />
+  <link rel='stylesheet' href='https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/assets/iconfont/iconfont.css' />
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/plugins/js/plugin.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/luckysheet@latest/dist/luckysheet.umd.js"></script>
+
+  <!-- 대용량 엑셀 데이터 실시간 압축 라이브러리 (LZ-String) -->
+  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
+
+  <style>
+    body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; overflow: hidden; }
+    
+    .screen { display: none; width: 100%; height: 100%; flex-direction: column; }
+    .screen.active { display: flex; }
+
+    /* IP 보안 검증 및 사내망 외 접속 차단 화면 */
+    #ip-gate-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: #f0f2f5; z-index: 99999; display: flex; justify-content: center; align-items: center; }
+    .ip-gate-box { background: #ffffff; padding: 48px 40px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); width: 440px; max-width: 92vw; text-align: center; box-sizing: border-box; }
+    .ip-gate-icon { width: 56px; height: 56px; background: #fce8e6; color: #ea4335; border-radius: 50%; display: none; justify-content: center; align-items: center; font-size: 28px; font-weight: bold; margin: 0 auto 20px auto; }
+    .ip-gate-title { margin: 0 0 12px 0; color: #202124; font-size: 22px; font-weight: 800; }
+    .ip-gate-desc { margin: 0; color: #5f6368; font-size: 14px; font-weight: 500; line-height: 1.5; }
+
+    /* 로그인 화면 */
+    #login-screen { justify-content: center; align-items: center; background: #f0f2f5; }
+    .login-box { background: #ffffff; padding: 48px 40px; border-radius: 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); width: 440px; text-align: center; box-sizing: border-box; margin: 0; }
+    .login-logo { width: 50px; height: 50px; background: #1a73e8; color: white; border-radius: 12px; display: inline-flex; justify-content: center; align-items: center; font-size: 24px; font-weight: bold; margin-bottom: 20px; }
+    .login-box h2 { margin: 0 0 30px 0; color: #202124; font-size: 24px; font-weight: 700; }
+    
+    .id-wrapper { display: flex; align-items: stretch; border: 1px solid #dadce0; border-radius: 8px; overflow: hidden; background: #fff; margin-bottom: 16px; transition: border 0.2s; }
+    .id-wrapper:focus-within { border: 1px solid #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.2); }
+    .id-wrapper input { border: none; padding: 14px 16px; flex: 1; outline: none; font-size: 15px; color: #202124; min-width: 0; }
+    .id-wrapper span { padding: 0 16px; color: #5f6368; font-size: 14px; background: #f8f9fa; border-left: 1px solid #dadce0; display: flex; align-items: center; font-weight: 500; white-space: nowrap; }
+    
+    .pw-input { width: 100%; padding: 14px 16px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 15px; margin-bottom: 24px; transition: 0.2s; }
+    .pw-input:focus { border: 1px solid #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.2); outline: none; }
+    
+    button.primary-btn { width: 100%; padding: 14px; background: #1a73e8; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.2s; box-shadow: 0 2px 4px rgba(26,115,232,0.3); }
+    button.primary-btn:hover { background: #1557b0; box-shadow: 0 4px 8px rgba(26,115,232,0.4); }
+    button.small-btn { padding: 6px 9px; background: #1a73e8; color: white; border: none; border-radius: 5px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    button.small-btn:hover { opacity: 0.9; }
+    button.save-row-btn { background: #0f9d58; }
+    button.warn-btn { background: #f29900; }
+    button.danger-btn { background: #ea4335; }
+    button.purple-btn { background: #673ab7; }
+
+    /* 상단 헤더바 */
+    .header-bar { min-height: 60px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 6px 18px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; box-sizing: border-box; gap: 10px; }
+    .header-left { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; flex: 1; min-width: 0; }
+    .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; white-space: nowrap; cursor: pointer; user-select: none; padding: 4px 6px; border-radius: 6px; transition: background 0.15s; }
+    .header-title:hover { background: #e8f0fe; }
+
+    .file-switcher-wrap { display: inline-flex; align-items: center; gap: 4px; background: #e8f0fe; padding: 4px 8px; border-radius: 8px; border: 1px solid #d2e3fc; }
+    .file-switcher-select { border: none; background: transparent; color: #1967d2; font-size: 13px; font-weight: 700; outline: none; cursor: pointer; max-width: 220px; }
+    .copy-link-btn { padding: 4px 8px; background: #ffffff; color: #1967d2; border: 1px solid #aecbfa; border-radius: 5px; font-size: 11px; font-weight: 700; cursor: pointer; white-space: nowrap; transition: 0.15s; }
+    .copy-link-btn:hover { background: #1a73e8; color: #ffffff; }
+
+    .header-info { font-size: 12px; font-weight: 600; color: #3c4043; background: #f1f3f4; padding: 6px 10px; border-radius: 6px; white-space: nowrap; }
+    
+    .db-status { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #34a853; background: #e6f4ea; padding: 6px 10px; border-radius: 20px; transition: 0.2s; white-space: nowrap; }
+    .status-dot { width: 8px; height: 8px; background-color: #34a853; border-radius: 50%; animation: pulse 2s infinite; }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(52, 168, 83, 0.6); } 70% { box-shadow: 0 0 0 6px rgba(52, 168, 83, 0); } 100% { box-shadow: 0 0 0 0; } }
+    .db-status.saving .status-dot { background-color: #fbbc04; animation: none; }
+    .db-status.saving { color: #b08d00; background: #fef7e0; }
+    .db-status.syncing .status-dot { background-color: #1a73e8; animation: none; }
+    .db-status.syncing { color: #1967d2; background: #e8f0fe; }
+    .db-status.error .status-dot { background-color: #ea4335; animation: none; }
+    .db-status.error { color: #c5221f; background: #fce8e6; }
+
+    #concurrent-users { display: none; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-height: 48px; overflow-y: auto; padding: 2px 4px; flex: 1; min-width: 100px; }
+    .user-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; line-height: 1.2; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    
+    .header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+    .header-actions button { padding: 8px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+    #btn-show-files { background: #673ab7; color: white; display: none; }
+    #btn-show-files:hover { background: #512da8; }
+    #btn-show-admin { background: #34a853; color: white; display: none; }
+    #btn-show-admin:hover { background: #2d9047; }
+    #btn-logout { background: #fff; color: #5f6368; border: 1px solid #dadce0; }
+    #btn-logout:hover { background: #f8f9fa; color: #202124; }
+
+    .comma-format-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 24px; background: #f8f9fa; border: 1px solid #dadce0; border-radius: 4px; font-weight: 800; font-size: 14px; cursor: pointer; color: #1a73e8; margin: 0 3px; vertical-align: middle; user-select: none; }
+    .comma-format-btn:hover { background: #e8f0fe; border-color: #1a73e8; }
+
+    /* 엑셀 컨테이너 */
+    #spreadsheet-container { flex: 1; width: 100vw; position: relative; height: calc(100vh - 60px); background: #fff; }
+    #luckysheet { margin: 0; padding: 0; position: absolute; width: 100%; height: 100%; left: 0; top: 0; }
+
+    #remote-cursor-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 15; }
+    .remote-cell-box { position: absolute; box-sizing: border-box; border: 2px solid #e91e63; pointer-events: none; transition: all 0.12s ease-out; background: rgba(233, 30, 99, 0.06); }
+    .remote-cell-tag { position: absolute; top: -20px; left: -2px; padding: 2px 6px; font-size: 11px; font-weight: 700; color: #fff; border-radius: 4px 4px 4px 0; white-space: nowrap; pointer-events: none; box-shadow: 0 1px 3px rgba(0,0,0,0.2); line-height: 1.2; }
+
+    #loading-mask { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.95); z-index: 100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #1a73e8; font-weight: bold; font-size: 15px; }
+    .spinner { width: 36px; height: 36px; border: 4px solid #e0e0e0; border-top: 4px solid #1a73e8; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 16px; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* 모달 공통 및 관리자 패널 */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+    .modal-content { background: white; padding: 22px 26px; border-radius: 16px; width: 880px; max-width: 96vw; max-height: 92vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.15); box-sizing: border-box; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .modal-header h3 { margin: 0; font-size: 18px; color: #202124; }
+    .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #5f6368; padding: 0; }
+    
+    .admin-tabs { display: flex; border-bottom: 1px solid #ddd; margin-bottom: 14px; }
+    .tab-btn { flex: 1; padding: 9px; background: none; border: none; font-size: 14px; font-weight: 600; color: #5f6368; cursor: pointer; border-bottom: 3px solid transparent; }
+    .tab-btn.active { color: #1a73e8; border-bottom-color: #1a73e8; }
+    
+    .modal-view { display: none; }
+    .modal-view.active { display: block; }
+    .modal-content label { display: block; font-size: 13px; color: #5f6368; font-weight: 600; margin-bottom: 6px; }
+    .modal-content .form-input, .modal-content .form-select { width: 100%; padding: 10px 12px; margin-bottom: 12px; border: 1px solid #dadce0; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+
+    .user-list-controls { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .user-search-input { flex: 1; padding: 8px 12px; border: 1px solid #dadce0; border-radius: 6px; font-size: 13px; outline: none; }
+    .user-search-input:focus { border-color: #1a73e8; box-shadow: 0 0 0 2px rgba(26,115,232,0.15); }
+    .sort-reset-btn { padding: 8px 12px; background: #f1f3f4; color: #3c4043; border: 1px solid #dadce0; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .sort-reset-btn:hover { background: #e8eaed; }
+    .user-count-label { font-size: 12px; font-weight: 600; color: #5f6368; white-space: nowrap; }
+
+    .user-table-container { width: 100%; overflow: hidden; border: 1px solid #e0e0e0; border-radius: 8px; }
+    .user-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+    .user-table th, .user-table td { padding: 6px 8px; text-align: left; border-bottom: 1px solid #eee; vertical-align: middle; box-sizing: border-box; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .user-table tbody tr:last-child td { border-bottom: none; }
+    .user-table th { font-weight: 700; color: #3c4043; background: #f8f9fa; user-select: none; height: 34px; }
+    .user-table th.sortable-th { cursor: pointer; transition: background 0.15s; }
+    .user-table th.sortable-th:hover { background: #e8f0fe; color: #1a73e8; }
+    .sort-arrow { font-size: 11px; margin-left: 4px; color: #1a73e8; }
+
+    .action-buttons { display: flex; gap: 4px; align-items: center; justify-content: flex-start; }
+    .inline-dept-input { width: 100%; padding: 5px 7px; border: 1px solid #dadce0; border-radius: 5px; font-size: 13px; box-sizing: border-box; }
+    .inline-role-select { width: 100%; padding: 5px 6px; border: 1px solid #dadce0; border-radius: 5px; font-size: 13px; background: #fff; box-sizing: border-box; }
+    .role-dot-admin { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #0f9d58; margin-right: 5px; vertical-align: middle; }
+
+    .perm-picker-wrapper { border: 1px solid #dadce0; border-radius: 10px; background: #fff; margin-bottom: 14px; overflow: hidden; }
+    .perm-mode-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0; flex-wrap: wrap; gap: 8px; }
+    .perm-mode-label { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: #1a73e8; cursor: pointer; margin: 0 !important; }
+    .perm-dept-chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; background: #fbfbfb; border-bottom: 1px solid #eee; align-items: center; }
+    .dept-chip-btn { padding: 4px 10px; border-radius: 14px; border: 1px solid #dadce0; background: #fff; color: #3c4043; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
+    .dept-chip-btn:hover { border-color: #1a73e8; color: #1a73e8; }
+    .dept-chip-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+    .perm-search-bar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #eee; }
+    .perm-search-bar input { flex: 1; padding: 6px 10px; border: 1px solid #dadce0; border-radius: 6px; font-size: 12px; outline: none; }
+    .perm-user-list { max-height: 180px; overflow-y: auto; padding: 4px 8px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; }
+    .perm-user-item { display: flex; align-items: center; gap: 7px; padding: 6px 8px; border-radius: 6px; font-size: 12px; cursor: pointer; margin: 0 !important; color: #202124 !important; font-weight: 500 !important; }
+    .perm-user-item:hover { background: #f1f3f4; }
+    .perm-user-item input { width: 15px; height: 15px; cursor: pointer; margin: 0; }
+
+    .pagination-bar { display: flex; justify-content: center; align-items: center; gap: 6px; margin-top: 12px; min-height: 32px; }
+    .page-btn { padding: 5px 11px; border: 1px solid #dadce0; background: #fff; color: #3c4043; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: 0.15s; }
+    .page-btn:hover:not(:disabled) { background: #f1f3f4; }
+    .page-btn.active { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+    .page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    .info-notice { background: #e8f0fe; color: #1967d2; padding: 11px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 14px; line-height: 1.5; }
+    .pw-rule-hint { font-size: 12px; color: #d93025; font-weight: 600; margin: -6px 0 12px 0; line-height: 1.4; }
+  </style>
+</head>
+<body>
+
+<!-- 사내망 IP 검증 및 외부 접속 차단 게이트 -->
+<div id="ip-gate-overlay">
+  <div class="ip-gate-box">
+    <div id="ip-gate-spinner" class="spinner" style="margin: 0 auto 20px auto;"></div>
+    <div id="ip-gate-icon" class="ip-gate-icon">!</div>
+    <h2 id="ip-gate-title" class="ip-gate-title">사내망 접속 확인 중...</h2>
+    <p id="ip-gate-desc" class="ip-gate-desc">보안 정책에 따라 네트워크 환경을 확인하고 있습니다.</p>
+  </div>
+</div>
+
+<!-- 로그인 화면 -->
+<div id="login-screen" class="screen active">
+  <form id="login-form" class="login-box">
+    <div class="login-logo">N</div>
+    <h2>헬로CN닥스</h2>
+    <div class="id-wrapper">
+      <input type="text" id="login-id" placeholder="아이디 (예: suby20)" autocomplete="username">
+      <span>@helloconnectn.com</span>
+    </div>
+    <input type="password" id="login-pw" class="pw-input" placeholder="비밀번호 (초기 비밀번호는 아이디와 동일)" autocomplete="current-password">
+    <button type="submit" id="btn-login" class="primary-btn">시스템 접속</button>
+  </form>
+</div>
+
+<!-- 메인 엑셀 화면 -->
+<div id="main-screen" class="screen">
+  <div class="header-bar">
+    <div class="header-left">
+      <!-- 4번 요청 반영: 로고 클릭 시 새로고침 -->
+      <div id="header-logo-title" class="header-title" title="클릭하면 페이지를 새로고침합니다">헬로CN닥스</div>
+      <!-- 다중 엑셀 파일 선택 드롭다운 및 현재 파일 전용 접속 링크 복사 -->
+      <div class="file-switcher-wrap">
+        <span style="font-size:13px;">📄</span>
+        <select id="file-switcher-select" class="file-switcher-select" title="열람할 엑셀 파일을 선택하세요"></select>
+        <button id="btn-copy-file-link" class="copy-link-btn" title="현재 엑셀 파일의 전용 접속 주소(URL)를 복사합니다">🔗 주소복사</button>
+      </div>
+      <div class="header-info" id="user-info-display">확인 중...</div>
+      <div id="db-status-indicator" class="db-status">
+        <span class="status-dot"></span>
+        <span id="db-status-text">DB 연결 중...</span>
+      </div>
+      <div id="concurrent-users"></div>
+    </div>
+    <div class="header-actions">
+      <!-- 3번 요청 반영: '즉시 저장' 버튼 제거 완료 -->
+      <button id="btn-show-files" style="display: none;">📂 문서함/권한</button>
+      <button id="btn-show-admin" style="display: none;">계정 관리(관리자)</button>
+      <button id="btn-logout">로그아웃</button>
+    </div>
+  </div>
+  <div id="spreadsheet-container">
+    <div id="loading-mask">
+      <div class="spinner"></div>
+      <div id="loading-text">엑셀 데이터를 실시간 연결 중입니다...</div>
+    </div>
+    <div id="luckysheet"></div>
+  </div>
+</div>
+
+<!-- 초기 비밀번호 변경 및 180일 주기 만료 변경 모달 -->
+<div id="force-pw-modal" class="modal-overlay" style="z-index: 10001;">
+  <div class="modal-content" style="width: 440px;">
+    <div class="modal-header">
+      <h3 id="force-pw-title">🔒 비밀번호 변경 안내</h3>
+    </div>
+    <div id="force-pw-notice" class="info-notice">
+      초기 비밀번호(아이디와 동일)로 로그인하셨습니다.<br>
+      보안을 위해 본인이 사용할 새 비밀번호를 설정해 주세요.
+    </div>
+    <label>새로운 비밀번호</label>
+    <input type="password" id="force-new-pw" class="form-input" placeholder="영문 + 숫자 + 특수문자 조합 8자리 이상">
+    <div class="pw-rule-hint">※ 영문, 숫자, 특수문자 3종류 이상 조합 8자리 이상 필수 (180일 주기 변경)</div>
+    <label>새로운 비밀번호 확인</label>
+    <input type="password" id="force-confirm-pw" class="form-input" placeholder="새 비밀번호 다시 입력">
+    <button id="btn-force-pw-submit" class="primary-btn" style="margin-top: 6px;">비밀번호 변경 및 시작하기</button>
+    <button id="btn-force-pw-logout" class="small-btn" style="width:100%; margin-top:10px; background:#f1f3f4; color:#5f6368; padding:10px;">로그아웃</button>
+  </div>
+</div>
+
+<!-- 다중 엑셀 파일(문서함) 및 접속 주소/권한 관리 모달 (관리자 전용) -->
+<div id="file-modal" class="modal-overlay">
+  <div class="modal-content" style="width: 860px;">
+    <div class="modal-header">
+      <h3>📂 엑셀 문서함 및 파일별 권한·접속주소 관리 (관리자 전용)</h3>
+      <button id="btn-close-files" class="close-btn">&times;</button>
+    </div>
+    <div class="admin-tabs">
+      <button id="tab-file-list" class="tab-btn active">등록된 엑셀 파일 목록 (권한수정 / 링크복사)</button>
+      <button id="tab-file-create" class="tab-btn">+ 새 엑셀 파일 생성 / 권한 편집</button>
+    </div>
+
+    <!-- 파일 목록 탭 -->
+    <div id="view-file-list" class="modal-view active">
+      <div class="info-notice" style="margin-bottom: 10px; padding: 10px 14px;">
+        💡 <b>관리자는 모든 파일을 볼 수 있습니다.</b> 각 파일의 <b>[권한수정]</b>을 누르면 일반 사용자 중에서 전체 공개, 부서별 선택, 이름/아이디 개별 선택을 설정할 수 있습니다.
+      </div>
+      <div class="user-table-container" style="max-height: 380px; overflow-y: auto;">
+        <table class="user-table">
+          <colgroup>
+            <col style="width: 24%;">
+            <col style="width: 15%;">
+            <col style="width: 33%;">
+            <col style="width: 28%;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th>엑셀 파일명</th>
+              <th>파일코드(URL)</th>
+              <th>접근 허용된 일반 사용자 (관리자는 기본 포함)</th>
+              <th>관리 (열기 / 권한수정 / 주소 / 삭제)</th>
+            </tr>
+          </thead>
+          <tbody id="file-list-body">
+            <tr><td colspan="4" style="text-align:center; padding: 20px;">파일 목록을 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 새 파일 생성 및 기존 파일 권한 편집 겸용 탭 -->
+    <div id="view-file-create" class="modal-view">
+      <div class="info-notice" id="file-form-notice">
+        💡 새로운 독립 엑셀 파일을 생성하거나 기존 파일의 권한을 수정합니다. 관리자는 자동 포함되며, 아래에서 열람을 허용할 <b>일반 사용자</b>를 선택하세요.
+      </div>
+      <input type="hidden" id="edit-mode-file-id" value="">
+      <div style="display:flex; gap:12px;">
+        <div style="flex:1;">
+          <label>엑셀 파일명 (화면에 표시될 제목)</label>
+          <input type="text" id="new-file-title" class="form-input" placeholder="예: TPS 영업현황">
+        </div>
+        <div style="flex:1;">
+          <label>파일 접속 코드 (URL 주소 파라미터)</label>
+          <input type="text" id="new-file-id" class="form-input" placeholder="예: TPS (비워두면 자동 생성)">
+        </div>
+      </div>
+
+      <label>일반 사용자 열람 권한 설정 (관리자는 항상 열람 가능)</label>
+      <div class="perm-picker-wrapper">
+        <div class="perm-mode-bar">
+          <label class="perm-mode-label">
+            <input type="checkbox" id="chk-file-public-all" checked>
+            <span>전사 전체 공개 (모든 일반 사용자 열람 허용)</span>
+          </label>
+          <div style="font-size:12px; font-weight:600;">
+            <a id="btn-select-all-users" style="color:#1a73e8; cursor:pointer; text-decoration:underline;">전체 체크</a> &nbsp;|&nbsp;
+            <a id="btn-deselect-all-users" style="color:#5f6368; cursor:pointer; text-decoration:underline;">전체 해제</a>
+          </div>
+        </div>
+        <div class="perm-dept-chips" id="perm-dept-chips-container">
+          <span style="font-size:12px; color:#5f6368; font-weight:700;">부서별 빠른 선택:</span>
+        </div>
+        <div class="perm-search-bar">
+          <input type="text" id="perm-user-search" placeholder="🔍 일반 사용자 이름, 아이디, 부서명으로 검색...">
+          <span id="perm-selected-count" style="font-size:12px; font-weight:700; color:#1a73e8; white-space:nowrap;">전체 공개</span>
+        </div>
+        <div id="new-file-user-checkboxes" class="perm-user-list">
+          <div style="font-size:12px; color:#888; text-align:center; padding: 12px; grid-column: span 2;">일반 사용자 목록을 불러오는 중...</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px;">
+        <button id="btn-create-file" class="primary-btn" style="flex:2;">파일 및 권한 저장하기</button>
+        <button id="btn-cancel-file-edit" class="small-btn" style="flex:1; background:#f1f3f4; color:#3c4043; font-size:14px; display:none;">목록으로 취소</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 관리자 계정 관리 모달 -->
+<div id="admin-modal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>계정 관리 패널 (관리자 전용)</h3>
+      <button id="btn-close-admin" class="close-btn">&times;</button>
+    </div>
+    <div class="admin-tabs">
+      <button id="tab-list" class="tab-btn active">등록된 사용자 목록 (부서/권한 수정)</button>
+      <button id="tab-create" class="tab-btn">+ 신규 계정 발급</button>
+    </div>
+
+    <!-- 사용자 목록 탭 -->
+    <div id="view-list" class="modal-view active">
+      <div class="user-list-controls">
+        <input type="text" id="user-search-input" class="user-search-input" placeholder="🔍 부서명, 사용자명, 아이디명으로 검색...">
+        <span id="user-count-label" class="user-count-label">총 0명</span>
+        <button id="btn-reset-sort" class="sort-reset-btn" title="관리자 우선 → 부서명 가나다순 → 사용자명 가나다순으로 정렬">기본정렬 복귀</button>
+      </div>
+      <div class="user-table-container">
+        <table class="user-table">
+          <colgroup>
+            <col style="width: 22%;">
+            <col style="width: 15%;">
+            <col style="width: 18%;">
+            <col style="width: 16%;">
+            <col style="width: 29%;">
+          </colgroup>
+          <thead>
+            <tr>
+              <th id="th-sort-dept" class="sortable-th" title="클릭하여 부서명 순으로 정렬">부서명 <span id="sort-icon-dept" class="sort-arrow">↕</span></th>
+              <th id="th-sort-name" class="sortable-th" title="클릭하여 사용자명 순으로 정렬">사용자명 <span id="sort-icon-name" class="sort-arrow">↕</span></th>
+              <th id="th-sort-id" class="sortable-th" title="클릭하여 아이디명 순으로 정렬">아이디명 <span id="sort-icon-id" class="sort-arrow">↕</span></th>
+              <th>권한조정</th>
+              <th>관리 (저장 / 초기화 / 삭제)</th>
+            </tr>
+          </thead>
+          <tbody id="user-list-body">
+            <tr><td colspan="5" style="text-align:center; padding: 20px;">데이터를 불러오는 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div id="user-pagination" class="pagination-bar"></div>
+    </div>
+    
+    <!-- 신규 계정 발급 탭 -->
+    <div id="view-create" class="modal-view">
+      <div class="info-notice">
+        💡 신규 발급 시 <b>초기 비밀번호는 입력한 아이디와 동일하게 자동 생성</b>됩니다.<br>
+        사용자가 최초 로그인하면 영문+숫자+특수문자 조합(8자리 이상) 변경창이 자동으로 표시됩니다.
+      </div>
+      <label>아이디 (초기 비밀번호로 함께 설정됨)</label>
+      <div class="id-wrapper" style="margin-bottom: 14px;">
+        <input type="text" id="new-id" placeholder="아이디 입력 (예: hong123)" style="margin:0; border:none; padding:12px 16px;">
+        <span>@helloconnectn.com</span>
+      </div>
+      <label>성명</label>
+      <input type="text" id="new-name" class="form-input" placeholder="예: 홍길동">
+      <label>부서명</label>
+      <input type="text" id="new-dept" class="form-input" placeholder="예: 부평센터">
+      <label>권한</label>
+      <select id="new-role" class="form-select">
+        <option value="user">일반 사용자 (user)</option>
+        <option value="admin">관리자 (admin)</option>
+      </select>
+      <button id="btn-create-user" class="primary-btn">계정 생성 및 등록</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
+  import { getAuth, setPersistence, browserSessionPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, deleteUser, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
+  import { initializeFirestore, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
+    authDomain: "hellocn-128ba.firebaseapp.com",
+    projectId: "hellocn-128ba",
+    storageBucket: "hellocn-128ba.firebasestorage.app",
+    messagingSenderId: "306539866159",
+    appId: "1:306539866159:web:164b7242c1d9f6e0233eda",
+    measurementId: "G-ETFMQX75CB"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = initializeFirestore(app, { experimentalForceLongPolling: true });
+
+  setPersistence(auth, browserSessionPersistence).catch(() => {});
+
+  const secondaryApp = initializeApp(firebaseConfig, "SecondaryApp");
+  const secondaryAuth = getAuth(secondaryApp);
+  const domain = "@helloconnectn.com";
+
+  function bindEvent(id, eventName, handler) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener(eventName, handler);
+  }
+
+  const ALLOWED_COMPANY_IP = "203.132.166.132";
+  const PW_EXPIRE_DAYS = 180;
+  const PW_EXPIRE_MS = PW_EXPIRE_DAYS * 24 * 60 * 60 * 1000;
+
+  let isCompanyIpVerified = false;
+
+  async function checkCompanyIpAccess() {
+    const endpoints = [
+      { url: 'https://api.ipify.org?format=json', type: 'json', key: 'ip' },
+      { url: 'https://api64.ipify.org?format=json', type: 'json', key: 'ip' },
+      { url: 'https://ipinfo.io/json', type: 'json', key: 'ip' },
+      { url: 'https://www.cloudflare.com/cdn-cgi/trace', type: 'trace' }
+    ];
+
+    for (const ep of endpoints) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(ep.url, { cache: 'no-store', signal: controller.signal });
+        clearTimeout(timer);
+        if (!res.ok) continue;
+
+        if (ep.type === 'json') {
+          const data = await res.json();
+          if (data && data[ep.key]) return String(data[ep.key]).trim();
+        } else if (ep.type === 'trace') {
+          const text = await res.text();
+          const match = text.match(/ip=([^\r\n]+)/);
+          if (match && match[1]) return match[1].trim();
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  async function enforceIpGate() {
+    const overlay = document.getElementById('ip-gate-overlay');
+    const spinner = document.getElementById('ip-gate-spinner');
+    const icon = document.getElementById('ip-gate-icon');
+    const title = document.getElementById('ip-gate-title');
+    const desc = document.getElementById('ip-gate-desc');
+
+    const detectedIp = await checkCompanyIpAccess();
+
+    if (detectedIp === ALLOWED_COMPANY_IP) {
+      isCompanyIpVerified = true;
+      overlay.style.display = 'none';
+      return true;
+    } else {
+      isCompanyIpVerified = false;
+      spinner.style.display = 'none';
+      icon.style.display = 'inline-flex';
+      title.innerText = '사내망에서만 접속 가능합니다';
+      title.style.color = '#d93025';
+      desc.innerText = '허용되지 않은 네트워크 환경입니다. 사내망으로 접속해 주세요.';
+      try { await signOut(auth); } catch (_) {}
+      document.getElementById('login-screen').classList.remove('active');
+      document.getElementById('main-screen').classList.remove('active');
+      return false;
+    }
+  }
+
+  function validatePasswordComplexity(pw) {
+    if (!pw || pw.length < 8) {
+      return { valid: false, message: "비밀번호는 최소 8자리 이상이어야 합니다." };
+    }
+    const hasLetter = /[a-zA-Z]/.test(pw);
+    const hasNumber = /[0-9]/.test(pw);
+    const hasSpecial = /[^a-zA-Z0-9\s]/.test(pw);
+
+    if (!hasLetter || !hasNumber || !hasSpecial) {
+      return { valid: false, message: "비밀번호는 영문, 숫자, 특수문자 3종류를 모두 조합하여 8자리 이상으로 입력해 주세요." };
+    }
+    return { valid: true };
+  }
+
+  const clientSessionId = "sess_" + Math.random().toString(36).substring(2, 10) + "_" + Date.now();
+  const MAX_CHUNK_SIZE = 700000;
+
+  const CURSOR_COLORS = ['#e91e63', '#00897b', '#8e24aa', '#f4511e', '#3949ab', '#039be5', '#43a047', '#fb8c00'];
+  function getColorForId(str) {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    return CURSOR_COLORS[Math.abs(hash) % CURSOR_COLORS.length];
+  }
+
+  function toAuthPassword(rawPw) {
+    const s = String(rawPw || '');
+    return s.length < 6 ? s.padEnd(6, '#') : s;
+  }
+
+  function toSafeDocKey(rawIndex) {
+    return String(rawIndex ?? '0').replace(/[^a-zA-Z0-9_-]/g, '_');
+  }
+
+  function toSafeFileId(rawStr) {
+    return String(rawStr || '').trim().replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
+  }
+
+  const urlParams = new URLSearchParams(window.location.search);
+  let currentFileId = toSafeFileId(urlParams.get('file') || urlParams.get('doc') || 'main') || 'main';
+  let fileCatalogList = [
+    { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
+  ];
+  let catalogUnsubscribe = null;
+  let isCatalogInitialized = false;
+
+  function getMetaDocName(fileId = currentFileId) {
+    return fileId === 'main' ? 'workbook_meta' : `workbook_meta_${fileId}`;
+  }
+  function getDeltaDocName(fileId = currentFileId) {
+    return fileId === 'main' ? 'realtime_delta' : `realtime_delta_${fileId}`;
+  }
+  function getSheetDocName(safeKey, fileId = currentFileId) {
+    return fileId === 'main' ? `sheet_doc_${safeKey}` : `sheet_doc_${fileId}_${safeKey}`;
+  }
+
+  function canUserAccessFile(fileItem, userObj = currentUserInfo) {
+    if (!userObj) return false;
+    if (userObj.role === 'admin') return true;
+    const depts = Array.isArray(fileItem.allowedDepts) ? fileItem.allowedDepts.filter(Boolean) : [];
+    const users = Array.isArray(fileItem.allowedUsers) ? fileItem.allowedUsers.filter(Boolean) : [];
+    if (depts.length === 0 && users.length === 0) return true;
+    if (userObj.dept && depts.includes(userObj.dept)) return true;
+    if (userObj.id && users.includes(userObj.id)) return true;
+    return false;
+  }
+
+  function getKoreanAuthErrorMessage(err) {
+    const code = err?.code || '';
+    switch (code) {
+      case 'auth/invalid-email':
+        return '아이디 형식이 올바르지 않습니다. 영문 또는 숫자로 입력해 주세요.';
+      case 'auth/user-not-found':
+        return '등록되지 않은 계정입니다. 아이디를 다시 확인해 주세요.';
+      case 'auth/wrong-password':
+      case 'auth/invalid-credential':
+      case 'auth/invalid-login-credentials':
+        return '아이디 또는 비밀번호가 일치하지 않습니다. 대소문자와 입력값을 확인해 주세요.';
+      case 'auth/email-already-in-use':
+        return '이미 Firebase 인증 서버에 등록되어 있는 아이디입니다.';
+      case 'auth/weak-password':
+        return '비밀번호 보안 수준이 낮습니다. 영문, 숫자, 특수문자 조합 8자리 이상으로 설정해 주세요.';
+      case 'auth/too-many-requests':
+        return '단시간에 많은 요청이 발생하여 잠시 차단되었습니다. 1분 후 다시 시도해 주세요.';
+      case 'auth/network-request-failed':
+        return '네트워크 연결이 불안정합니다. 인터넷 연결 상태를 확인해 주세요.';
+      case 'auth/requires-recent-login':
+        return '보안을 위해 재인증이 필요합니다. 다시 로그인하여 시도해 주세요.';
+      case 'permission-denied':
+        return '데이터베이스 접근 권한이 없습니다.';
+      default:
+        return `오류가 발생했습니다 (${code || err?.message || '알 수 없는 오류'}).`;
+    }
+  }
+
+  // ==================== 엑셀 UI 한글 변환 사전 ====================
+  const KO_TEXT_MAP = {
+    'Undo (Ctrl+Z)': '실행 취소 (Ctrl+Z)', 'Redo (Ctrl+Y)': '다시 실행 (Ctrl+Y)', 'Undo': '실행 취소', 'Redo': '다시 실행',
+    'Paint format': '서식 복사', 'Format painter': '서식 복사', 'Clear format': '서식 지우기',
+    'Currency': '통화 서식 (₩)', 'Currency format': '통화 서식 (₩)', 'Percent': '백분율 서식 (%)', 'Percent format': '백분율 서식 (%)',
+    'Decrease decimal places': '소수점 자릿수 줄임', 'Increase decimal places': '소수점 자릿수 늘림',
+    'More formats': '표시 형식 더보기', 'Automatic': '자동', 'General': '일반', 'Number': '숫자', 'Accounting': '회계',
+    'Font': '글꼴', 'Font size': '글자 크기', 'Bold (Ctrl+B)': '굵게 (Ctrl+B)', 'Bold': '굵게',
+    'Italic (Ctrl+I)': '기울임꼴 (Ctrl+I)', 'Italic': '기울임꼴', 'Strikethrough (Alt+Shift+5)': '취소선', 'Strikethrough': '취소선',
+    'Underline (Ctrl+U)': '밑줄 (Ctrl+U)', 'Underline': '밑줄', 'Text color': '글자 색상', 'Reset color': '색상 초기화',
+    'Fill color': '셀 채우기 색상', 'Cell color': '셀 채우기 색상', 'Borders': '테두리 설정',
+    'borderTop': '위쪽 테두리', 'borderBottom': '아래쪽 테두리', 'borderLeft': '왼쪽 테두리', 'borderRight': '오른쪽 테두리',
+    'borderNone': '테두리 없음', 'borderAll': '모든 테두리', 'borderOutside': '바깥쪽 테두리', 'borderInside': '안쪽 테두리',
+    'borderHorizontal': '안쪽 가로 테두리', 'borderVertical': '안쪽 세로 테두리', 'borderColor': '테두리 색상', 'borderStyle': '테두리 선 스타일',
+    'Merge cells': '셀 병합', 'Merge all': '전체 병합', 'Horizontally merge': '가로 병합', 'Vertically merge': '세로 병합', 'Cancel merge': '병합 해제',
+    'Horizontal align': '가로 정렬', 'Horizontal alignment': '가로 정렬', 'Left align': '왼쪽 정렬', 'Center align': '가운데 정렬', 'Right align': '오른쪽 정렬',
+    'Vertical align': '세로 정렬', 'Vertical alignment': '세로 정렬', 'Top align': '위쪽 맞춤', 'Middle align': '가운데 맞춤', 'Bottom align': '아래쪽 맞춤',
+    'Text wrap': '텍스트 줄 바꿈', 'Text wrapping': '텍스트 줄 바꿈', 'Overflow': '넘침 허용', 'Wrap': '자동 줄 바꿈', 'Clip': '자르기',
+    'Text rotate': '텍스트 회전', 'Text rotation': '텍스트 회전',
+    'Insert picture': '이미지 삽입', 'Insert image': '이미지 삽입', 'Insert link': '링크 삽입', 'Link': '링크 삽입',
+    'Chart': '차트 삽입', 'Create chart': '차트 생성', 'Comment': '메모', 'Insert comment': '메모 삽입',
+    'PivotTable': '피벗 테이블', 'Pivot table': '피벗 테이블',
+    'Quick calculation': '자동 계산 함수', 'Auto sum': '자동 합계', 'SUM': '합계', 'Sum': '합계 (SUM)', 'Average': '평균 (AVERAGE)', 'Count': '개수 (COUNT)', 'Max': '최댓값 (MAX)', 'Min': '최솟값 (MIN)', 'More functions': '함수 더보기',
+    'Freeze': '틀 고정', 'Freeze panes': '틀 고정', 'Freeze first row': '첫 행 고정', 'Freeze first column': '첫 열 고정', 'Freeze to selection': '선택 영역까지 고정', 'Cancel freeze': '틀 고정 해제',
+    'Sort and filter': '정렬 및 필터', 'Filter': '필터', 'Sort': '정렬', 'Clear filter': '필터 지우기',
+    'Sort A to Z': '오름차순 정렬 (ㄱ→ㅎ)', 'Sort Z to A': '내림차순 정렬 (ㅎ→ㄱ)', 'Custom sort': '사용자 지정 정렬', 'Custom sort...': '사용자 지정 정렬...',
+    'Conditional format': '조건부 서식', 'Conditional formatting': '조건부 서식', 'Highlight cell rules': '셀 강조 규칙', 'Item selection rules': '상위/하위 규칙', 'Data bars': '데이터 막대', 'Color scales': '색조', 'Icon sets': '아이콘 집합', 'New rule': '새 규칙', 'Clear rules': '규칙 지우기', 'Manage rules': '규칙 관리',
+    'Data verification': '데이터 유효성 검사', 'Data validation': '데이터 유효성 검사',
+    'Split text': '텍스트 나누기', 'Split text to columns': '텍스트 나누기',
+    'Screenshot': '화면 캡처', 'Find and replace': '찾기 및 바꾸기', 'Find': '찾기', 'Replace': '바꾸기',
+    'Protection': '시트 보호', 'Print': '인쇄', 'More': '더보기', 'Close': '닫기',
+
+    'Copy': '복사', 'Copy as': '다른 형식으로 복사', 'Paste': '붙여넣기', 'Cut': '잘라내기',
+    'InsertRow': '행 삽입', 'InsertColumn': '열 삽입', 'Insert row': '행 삽입', 'Insert column': '열 삽입',
+    'Delete selected Row': '선택한 행 삭제', 'Delete selected Column': '선택한 열 삭제', 'Delete row': '행 삭제', 'Delete column': '열 삭제',
+    'Delete cell': '셀 삭제', 'Move left': '왼쪽으로 밀기', 'Move up': '위로 밀기', 'Delete entire row': '전체 행 삭제', 'Delete entire column': '전체 열 삭제',
+    'Clear content': '내용 지우기', 'Clear contents': '내용 지우기',
+    'Hide selected Row': '선택한 행 숨기기', 'Show hidden Row': '숨긴 행 표시', 'Hide selected Column': '선택한 열 숨기기', 'Show hidden Column': '숨긴 열 표시',
+    'Row height': '행 높이 설정', 'Column width': '열 너비 설정',
+    'Matrix operation': '행렬 연산', 'Transpose': '행/열 바꿈 (전치)', 'Rotate 90 degrees': '90도 회전', 'Rotate 180 degrees': '180도 회전', 'Sort by': '기준 정렬',
+    'Json first line title': 'JSON (첫 줄을 제목으로)', 'Json untitled': 'JSON (제목 없음)',
+    'One-dimensional array': '1차원 배열', 'Two-dimensional array': '2차원 배열', 'Multidimensional Arrays': '다차원 배열',
+    'Diagonal': '대각선 추출', 'Anti-diagonal': '역대각선 추출', 'Diagonal offset': '대각선 오프셋', 'Boolean': '논리값(Boolean) 변환',
+    'Cell format config': '셀 서식 설정', 'Rename': '시트 이름 변경', 'Delete': '삭제', 'Hide': '숨기기', 'Unhide': '숨기기 취소', 'Copy sheet': '시트 복제', 'Move': '시트 이동', 'Tab color': '탭 색상',
+
+    'Cell range': '적용할 셀 범위', 'Verification condition': '유효성 검사 조건',
+    'Dropdown': '드롭다운 목록', 'drop-down list': '드롭다운 목록', 'Checkbox': '체크박스',
+    'Number-integer': '숫자 (정수)', 'Number-decimal': '숫자 (소수)', 'Text-content': '텍스트 내용', 'Text-length': '텍스트 길이', 'Date': '날짜', 'Validity': '유효성 형식',
+    'Please enter the options, separated by comma': '목록 항목을 쉼표(,)로 구분해 입력하거나 셀 범위를 선택하세요',
+    'Automatic remote acquisition option': '원격 옵션 자동 가져오기',
+    'Prohibit input when input data is invalid': '유효하지 않은 데이터 입력 시 거부',
+    'Show prompt when the cell is selected': '셀 선택 시 안내 문구 표시',
+    'Delete verification': '유효성 검사 삭제', 'OK': '확인', 'Confirm': '확인', 'Cancel': '취소', 'Save': '저장',
+    'between': '다음 값의 사이에 있음', 'not between': '다음 값의 사이에 있지 않음', 'equal to': '다음 값과 같음', 'not equal to': '다음 값과 같지 않음',
+    'greater than': '다음 값보다 큼', 'less than': '다음 값보다 작음', 'greater than or equal to': '다음 값보다 크거나 같음', 'less than or equal to': '다음 값보다 작거나 같음',
+    'include': '다음 텍스트를 포함함', 'exclude': '다음 텍스트를 포함하지 않음', 'earlier than': '다음 날짜 이전', 'later than': '다음 날짜 이후'
+  };
+
+  function applySafeKoreanLocalePatch() {
+    const en = window.luckysheet?.locales?.en;
+    if (!en || en.__koSafePatched) return;
+    en.__koSafePatched = true;
+
+    const safePatchStringsOnly = (targetObj, patchObj) => {
+      if (!targetObj || typeof targetObj !== 'object') return;
+      for (const k of Object.keys(patchObj)) {
+        if (typeof targetObj[k] === 'string') {
+          targetObj[k] = patchObj[k];
+        }
+      }
+    };
+
+    safePatchStringsOnly(en.toolbar, {
+      undo: '실행 취소', redo: '다시 실행', paintFormat: '서식 복사', currencyFormat: '통화 서식',
+      percentageFormat: '백분율 서식', numberDecrease: '소수점 줄임', numberIncrease: '소수점 늘림',
+      moreFormats: '표시 형식', font: '글꼴', fontSize: '글자 크기', bold: '굵게', italic: '기울임꼴',
+      strikethrough: '취소선', underline: '밑줄', textColor: '글자 색상', resetColor: '색상 초기화',
+      fillColor: '채우기 색상', border: '테두리', borderColor: '테두리 색상', borderStyle: '테두리 스타일',
+      mergeCell: '셀 병합', chooseMergeType: '병합 유형 선택', horizontalAlign: '가로 정렬',
+      verticalAlign: '세로 정렬', textWrap: '줄 바꿈', textWrapMode: '줄 바꿈 방식',
+      textRotate: '텍스트 회전', textRotateMode: '회전 방식', insertImage: '이미지 삽입',
+      insertLink: '링크 삽입', chart: '차트', postil: '메모', pivotTable: '피벗 테이블',
+      function: '함수', freeze: '틀 고정', sortAndFilter: '정렬 및 필터',
+      conditionalFormat: '조건부 서식', dataVerification: '데이터 유효성 검사',
+      splitColumn: '텍스트 나누기', screenshot: '스크린샷', findAndReplace: '찾기 및 바꾸기',
+      protection: '시트 보호', print: '인쇄', more: '더보기', close: '닫기', clearFormat: '서식 지우기'
+    });
+
+    safePatchStringsOnly(en.rightclick, {
+      copy: '복사', copyAs: '다른 형식으로 복사', paste: '붙여넣기',
+      insert: '삽입', delete: '삭제', deleteCell: '셀 삭제', deleteSelected: '선택한 ',
+      hide: '숨기기', hideSelected: '선택한 ', showHide: '숨기기 취소 ',
+      to: '방향', left: '왼쪽', right: '오른쪽', top: '위쪽', bottom: '아래쪽',
+      moveLeft: '왼쪽으로 밀기', moveUp: '위로 밀기',
+      add: '추가', row: '행', column: '열', width: '너비', height: '높이',
+      clearContent: '내용 지우기', matrix: '행렬 연산', sortSelection: '정렬',
+      filterSelection: '필터', chartGeneration: '차트 생성', image: '이미지 삽입',
+      link: '링크 삽입', data: '데이터 유효성 검사', cellFormat: '셀 서식 설정'
+    });
+
+    safePatchStringsOnly(en.button, {
+      confirm: '확인', cancel: '취소', close: '닫기', update: '업데이트', delete: '삭제',
+      insert: '삽입', prevPage: '이전', nextPage: '다음'
+    });
+
+    safePatchStringsOnly(en.dataVerification, {
+      cellRange: '적용할 셀 범위', verificationCondition: '유효성 검사 조건',
+      dropdown: '드롭다운 목록', checkbox: '체크박스', number: '숫자', number_integer: '숫자 (정수)',
+      number_decimal: '숫자 (소수)', text_content: '텍스트 내용', text_length: '텍스트 길이',
+      date: '날짜', validity: '유효성 형식', placeholder1: '목록 항목을 쉼표(,)로 구분하여 입력하거나 셀 범위를 선택하세요',
+      remote: '원격 옵션 자동 가져오기', prohibitInput: '유효하지 않은 데이터 입력 시 거부',
+      hintShow: '셀 선택 시 안내 문구 표시', deleteVerification: '유효성 검사 삭제',
+      verification: '데이터 유효성 검사', between: '사이', notBetween: '사이에 없음',
+      equal: '같음', notEqualTo: '같지 않음', moreThanThe: '보다 큼', lessThan: '보다 작음',
+      greaterOrEqualTo: '크거나 같음', lessThanOrEqualTo: '작거나 같음', include: '포함', exclude: '포함하지 않음',
+      earlierThan: '이전 날짜', laterThan: '이후 날짜'
+    });
+
+    safePatchStringsOnly(en.sheetconfig, {
+      delete: '시트 삭제', copy: '시트 복제', rename: '이름 변경', move: '시트 이동',
+      hide: '시트 숨기기', unhide: '숨기기 취소', color: '탭 색상', resetColor: '색상 초기화',
+      left: '왼쪽으로 이동', right: '오른쪽으로 이동'
+    });
+  }
+
+  function translateUiElements(rootNode = document) {
+    rootNode.querySelectorAll('[data-tips]').forEach(el => {
+      const tip = el.getAttribute('data-tips')?.trim();
+      if (tip && KO_TEXT_MAP[tip]) {
+        el.setAttribute('data-tips', KO_TEXT_MAP[tip]);
+        el.setAttribute('title', KO_TEXT_MAP[tip]);
+      }
+    });
+
+    rootNode.querySelectorAll('input[placeholder]').forEach(inp => {
+      const ph = inp.getAttribute('placeholder')?.trim();
+      if (ph && KO_TEXT_MAP[ph]) inp.setAttribute('placeholder', KO_TEXT_MAP[ph]);
+    });
+
+    const targetContainers = rootNode === document
+      ? document.querySelectorAll('.luckysheet-wa-editor, .luckysheet-cols-menu, .luckysheet-modal-dialog, .luckysheet-sheet-area, #luckysheet-modal-dialog-slider-protection')
+      : [rootNode];
+
+    targetContainers.forEach(container => {
+      if (!container) return;
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+      let node;
+      while ((node = walker.nextNode())) {
+        const raw = node.nodeValue;
+        const trimmed = raw ? raw.trim() : '';
+        if (!trimmed) continue;
+        if (KO_TEXT_MAP[trimmed]) {
+          node.nodeValue = raw.replace(trimmed, KO_TEXT_MAP[trimmed]);
+        } else if (trimmed === 'InsertRow') {
+          node.nodeValue = '행 삽입';
+        } else if (trimmed === 'InsertColumn') {
+          node.nodeValue = '열 삽입';
+        }
+      }
+    });
+  }
+
+  // ==================== ★ 개인정보 자동 마스킹 엔진 (방식 A: 원본 대신 마스킹 데이터 저장) ====================
+  function maskSensitiveText(headerText, rawVal) {
+    if (rawVal === null || rawVal === undefined) return rawVal;
+    const str = String(rawVal).trim();
+    if (!str) return rawVal;
+
+    const h = String(headerText || '').replace(/\s+/g, '').toLowerCase();
+
+    // 1. 사내 직원 / 담당자명은 예외 처리 (마스킹 안 함)
+    const staffKeywords = ['영업자', '영업매니저', '담당자', '컨택담당자', '관리자', '매니저', '사원', '주임', '대리', '과장', '차장', '부장', '실장', '팀장'];
+    if (staffKeywords.some(kw => h.includes(kw))) {
+      return rawVal;
+    }
+
+    // 2. 전화번호 및 계좌번호 패턴 검출 또는 열 제목 검출 시 가운데 2자리 마스킹
+    const phoneOrAccPattern = /^(\d{2,3})[-\s]?(\d{3,4})[-\s]?(\d{4})$/;
+    const isPhoneCol = h.includes('전화') || h.includes('연락처') || h.includes('휴대폰') || h.includes('핸드폰') || h.includes('계좌');
+    
+    if (isPhoneCol || phoneOrAccPattern.test(str)) {
+      if (str.includes('-')) {
+        const parts = str.split('-');
+        if (parts.length >= 3) {
+          let mid = parts[1];
+          if (mid.length >= 3) {
+            parts[1] = mid.substring(0, 1) + '**' + mid.substring(3);
+          } else if (mid.length === 2) {
+            parts[1] = mid.substring(0, 1) + '*';
+          }
+          return parts.join('-');
+        }
+      } else if (str.length >= 8 && /^\d+$/.test(str)) {
+        // 일반 숫자형 계좌번호인 경우 가운데 구간 마스킹
+        const len = str.length;
+        const start = Math.floor((len - 2) / 2);
+        return str.substring(0, start) + '**' + str.substring(start + 2);
+      }
+    }
+
+    // 3. 고객명, 개소명, 개소 등 이름 항목 마스킹 (가운데 1글자 이상 마스킹)
+    const nameKeywords = ['고객명', '성명', '이름', '대표자', '수취인', '개소명', '개소', '업체명', '고객'];
+    if (nameKeywords.some(kw => h.includes(kw))) {
+      const len = str.length;
+      if (len === 2) {
+        return str.substring(0, 1) + '*';
+      } else if (len >= 3) {
+        const midIdx = Math.floor(len / 2);
+        return str.substring(0, midIdx) + '*' + str.substring(midIdx + 1);
+      }
+    }
+
+    return rawVal;
+  }
+
+  // 시트 내의 열 헤더(1행)를 파악하여 입력되거나 붙여넣어진 모든 데이터를 실시간 마스킹 정제
+  function applyMaskingToSheetData(sheet) {
+    if (!sheet || !sheet.data || !Array.isArray(sheet.data)) return;
+    const headerRow = sheet.data[0];
+    if (!headerRow || !Array.isArray(headerRow)) return;
+
+    // 헤더명 매핑 추출
+    const colHeaders = headerRow.map(cell => (cell && cell.v !== undefined && cell.v !== null) ? String(cell.v).trim() : '');
+
+    const rLen = sheet.data.length;
+    for (let r = 1; r < rLen; r++) { // 2행(데이터 행)부터 검사
+      const rowArr = sheet.data[r];
+      if (!rowArr) continue;
+      const cLen = rowArr.length;
+      for (let c = 0; c < cLen; c++) {
+        const cell = rowArr[c];
+        if (cell && cell.v !== undefined && cell.v !== null && cell.v !== '') {
+          const hName = colHeaders[c] || '';
+          const masked = maskSensitiveText(hName, cell.v);
+          if (masked !== cell.v) {
+            cell.v = masked;
+            cell.m = String(masked);
+          }
+        }
+      }
+    }
+  }
+
+  let currentUserInfo = null;
+  let saveTimeout = null;
+  let deltaFlushTimeout = null;
+  let isInitializing = true;
+  let isApplyingRemoteUpdate = false;
+  let isSavingInProgress = false;
+  let pendingSaveAfterCurrent = false;
+  let isLoggingIn = false;
+
+  const serializedSheetCache = new Map();
+  const sheetVersionMap = new Map();
+  const dirtySheetKeys = new Set();
+  let structureDirty = false;
+  let pendingDeltaCells = [];
+
+  let metaUnsubscribe = null;
+  let deltaUnsubscribe = null;
+  let presenceUnsubscribe = null;
+  let myUserUnsubscribe = null;
+
+  let currentCellState = { r: 0, c: 0, label: "A1", sheetName: "통합대시보드", rect: null };
+  let lastPresenceSentAt = 0;
+  let presenceTimer = null;
+  let lastPresenceSignature = "";
+  let latestRemoteUsers = [];
+
+  let allUsersCache = [];
+  let userSearchQuery = "";
+  let userSortField = "default";
+  let userSortOrder = "asc";
+  let userCurrentPage = 1;
+  const USERS_PER_PAGE = 10;
+
+  const dbStatusIndicator = document.getElementById('db-status-indicator');
+  const dbStatusText = document.getElementById('db-status-text');
+
+  function colToLetter(col) {
+    let temp, letter = '';
+    while (col >= 0) {
+      temp = col % 26;
+      letter = String.fromCharCode(temp + 65) + letter;
+      col = Math.floor((col - temp) / 26) - 1;
+    }
+    return letter;
+  }
+
+  function getDefaultData() {
+    if (currentFileId !== 'main') {
+      return [{
+        name: 'Sheet1',
+        index: '0',
+        order: 0,
+        status: 1,
+        row: 50,
+        column: 20,
+        config: {},
+        celldata: []
+      }];
+    }
+    const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
+    return centers.map((center, idx) => ({
+      name: center,
+      index: String(idx),
+      order: idx,
+      status: idx === 0 ? 1 : 0,
+      row: 50,
+      column: 20,
+      config: {},
+      celldata: []
+    }));
+  }
+
+  function serializeSingleSheet(sheet, fallbackIdx = 0) {
+    // 저장하기 직전 마스킹 규칙 검증 및 적용 (방식 A 보장)
+    applyMaskingToSheetData(sheet);
+
+    let celldata = [];
+    let maxR = 0;
+    let maxC = 0;
+
+    if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
+      const rLen = sheet.data.length;
+      for (let r = 0; r < rLen; r++) {
+        const rowArr = sheet.data[r];
+        if (!rowArr) continue;
+        const cLen = rowArr.length;
+        for (let c = 0; c < cLen; c++) {
+          const rawCell = rowArr[c];
+          if (rawCell !== null && rawCell !== undefined) {
+            const slim = compactCell(rawCell);
+            if (slim) {
+              celldata.push({ r, c, v: slim });
+              if (r > maxR) maxR = r;
+              if (c > maxC) maxC = c;
+            }
+          }
+        }
+      }
+    } else if (sheet.celldata && Array.isArray(sheet.celldata)) {
+      const len = sheet.celldata.length;
+      for (let i = 0; i < len; i++) {
+        const item = sheet.celldata[i];
+        if (!item) continue;
+        const slim = compactCell(item.v);
+        if (slim) {
+          celldata.push({ r: item.r, c: item.c, v: slim });
+          if (item.r > maxR) maxR = item.r;
+          if (item.c > maxC) maxC = item.c;
+        }
+      }
+    }
+
+    const computedRow = Math.max(sheet.row || 50, maxR + 20, 50);
+    const computedCol = Math.max(sheet.column || 20, maxC + 5, 20);
+
+    const rawConfig = sheet.config || {};
+    const cleanConfig = { ...rawConfig };
+    if (Array.isArray(cleanConfig.borderInfo) && cleanConfig.borderInfo.length > 8000) {
+      cleanConfig.borderInfo = cleanConfig.borderInfo.slice(0, 8000);
+    }
+
+    return {
+      name: sheet.name || `Sheet${fallbackIdx + 1}`,
+      index: sheet.index !== undefined ? String(sheet.index) : String(fallbackIdx),
+      order: sheet.order !== undefined ? sheet.order : fallbackIdx,
+      status: sheet.status !== undefined ? sheet.status : 0,
+      row: computedRow,
+      column: computedCol,
+      config: cleanConfig,
+      calcChain: sheet.calcChain || [],
+      frozen: sheet.frozen || null,
+      celldata: celldata
+    };
+  }
+
+  function deserializeSingleSheet(sheet, fallbackIdx = 0) {
+    let maxR = 0;
+    let maxC = 0;
+    const rawCells = sheet.celldata || [];
+    const expandedCelldata = new Array(rawCells.length);
+    let writeIdx = 0;
+
+    for (let i = 0; i < rawCells.length; i++) {
+      const item = rawCells[i];
+      if (!item) continue;
+      if (item.r > maxR) maxR = item.r;
+      if (item.c > maxC) maxC = item.c;
+      const exp = expandCell(item.v);
+      if (exp) {
+        expandedCelldata[writeIdx++] = { r: item.r, c: item.c, v: exp };
+      }
+    }
+    expandedCelldata.length = writeIdx;
+
+    return {
+      ...sheet,
+      index: sheet.index !== undefined ? String(sheet.index) : String(fallbackIdx),
+      order: sheet.order !== undefined ? sheet.order : fallbackIdx,
+      row: Math.max(sheet.row || 50, maxR + 20, 50),
+      column: Math.max(sheet.column || 20, maxC + 5, 20),
+      config: sheet.config || {},
+      celldata: expandedCelldata
+    };
+  }
+
+  async function saveSingleSheetDocToFirestore(safeKey, sheetObj, now, fileId = currentFileId) {
+    const jsonStr = JSON.stringify(sheetObj);
+    const isCompressed = Boolean(window.LZString);
+    const payloadStr = isCompressed ? window.LZString.compressToBase64(jsonStr) : jsonStr;
+    const docId = getSheetDocName(safeKey, fileId);
+
+    if (payloadStr.length <= MAX_CHUNK_SIZE) {
+      await setDoc(doc(db, "sheets", docId), {
+        content: payloadStr,
+        isCompressed: isCompressed,
+        isChunked: false,
+        chunkCount: 0,
+        timestamp: now
+      });
+    } else {
+      const chunks = [];
+      for (let i = 0; i < payloadStr.length; i += MAX_CHUNK_SIZE) {
+        chunks.push(payloadStr.slice(i, i + MAX_CHUNK_SIZE));
+      }
+      await Promise.all(chunks.map((chunkData, cIdx) =>
+        setDoc(doc(db, "sheets", `${docId}_chunk_${cIdx}`), {
+          chunkIndex: cIdx,
+          content: chunkData,
+          timestamp: now
+        })
+      ));
+      await setDoc(doc(db, "sheets", docId), {
+        content: "",
+        isCompressed: isCompressed,
+        isChunked: true,
+        chunkCount: chunks.length,
+        timestamp: now
+      });
+    }
+  }
+
+  async function loadSingleSheetDocFromFirestore(safeKey, fileId = currentFileId) {
+    const docId = getSheetDocName(safeKey, fileId);
+    const snap = await getDoc(doc(db, "sheets", docId));
+    if (!snap.exists()) return null;
+
+    const docData = snap.data();
+    let payloadStr = "";
+
+    if (docData.isChunked && docData.chunkCount > 0) {
+      const chunkPromises = [];
+      for (let i = 0; i < docData.chunkCount; i++) {
+        chunkPromises.push(getDoc(doc(db, "sheets", `${docId}_chunk_${i}`)));
+      }
+      const chunkSnaps = await Promise.all(chunkPromises);
+      payloadStr = chunkSnaps.map(s => (s.exists() ? (s.data().content || "") : "")).join("");
+    } else {
+      payloadStr = docData.content || "";
+    }
+
+    if (!payloadStr) return null;
+    if (docData.isCompressed && window.LZString) {
+      const decompressed = window.LZString.decompressFromBase64(payloadStr);
+      if (decompressed) return JSON.parse(decompressed);
+    }
+    return JSON.parse(payloadStr);
+  }
+
+  async function loadLegacyMasterDoc() {
+    const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
+    if (!sheetDoc.exists()) return null;
+    const docData = sheetDoc.data();
+    let payloadStr = "";
+
+    if (docData.isChunked && docData.chunkCount > 0) {
+      const chunkPromises = [];
+      for (let i = 0; i < docData.chunkCount; i++) {
+        chunkPromises.push(getDoc(doc(db, "sheets", `master_chunk_${i}`)));
+      }
+      const chunkSnaps = await Promise.all(chunkPromises);
+      payloadStr = chunkSnaps.map(s => (s.exists() ? (s.data().content || "") : "")).join("");
+    } else {
+      payloadStr = docData.content || "";
+    }
+
+    if (!payloadStr) return null;
+    if (docData.isCompressed && window.LZString) {
+      const decompressed = window.LZString.decompressFromBase64(payloadStr);
+      if (decompressed) return JSON.parse(decompressed);
+    }
+    return JSON.parse(payloadStr);
+  }
+
+  async function syncUserCredentialBridge(uid, id, email, rawPw, pwUpdatedAtTimestamp = null, forceResetFlag = false) {
+    const authPw = toAuthPassword(rawPw);
+    const isInitial = (rawPw === id) || forceResetFlag;
+    const bridgePayload = {
+      id,
+      email,
+      pw: rawPw,
+      authPw: authPw,
+      mustChangePw: isInitial,
+      forceResetToId: forceResetFlag,
+      updatedAt: Date.now()
+    };
+    if (pwUpdatedAtTimestamp !== null) {
+      bridgePayload.pwUpdatedAt = pwUpdatedAtTimestamp;
+    }
+
+    try {
+      const userPayload = { id, email, pw: rawPw, authPw: authPw, forceResetToId: forceResetFlag };
+      userPayload.mustChangePw = isInitial;
+      if (pwUpdatedAtTimestamp !== null) userPayload.pwUpdatedAt = pwUpdatedAtTimestamp;
+      await setDoc(doc(db, "users", uid), userPayload, { merge: true });
+    } catch (_) {}
+
+    try {
+      await setDoc(doc(db, "sheets", "user_cred_sync"), {
+        [uid]: bridgePayload
+      }, { merge: true });
+    } catch (_) {}
+  }
+
+  async function executeLogin() {
+    if (!isCompanyIpVerified) {
+      alert("사내망에서만 접속 가능합니다.");
+      return;
+    }
+    if (isLoggingIn) return;
+    const rawId = document.getElementById('login-id').value.trim();
+    const id = rawId.includes('@') ? rawId.split('@')[0] : rawId;
+    const pw = document.getElementById('login-pw').value;
+
+    if (!id) {
+      alert("아이디를 입력해 주세요.");
+      document.getElementById('login-id').focus();
+      return;
+    }
+    if (!pw) {
+      alert("비밀번호를 입력해 주세요.");
+      document.getElementById('login-pw').focus();
+      return;
+    }
+
+    isLoggingIn = true;
+    const email = id + domain;
+    const authPw = toAuthPassword(pw);
+
+    try {
+      await setPersistence(auth, browserSessionPersistence);
+
+      let cred = null;
+      let loggedInViaFallbackReset = false;
+
+      try {
+        cred = await signInWithEmailAndPassword(auth, email, authPw);
+      } catch (firstErr) {
+        try {
+          cred = await signInWithEmailAndPassword(auth, email, pw);
+        } catch (secondErr) {
+          if (pw === id) {
+            const bSnap = await getDoc(doc(db, "sheets", "user_cred_sync")).catch(() => null);
+            const bMap = (bSnap && bSnap.exists()) ? bSnap.data() : {};
+            const matchedEntry = Object.entries(bMap).find(([_, v]) => v && (v.id === id || v.email === email));
+            if (matchedEntry && matchedEntry[1]?.forceResetToId) {
+              const bInfo = matchedEntry[1];
+              const fallbackPws = [bInfo.authPw, bInfo.pw].filter(Boolean);
+              for (const fPw of fallbackPws) {
+                try {
+                  cred = await signInWithEmailAndPassword(auth, email, fPw);
+                  await updatePassword(cred.user, toAuthPassword(id));
+                  loggedInViaFallbackReset = true;
+                  break;
+                } catch (_) {}
+              }
+            }
+          }
+          if (!cred) throw secondErr;
+        }
+      }
+
+      const [uSnap, bSnap] = await Promise.all([
+        getDoc(doc(db, "users", cred.user.uid)).catch(() => null),
+        getDoc(doc(db, "sheets", "user_cred_sync")).catch(() => null)
+      ]);
+      const uData = (uSnap && uSnap.exists()) ? uSnap.data() : {};
+      const bData = (bSnap && bSnap.exists()) ? (bSnap.data()[cred.user.uid] || {}) : {};
+      const isForceReset = (uData.forceResetToId === true) || (bData.forceResetToId === true);
+
+      if (isForceReset) {
+        if (pw !== id) {
+          try {
+            await updatePassword(cred.user, toAuthPassword(id));
+            await syncUserCredentialBridge(cred.user.uid, id, email, id, 0, true);
+          } catch (_) {}
+          await signOut(auth);
+          alert("관리자에 의해 비밀번호가 초기화되었습니다.\n초기 비밀번호(본인 아이디와 동일)로 다시 로그인해 주세요.");
+          document.getElementById('login-pw').value = '';
+          document.getElementById('login-pw').focus();
+          return;
+        }
+        localStorage.removeItem(`pw_changed_done_${cred.user.uid}`);
+        sessionStorage.setItem(`login_pw_${cred.user.uid}`, id);
+        await syncUserCredentialBridge(cred.user.uid, id, email, id, 0, false);
+      } else {
+        sessionStorage.setItem(`login_pw_${cred.user.uid}`, pw);
+        if (pw === id || loggedInViaFallbackReset) {
+          localStorage.removeItem(`pw_changed_done_${cred.user.uid}`);
+        }
+        try {
+          await setDoc(doc(db, "sheets", "user_cred_sync"), {
+            [cred.user.uid]: {
+              id,
+              email,
+              pw: pw,
+              authPw: toAuthPassword(pw),
+              mustChangePw: (pw === id) || Boolean(uData.mustChangePw),
+              forceResetToId: false,
+              pwUpdatedAt: bData.pwUpdatedAt || uData.pwUpdatedAt || 0,
+              updatedAt: Date.now()
+            }
+          }, { merge: true });
+        } catch (_) {}
+      }
+    } catch (err) {
+      alert("로그인 실패: " + getKoreanAuthErrorMessage(err));
+    } finally {
+      isLoggingIn = false;
+    }
+  }
+
+  bindEvent('login-form', 'submit', (e) => {
+    e.preventDefault();
+    executeLogin();
+  });
+
+  ['login-id', 'login-pw'].forEach(inputId => {
+    bindEvent(inputId, 'keydown', (e) => {
+      if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
+        e.preventDefault();
+        executeLogin();
+      }
+    });
+  });
+
+  ['force-new-pw', 'force-confirm-pw'].forEach(inputId => {
+    bindEvent(inputId, 'keydown', (e) => {
+      if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
+        e.preventDefault();
+        document.getElementById('btn-force-pw-submit')?.click();
+      }
+    });
+  });
+
+  enforceIpGate().then((allowed) => {
+    if (!allowed) return;
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!isCompanyIpVerified) {
+        await signOut(auth);
+        return;
+      }
+
+      if (user) {
+        document.getElementById('login-screen').classList.remove('active');
+        document.getElementById('main-screen').classList.add('active');
+
+        if (myUserUnsubscribe) myUserUnsubscribe();
+        myUserUnsubscribe = onSnapshot(doc(db, "users", user.uid), async (userDoc) => {
+          if (!userDoc.exists()) {
+            alert("관리자에 의해 삭제되었거나 접근 권한이 없는 계정입니다.");
+            await signOut(auth);
+            window.location.reload();
+            return;
+          }
+          const data = userDoc.data();
+          const emailStr = data.email || user.email || "";
+          const idOnly = data.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+
+          let bridgeInfo = {};
+          try {
+            const bSnap = await getDoc(doc(db, "sheets", "user_cred_sync"));
+            if (bSnap.exists() && bSnap.data()[user.uid]) {
+              bridgeInfo = bSnap.data()[user.uid];
+            }
+          } catch (_) {}
+
+          const bridgePwUpdatedAt = Number(bridgeInfo.pwUpdatedAt) || 0;
+          const localPwUpdatedAt = Number(localStorage.getItem(`pw_updated_at_${user.uid}`)) || 0;
+          let lastPwChangedAt = Math.max(Number(data.pwUpdatedAt) || 0, bridgePwUpdatedAt, localPwUpdatedAt);
+
+          if (!lastPwChangedAt && data.mustChangePw === false && !data.forceResetToId) {
+            lastPwChangedAt = Number(data.createdAt) || Date.now();
+            localStorage.setItem(`pw_updated_at_${user.uid}`, String(lastPwChangedAt));
+          }
+
+          currentUserInfo = { ...data, id: idOnly, email: emailStr, uid: user.uid, pwUpdatedAt: lastPwChangedAt };
+          document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept}) - ${currentUserInfo.role === 'admin' ? '관리자' : '사용자'}`;
+          
+          const adminBtn = document.getElementById('btn-show-admin');
+          const filesBtn = document.getElementById('btn-show-files');
+          if (currentUserInfo.role === 'admin') {
+            adminBtn.style.display = 'inline-block';
+            filesBtn.style.display = 'inline-block';
+          } else {
+            adminBtn.style.display = 'none';
+            filesBtn.style.display = 'none';
+            document.getElementById('admin-modal').style.display = 'none';
+            document.getElementById('file-modal').style.display = 'none';
+          }
+
+          const sessionPw = sessionStorage.getItem(`login_pw_${user.uid}`);
+          const forceResetActive = (data.forceResetToId === true) || (bridgeInfo.forceResetToId === true);
+          if (forceResetActive) {
+            localStorage.removeItem(`pw_changed_done_${user.uid}`);
+          }
+          const changedDoneLocal = localStorage.getItem(`pw_changed_done_${user.uid}`) === 'true';
+
+          const forceModal = document.getElementById('force-pw-modal');
+          const forceTitle = document.getElementById('force-pw-title');
+          const forceNotice = document.getElementById('force-pw-notice');
+
+          const isInitialPwState =
+            (sessionPw === idOnly) ||
+            forceResetActive ||
+            (!changedDoneLocal && data.mustChangePw === true && (!sessionPw || sessionPw === idOnly));
+          const isExpired180Days = !isInitialPwState && lastPwChangedAt > 0 && (Date.now() - lastPwChangedAt >= PW_EXPIRE_MS);
+
+          if (isInitialPwState) {
+            forceTitle.innerText = "🔒 초기 비밀번호 변경 안내";
+            forceNotice.innerHTML = "초기 비밀번호(아이디와 동일) 또는 초기화된 계정으로 로그인하셨습니다.<br>보안을 위해 <b>영문, 숫자, 특수문자 3종류 조합(8자리 이상)</b>으로 새 비밀번호를 설정해 주세요.";
+            forceModal.style.display = 'flex';
+          } else if (isExpired180Days) {
+            forceTitle.innerText = "🔒 비밀번호 변경 주기(180일) 만료 안내";
+            forceNotice.innerHTML = "비밀번호 변경 후 <b>180일이 경과</b>하여 보안 정책에 따라 비밀번호를 변경해야 합니다.<br><b>영문, 숫자, 특수문자 3종류 조합(8자리 이상)</b>으로 새 비밀번호를 설정해 주세요.";
+            forceModal.style.display = 'flex';
+          } else {
+            forceModal.style.display = 'none';
+          }
+
+          if (!isCatalogInitialized) {
+            isCatalogInitialized = true;
+            await initFileCatalogAndStartExcel();
+          } else {
+            renderFileSwitcherDropdown();
+          }
+          schedulePresenceUpdate(true);
+        });
+
+        listenPresence();
+      } else {
+        document.getElementById('login-screen').classList.add('active');
+        document.getElementById('main-screen').classList.remove('active');
+        document.getElementById('btn-show-admin').style.display = 'none';
+        document.getElementById('btn-show-files').style.display = 'none';
+        currentUserInfo = null;
+      }
+    });
+  });
+
+  bindEvent('btn-force-pw-submit', 'click', async () => {
+    if (!currentUserInfo || !auth.currentUser) return;
+    const newPw = document.getElementById('force-new-pw').value;
+    const confirmPw = document.getElementById('force-confirm-pw').value;
+
+    const validation = validatePasswordComplexity(newPw);
+    if (!validation.valid) {
+      return alert(validation.message);
+    }
+    if (newPw !== confirmPw) {
+      return alert("새 비밀번호와 확인 비밀번호가 일치하지 않습니다.");
+    }
+    if (newPw === currentUserInfo.id) {
+      return alert("아이디와 동일한 비밀번호는 사용할 수 없습니다.");
+    }
+    const currentUsedPw = sessionStorage.getItem(`login_pw_${currentUserInfo.uid}`) || currentUserInfo.pw;
+    if (currentUsedPw && newPw === currentUsedPw) {
+      return alert("기존 비밀번호와 동일한 비밀번호는 사용할 수 없습니다. 새로운 비밀번호를 입력해 주세요.");
+    }
+
+    try {
+      const targetAuthPw = toAuthPassword(newPw);
+      try {
+        await updatePassword(auth.currentUser, targetAuthPw);
+      } catch (reauthErr) {
+        const oldAuthPw = toAuthPassword(currentUsedPw || currentUserInfo.id);
+        const cred = await signInWithEmailAndPassword(auth, currentUserInfo.email, oldAuthPw);
+        await updatePassword(cred.user, targetAuthPw);
+      }
+
+      const now = Date.now();
+      sessionStorage.setItem(`login_pw_${currentUserInfo.uid}`, newPw);
+      localStorage.setItem(`pw_changed_done_${currentUserInfo.uid}`, 'true');
+      localStorage.setItem(`pw_updated_at_${currentUserInfo.uid}`, String(now));
+      await syncUserCredentialBridge(currentUserInfo.uid, currentUserInfo.id, currentUserInfo.email, newPw, now, false);
+
+      currentUserInfo.mustChangePw = false;
+      currentUserInfo.forceResetToId = false;
+      currentUserInfo.pwUpdatedAt = now;
+      document.getElementById('force-new-pw').value = '';
+      document.getElementById('force-confirm-pw').value = '';
+      document.getElementById('force-pw-modal').style.display = 'none';
+      alert("비밀번호가 성공적으로 변경되었습니다. (다음 변경 주기: 180일 후)");
+    } catch (err) {
+      alert("비밀번호 변경 실패: " + getKoreanAuthErrorMessage(err));
+    }
+  });
+
+  bindEvent('btn-force-pw-logout', 'click', () => {
+    document.getElementById('btn-logout')?.click();
+  });
+
+  bindEvent('btn-logout', 'click', async () => {
+    if (metaUnsubscribe) metaUnsubscribe();
+    if (deltaUnsubscribe) deltaUnsubscribe();
+    if (presenceUnsubscribe) presenceUnsubscribe();
+    if (myUserUnsubscribe) myUserUnsubscribe();
+    if (catalogUnsubscribe) catalogUnsubscribe();
+    if (currentUserInfo?.uid) {
+      await deleteDoc(doc(db, "presence", currentUserInfo.uid)).catch(() => {});
+    }
+    await signOut(auth);
+    window.location.reload();
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (currentUserInfo?.uid) {
+      deleteDoc(doc(db, "presence", currentUserInfo.uid)).catch(() => {});
+    }
+  });
+
+  // ==================== 다중 엑셀 파일(문서함) 카탈로그 & 권한 선택기 ====================
+  async function initFileCatalogAndStartExcel() {
+    if (!currentUserInfo) return;
+
+    if (!catalogUnsubscribe) {
+      catalogUnsubscribe = onSnapshot(doc(db, "sheets", "file_catalog"), (snap) => {
+        if (snap.exists() && Array.isArray(snap.data().files) && snap.data().files.length > 0) {
+          fileCatalogList = snap.data().files;
+        } else {
+          fileCatalogList = [
+            { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
+          ];
+        }
+        renderFileSwitcherDropdown();
+        if (document.getElementById('file-modal')?.style.display === 'flex') {
+          renderFileAdminTable();
+        }
+      });
+    }
+
+    const catSnap = await getDoc(doc(db, "sheets", "file_catalog")).catch(() => null);
+    if (catSnap && catSnap.exists() && Array.isArray(catSnap.data().files) && catSnap.data().files.length > 0) {
+      fileCatalogList = catSnap.data().files;
+    } else {
+      fileCatalogList = [
+        { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
+      ];
+      await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() }).catch(() => {});
+    }
+
+    const accessibleFiles = fileCatalogList.filter(f => canUserAccessFile(f, currentUserInfo));
+    if (accessibleFiles.length === 0) {
+      alert("열람 권한이 부여된 엑셀 문서가 없습니다. 관리자에게 문의해 주세요.");
+      return;
+    }
+
+    const targetFileObj = fileCatalogList.find(f => f.id === currentFileId);
+    if (!targetFileObj || !canUserAccessFile(targetFileObj, currentUserInfo)) {
+      if (currentFileId !== 'main') {
+        alert("요청하신 엑셀 파일이 존재하지 않거나 열람 권한이 없어 권한이 있는 기본 문서로 이동합니다.");
+      }
+      const fallbackFile = accessibleFiles[0];
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.set('file', fallbackFile.id);
+      window.location.replace(nextUrl.toString());
+      return;
+    }
+
+    renderFileSwitcherDropdown();
+    await initExcel();
+  }
+
+  function renderFileSwitcherDropdown() {
+    const selectEl = document.getElementById('file-switcher-select');
+    if (!selectEl || !currentUserInfo) return;
+
+    const accessibleFiles = fileCatalogList.filter(f => canUserAccessFile(f, currentUserInfo));
+    selectEl.innerHTML = '';
+
+    accessibleFiles.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.innerText = f.title;
+      if (f.id === currentFileId) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  bindEvent('file-switcher-select', 'change', async (e) => {
+    const nextFileId = e.target.value;
+    if (!nextFileId || nextFileId === currentFileId) return;
+    if (dirtySheetKeys.size > 0 || structureDirty) {
+      await saveDirtySheetsToCloud(false);
+    }
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set('file', nextFileId);
+    window.location.href = nextUrl.toString();
+  });
+
+  bindEvent('btn-copy-file-link', 'click', () => {
+    const shareUrl = new URL(window.location.origin + window.location.pathname);
+    shareUrl.searchParams.set('file', currentFileId);
+    const currentTitle = fileCatalogList.find(f => f.id === currentFileId)?.title || currentFileId;
+
+    navigator.clipboard.writeText(shareUrl.toString()).then(() => {
+      alert(`[${currentTitle}] 전용 접속 주소가 복사되었습니다!\n\n${shareUrl.toString()}\n\n담당자에게 이 주소를 전달하면 접속 시 이 파일이 바로 열립니다.`);
+    }).catch(() => {
+      prompt("아래 전용 접속 주소를 복사하여 전달하세요:", shareUrl.toString());
+    });
+  });
+
+  bindEvent('btn-show-files', 'click', async () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+    document.getElementById('file-modal').style.display = 'flex';
+    try {
+      const catSnap = await getDoc(doc(db, "sheets", "file_catalog"));
+      if (catSnap.exists() && Array.isArray(catSnap.data().files) && catSnap.data().files.length > 0) {
+        fileCatalogList = catSnap.data().files;
+      }
+    } catch (_) {}
+    document.getElementById('tab-file-list')?.click();
+  });
+
+  bindEvent('btn-close-files', 'click', () => {
+    document.getElementById('file-modal').style.display = 'none';
+  });
+
+  bindEvent('tab-file-list', 'click', () => {
+    document.getElementById('tab-file-list')?.classList.add('active');
+    document.getElementById('tab-file-create')?.classList.remove('active');
+    document.getElementById('view-file-list')?.classList.add('active');
+    document.getElementById('view-file-create')?.classList.remove('active');
+    renderFileAdminTable();
+  });
+
+  bindEvent('tab-file-create', 'click', async () => {
+    await openFileFormForCreateOrEdit(null);
+  });
+
+  bindEvent('btn-cancel-file-edit', 'click', () => {
+    document.getElementById('tab-file-list')?.click();
+  });
+
+  async function openFileFormForCreateOrEdit(targetFileObj = null) {
+    document.getElementById('tab-file-create')?.classList.add('active');
+    document.getElementById('tab-file-list')?.classList.remove('active');
+    document.getElementById('view-file-create')?.classList.add('active');
+    document.getElementById('view-file-list')?.classList.remove('active');
+
+    const editIdInput = document.getElementById('edit-mode-file-id');
+    const titleInput = document.getElementById('new-file-title');
+    const codeInput = document.getElementById('new-file-id');
+    const publicChk = document.getElementById('chk-file-public-all');
+    const cancelBtn = document.getElementById('btn-cancel-file-edit');
+    const submitBtn = document.getElementById('btn-create-file');
+    const searchInput = document.getElementById('perm-user-search');
+
+    if (searchInput) searchInput.value = '';
+    permUserSearchFilter = '';
+    selectedPermUserSet.clear();
+
+    await fetchNormalUsersForPermPicker();
+
+    if (targetFileObj) {
+      editIdInput.value = targetFileObj.id;
+      titleInput.value = targetFileObj.title || '';
+      codeInput.value = targetFileObj.id;
+      codeInput.disabled = true;
+      if (cancelBtn) cancelBtn.style.display = 'inline-block';
+      if (submitBtn) submitBtn.innerText = `[${targetFileObj.title}] 파일명 및 권한 저장하기`;
+
+      const existingUsers = Array.isArray(targetFileObj.allowedUsers) ? targetFileObj.allowedUsers.filter(Boolean) : [];
+      const existingDepts = Array.isArray(targetFileObj.allowedDepts) ? targetFileObj.allowedDepts.filter(Boolean) : [];
+
+      if (existingUsers.length === 0 && existingDepts.length === 0) {
+        publicChk.checked = true;
+      } else {
+        publicChk.checked = false;
+        existingUsers.forEach(id => {
+          if (id !== '__ADMIN_ONLY__') selectedPermUserSet.add(id);
+        });
+        if (existingDepts.length > 0) {
+          normalUsersForPerm.forEach(u => {
+            if (existingDepts.includes(u.dept)) selectedPermUserSet.add(u.id);
+          });
+        }
+      }
+    } else {
+      editIdInput.value = '';
+      titleInput.value = '';
+      codeInput.value = '';
+      codeInput.disabled = false;
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      if (submitBtn) submitBtn.innerText = '새 엑셀 파일 생성 및 바로 열기';
+      publicChk.checked = true;
+    }
+
+    renderPermDeptChipsAndUserList();
+  }
+
+  async function fetchNormalUsersForPermPicker() {
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      normalUsersForPerm = [];
+      snap.forEach(d => {
+        const u = d.data();
+        const emailStr = u.email || '';
+        const idOnly = u.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+        if (u.role !== 'admin' && idOnly) {
+          normalUsersForPerm.push({
+            uid: d.id,
+            id: idOnly,
+            name: u.name || idOnly,
+            dept: u.dept || '미지정'
+          });
+        }
+      });
+      normalUsersForPerm.sort((a, b) => {
+        const dCmp = (a.dept || '').localeCompare(b.dept || '', 'ko', { numeric: true });
+        if (dCmp !== 0) return dCmp;
+        return (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true });
+      });
+    } catch (err) {
+      console.warn("일반 사용자 로드 실패:", err);
+    }
+  }
+
+  function renderPermDeptChipsAndUserList() {
+    const deptContainer = document.getElementById('perm-dept-chips-container');
+    const listContainer = document.getElementById('new-file-user-checkboxes');
+    const countLabel = document.getElementById('perm-selected-count');
+    const publicChk = document.getElementById('chk-file-public-all');
+    if (!deptContainer || !listContainer) return;
+
+    const uniqueDepts = [...new Set(normalUsersForPerm.map(u => u.dept).filter(Boolean))];
+    deptContainer.innerHTML = '<span style="font-size:12px; color:#5f6368; font-weight:700;">부서별 선택:</span>';
+
+    if (uniqueDepts.length === 0) {
+      deptContainer.innerHTML += '<span style="font-size:12px; color:#999;">등록된 일반 사용자 부서 없음</span>';
+    } else {
+      uniqueDepts.forEach(deptName => {
+        const deptUsers = normalUsersForPerm.filter(u => u.dept === deptName);
+        const allInDeptSelected = deptUsers.length > 0 && deptUsers.every(u => selectedPermUserSet.has(u.id));
+
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'dept-chip-btn' + (!publicChk.checked && allInDeptSelected ? ' active' : '');
+        chip.innerText = `${deptName} (${deptUsers.length})`;
+        chip.addEventListener('click', () => {
+          publicChk.checked = false;
+          if (allInDeptSelected) {
+            deptUsers.forEach(u => selectedPermUserSet.delete(u.id));
+          } else {
+            deptUsers.forEach(u => selectedPermUserSet.add(u.id));
+          }
+          renderPermDeptChipsAndUserList();
+        });
+        deptContainer.appendChild(chip);
+      });
+    }
+
+    if (publicChk.checked) {
+      countLabel.innerText = '전사 전체 공개 (모든 사용자 허용)';
+      countLabel.style.color = '#0f9d58';
+    } else {
+      countLabel.innerText = `선택된 일반 사용자: ${selectedPermUserSet.size}명 (관리자 기본 포함)`;
+      countLabel.style.color = '#1a73e8';
+    }
+
+    listContainer.innerHTML = '';
+    if (normalUsersForPerm.length === 0) {
+      listContainer.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding: 14px; grid-column: span 2;">등록된 일반 사용자가 없습니다. (관리자는 기본으로 모든 파일을 볼 수 있습니다)</div>';
+      return;
+    }
+
+    const filteredUsers = normalUsersForPerm.filter(u => {
+      if (!permUserSearchFilter) return true;
+      const q = permUserSearchFilter.toLowerCase();
+      return u.name.toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || u.dept.toLowerCase().includes(q);
+    });
+
+    if (filteredUsers.length === 0) {
+      listContainer.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding: 14px; grid-column: span 2;">검색 조건에 맞는 일반 사용자가 없습니다.</div>';
+      return;
+    }
+
+    filteredUsers.forEach(u => {
+      const itemLabel = document.createElement('label');
+      itemLabel.className = 'perm-user-item';
+      const isChecked = publicChk.checked || selectedPermUserSet.has(u.id);
+      itemLabel.innerHTML = `
+        <input type="checkbox" value="${u.id}" ${isChecked ? 'checked' : ''}>
+        <span><b>${u.name}</b> <span style="color:#1a73e8;">(${u.id})</span> · <span style="color:#666;">${u.dept}</span></span>
+      `;
+      const chk = itemLabel.querySelector('input');
+      chk.addEventListener('change', () => {
+        if (publicChk.checked) {
+          publicChk.checked = false;
+          normalUsersForPerm.forEach(nu => {
+            if (nu.id !== u.id) selectedPermUserSet.add(nu.id);
+          });
+        } else {
+          if (chk.checked) selectedPermUserSet.add(u.id);
+          else selectedPermUserSet.delete(u.id);
+        }
+        renderPermDeptChipsAndUserList();
+      });
+      listContainer.appendChild(itemLabel);
+    });
+  }
+
+  bindEvent('chk-file-public-all', 'change', (e) => {
+    if (e.target.checked) {
+      selectedPermUserSet.clear();
+    }
+    renderPermDeptChipsAndUserList();
+  });
+
+  bindEvent('btn-select-all-users', 'click', () => {
+    const pub = document.getElementById('chk-file-public-all');
+    if (pub) pub.checked = false;
+    normalUsersForPerm.forEach(u => selectedPermUserSet.add(u.id));
+    renderPermDeptChipsAndUserList();
+  });
+
+  bindEvent('btn-deselect-all-users', 'click', () => {
+    const pub = document.getElementById('chk-file-public-all');
+    if (pub) pub.checked = false;
+    selectedPermUserSet.clear();
+    renderPermDeptChipsAndUserList();
+  });
+
+  bindEvent('perm-user-search', 'input', (e) => {
+    permUserSearchFilter = e.target.value.trim();
+    renderPermDeptChipsAndUserList();
+  });
+
+  function renderFileAdminTable() {
+    const tbody = document.getElementById('file-list-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!Array.isArray(fileCatalogList) || fileCatalogList.length === 0) {
+      fileCatalogList = [
+        { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
+      ];
+    }
+
+    fileCatalogList.forEach((fItem) => {
+      const tr = document.createElement('tr');
+      const allowedUsers = Array.isArray(fItem.allowedUsers) ? fItem.allowedUsers.filter(Boolean) : [];
+      const allowedDepts = Array.isArray(fItem.allowedDepts) ? fItem.allowedDepts.filter(Boolean) : [];
+
+      let summaryText = '전사 전체 공개 (모든 사용자)';
+      if (allowedUsers.includes('__ADMIN_ONLY__')) {
+        summaryText = '관리자 전용 (일반 사용자 비공개)';
+      } else if (allowedUsers.length > 0 || allowedDepts.length > 0) {
+        const parts = [];
+        if (allowedDepts.length > 0) parts.push(`부서: ${allowedDepts.join(', ')}`);
+        if (allowedUsers.length > 0) parts.push(`사용자(${allowedUsers.length}명): ${allowedUsers.join(', ')}`);
+        summaryText = parts.join(' / ');
+      }
+
+      tr.innerHTML = `
+        <td title="${fItem.title}">
+          <b>${fItem.title || '-'}</b>
+        </td>
+        <td title="?file=${fItem.id}">
+          <span style="color:#673ab7; font-weight:700;">?file=${fItem.id}</span>
+        </td>
+        <td title="${summaryText}">
+          <span style="font-size:12px; color:${allowedUsers.length === 0 && allowedDepts.length === 0 ? '#0f9d58' : '#1967d2'}; font-weight:600;">
+            ${summaryText}
+          </span>
+        </td>
+        <td>
+          <div class="action-buttons">
+            <button class="small-btn open-file-btn" title="이 엑셀 파일로 즉시 이동합니다">열기</button>
+            <button class="small-btn purple-btn edit-perm-btn" title="이 파일의 열람 권한(부서/사용자)을 선택하여 수정합니다">권한수정</button>
+            <button class="small-btn warn-btn copy-url-btn" title="이 파일의 접속 링크를 복사합니다">주소복사</button>
+            ${fItem.id !== 'main' ? '<button class="small-btn danger-btn del-file-btn" title="파일을 목록에서 삭제합니다">삭제</button>' : ''}
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+
+      tr.querySelector('.open-file-btn').addEventListener('click', () => {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('file', fItem.id);
+        window.location.href = nextUrl.toString();
+      });
+
+      tr.querySelector('.edit-perm-btn').addEventListener('click', async () => {
+        await openFileFormForCreateOrEdit(fItem);
+      });
+
+      tr.querySelector('.copy-url-btn').addEventListener('click', () => {
+        const shareUrl = new URL(window.location.origin + window.location.pathname);
+        shareUrl.searchParams.set('file', fItem.id);
+        navigator.clipboard.writeText(shareUrl.toString()).then(() => {
+          alert(`[${fItem.title}] 접속 주소가 복사되었습니다:\n${shareUrl.toString()}`);
+        });
+      });
+
+      const delBtn = tr.querySelector('.del-file-btn');
+      if (delBtn) {
+        delBtn.addEventListener('click', async () => {
+          if (!confirm(`[${fItem.title}] 파일을 목록에서 삭제하시겠습니까?`)) return;
+          fileCatalogList = fileCatalogList.filter(x => x.id !== fItem.id);
+          await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() });
+          renderFileAdminTable();
+          renderFileSwitcherDropdown();
+          if (currentFileId === fItem.id) {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set('file', 'main');
+            window.location.href = nextUrl.toString();
+          }
+        });
+      }
+    });
+  }
+
+  bindEvent('btn-create-file', 'click', async () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+    const editFileId = document.getElementById('edit-mode-file-id').value.trim();
+    const title = document.getElementById('new-file-title').value.trim();
+    const rawCode = document.getElementById('new-file-id').value.trim();
+    const isPublicAll = document.getElementById('chk-file-public-all').checked;
+
+    if (!title) return alert("엑셀 파일명을 입력해 주세요.");
+
+    const finalAllowedUsers = isPublicAll ? [] : Array.from(selectedPermUserSet);
+    if (!isPublicAll && finalAllowedUsers.length === 0) {
+      if (!confirm("선택된 일반 사용자가 0명입니다. 관리자만 볼 수 있는 전용 문서로 저장하시겠습니까?\n(전사 전체 공개를 원하시면 상단의 '전사 전체 공개'를 체크해 주세요.)")) {
+        return;
+      }
+      finalAllowedUsers.push('__ADMIN_ONLY__');
+    }
+
+    try {
+      if (editFileId) {
+        const target = fileCatalogList.find(f => f.id === editFileId);
+        if (target) {
+          target.title = title;
+          target.allowedDepts = [];
+          target.allowedUsers = finalAllowedUsers;
+        }
+        await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() });
+        alert(`[${title}] 파일의 권한 설정이 저장되었습니다.`);
+        renderFileSwitcherDropdown();
+        document.getElementById('tab-file-list')?.click();
+      } else {
+        const fileId = toSafeFileId(rawCode || ('doc_' + Date.now().toString(36)));
+        if (!fileId) return alert("올바른 파일 코드를 입력해 주세요.");
+        if (fileCatalogList.some(f => f.id === fileId)) {
+          return alert("이미 사용 중인 파일 코드입니다. 다른 코드를 입력해 주세요.");
+        }
+
+        const now = Date.now();
+        const initialSheet = {
+          name: 'Sheet1',
+          index: '0',
+          order: 0,
+          status: 1,
+          row: 50,
+          column: 20,
+          config: {},
+          calcChain: [],
+          frozen: null,
+          celldata: []
+        };
+
+        await saveSingleSheetDocToFirestore('0', initialSheet, now, fileId);
+        await setDoc(doc(db, "sheets", getMetaDocName(fileId)), {
+          version: 2,
+          fileId: fileId,
+          sheetOrder: [{ index: '0', safeKey: '0', name: 'Sheet1', order: 0, updatedAt: now }],
+          changedSheets: ['0'],
+          sessionId: clientSessionId,
+          updatedBy: currentUserInfo.uid,
+          updatedByName: currentUserInfo.name,
+          timestamp: now
+        });
+
+        fileCatalogList.push({
+          id: fileId,
+          title: title,
+          allowedDepts: [],
+          allowedUsers: finalAllowedUsers,
+          createdAt: now
+        });
+
+        await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: now });
+        alert(`[${title}] 새 엑셀 파일이 생성되었습니다. 해당 파일로 즉시 이동합니다.`);
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('file', fileId);
+        window.location.href = nextUrl.toString();
+      }
+    } catch (err) {
+      alert("파일 저장 중 오류가 발생했습니다: " + getKoreanAuthErrorMessage(err));
+    }
+  });
+
+  // ==================== 엑셀 렌더링 및 초고속 병렬 로딩 ====================
+  function clearInternalLuckysheetLoading() {
+    const internalLoader = document.getElementById('luckysheet-cell-loading');
+    if (internalLoader) internalLoader.style.display = 'none';
+    document.querySelectorAll('.luckysheet-loading-mask').forEach(el => {
+      el.style.display = 'none';
+    });
+  }
+
+  function renderLuckysheet(sheetData) {
+    applySafeKoreanLocalePatch();
+    const currentFileTitle = fileCatalogList.find(f => f.id === currentFileId)?.title || '헬로CN닥스';
+
+    window.luckysheet.create({
+      container: 'luckysheet',
+      lang: 'en',
+      title: currentFileTitle,
+      data: sheetData,
+      showinfobar: false,
+      showsheetbar: true,
+      enableAddRow: true,
+      enableAddBackTop: true,
+      hook: {
+        workbookCreateAfter: function() {
+          clearInternalLuckysheetLoading();
+          injectCommaButton();
+          translateUiElements();
+        },
+        cellUpdated: function(r, c, oldVal, newVal) {
+          if (isInitializing || isApplyingRemoteUpdate) return;
+          markActiveSheetDirty();
+          queueRealtimeCellDelta(r, c, newVal);
+          triggerAutoSave(900);
+        },
+        updated: function(operate) {
+          if (isInitializing || isApplyingRemoteUpdate) return;
+          markActiveSheetDirty();
+          if (operate && ['addSheet', 'deleteSheet', 'sheetName'].includes(operate.type)) {
+            structureDirty = true;
+          }
+          triggerAutoSave(700);
+        },
+        sheetActivate: function() {
+          setTimeout(() => {
+            currentCellState.sheetName = getActiveSheetName();
+            schedulePresenceUpdate(false);
+            renderRemoteCellCursors();
+            injectCommaButton();
+            translateUiElements();
+          }, 50);
+        },
+        rangeSelect: function(sheet, range) {
+          if (isInitializing) return;
+          if (range && range[0] && range[0].row && range[0].column) {
+            const r = range[0].row[0];
+            const c = range[0].column[0];
+            currentCellState = {
+              r: r,
+              c: c,
+              label: `${colToLetter(c)}${r + 1}`,
+              sheetName: sheet?.name || getActiveSheetName(),
+              rect: getSelectedCellRect()
+            };
+            schedulePresenceUpdate(false);
+          }
+        }
+      }
+    });
+
+    setTimeout(() => {
+      clearInternalLuckysheetLoading();
+      renderRemoteCellCursors();
+      injectCommaButton();
+      translateUiElements();
+    }, 150);
+  }
+
+  async function initExcel() {
+    if (!isCompanyIpVerified || window.luckysheetInstance) return;
+    window.luckysheetInstance = true;
+
+    let sheetData = null;
+    let needsInitialCloudSave = false;
+
+    try {
+      const metaSnap = await getDoc(doc(db, "sheets", getMetaDocName()));
+      if (metaSnap.exists() && Array.isArray(metaSnap.data().sheetOrder) && metaSnap.data().sheetOrder.length > 0) {
+        const metaList = metaSnap.data().sheetOrder;
+        const loadedSheets = await Promise.all(
+          metaList.map(async (m, idx) => {
+            const sKey = m.safeKey || toSafeDocKey(m.index);
+            const sObj = await loadSingleSheetDocFromFirestore(sKey, currentFileId);
+            if (sObj) {
+              sObj.name = m.name || sObj.name;
+              sObj.index = String(m.index);
+              sObj.order = idx;
+              sObj.status = idx === 0 ? 1 : 0;
+              serializedSheetCache.set(sKey, sObj);
+              sheetVersionMap.set(sKey, m.updatedAt || 0);
+              return deserializeSingleSheet(sObj, idx);
+            }
+            return null;
+          })
+        );
+        const validSheets = loadedSheets.filter(Boolean);
+        if (validSheets.length > 0) {
+          sheetData = validSheets;
+        }
+      }
+
+      if (!sheetData && currentFileId === 'main') {
+        const legacyParsed = await loadLegacyMasterDoc();
+        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+          sheetData = legacyParsed.map((s, idx) => {
+            const slim = serializeSingleSheet(s, idx);
+            const sKey = toSafeDocKey(slim.index);
+            serializedSheetCache.set(sKey, slim);
+            dirtySheetKeys.add(sKey);
+            return deserializeSingleSheet(slim, idx);
+          });
+          structureDirty = true;
+          needsInitialCloudSave = true;
+        }
+      }
+    } catch (err) {
+      console.warn("초기 문서 로드 지연 또는 신규 문서:", err.message);
+    }
+
+    if (!sheetData) {
+      const defaults = getDefaultData();
+      sheetData = defaults.map((s, idx) => {
+        const sKey = toSafeDocKey(s.index);
+        serializedSheetCache.set(sKey, s);
+        dirtySheetKeys.add(sKey);
+        return deserializeSingleSheet(s, idx);
+      });
+      structureDirty = true;
+      needsInitialCloudSave = true;
+    }
+
+    if (!sheetData.some(s => s.status == 1) && sheetData[0]) {
+      sheetData[0].status = 1;
+    }
+
+    requestAnimationFrame(() => {
+      renderLuckysheet(sheetData);
+
+      isInitializing = false;
+      document.getElementById('loading-mask').style.display = 'none';
+      clearInternalLuckysheetLoading();
+      dbStatusIndicator.classList.remove('saving', 'error', 'syncing');
+      dbStatusText.innerText = "DB 실시간 연결됨";
+
+      if (needsInitialCloudSave) {
+        setTimeout(() => saveDirtySheetsToCloud(true), 400);
+      }
+
+      const container = document.getElementById('spreadsheet-container');
+      container.addEventListener('paste', () => {
+        if (isInitializing || isApplyingRemoteUpdate) return;
+        markActiveSheetDirty();
+        dbStatusIndicator.classList.add('saving');
+        dbStatusText.innerText = "대용량 붙여넣기 처리 중...";
+        triggerAutoSave(800);
+      });
+
+      container.addEventListener('keyup', (e) => {
+        if (isInitializing || isApplyingRemoteUpdate) return;
+        if (['Delete', 'Backspace'].includes(e.key) || ((e.ctrlKey || e.metaKey) && ['v', 'x', 'z', 'y'].includes(e.key.toLowerCase()))) {
+          markActiveSheetDirty();
+          triggerAutoSave(700);
+        }
+      });
+
+      document.addEventListener('contextmenu', () => {
+        setTimeout(() => translateUiElements(), 20);
+      });
+
+      document.addEventListener('click', (e) => {
+        if (isInitializing || isApplyingRemoteUpdate) return;
+        const target = e.target;
+        if (!target) return;
+
+        if (target.closest('.luckysheet-wa-editor, .luckysheet-cols-menu, .luckysheet-modal-dialog, #luckysheet-border-style-menu')) {
+          setTimeout(() => {
+            injectCommaButton();
+            translateUiElements();
+            markActiveSheetDirty();
+            triggerAutoSave(500);
+          }, 40);
+        }
+      });
+
+      listenRemoteSheetChanges();
+    });
+  }
+
+  function triggerAutoSave(delayMs = 800) {
+    clearTimeout(saveTimeout);
+    dbStatusIndicator.classList.add('saving');
+    dbStatusText.innerText = "자동 저장 대기 중...";
+    saveTimeout = setTimeout(() => {
+      setTimeout(() => saveDirtySheetsToCloud(false), 10);
+    }, delayMs);
+  }
+
+  async function saveDirtySheetsToCloud(forceAll = false) {
+    if (!window.luckysheet || isInitializing || isApplyingRemoteUpdate) return;
+    if (isSavingInProgress) {
+      pendingSaveAfterCurrent = true;
+      return;
+    }
+    clearTimeout(saveTimeout);
+
+    const liveFiles = window.luckysheet.getluckysheetfile();
+    if (!liveFiles || liveFiles.length === 0) return;
+
+    if (liveFiles.length !== serializedSheetCache.size) {
+      structureDirty = true;
+    }
+
+    if (!forceAll && dirtySheetKeys.size === 0 && !structureDirty) {
+      dbStatusIndicator.classList.remove('saving');
+      return;
+    }
+
+    isSavingInProgress = true;
+    dbStatusIndicator.classList.remove('error', 'syncing');
+    dbStatusIndicator.classList.add('saving');
+    dbStatusText.innerText = "실시간 저장 중...";
+
+    try {
+      const now = Date.now();
+      const updatedSheetKeys = [];
+      const sheetOrderMeta = [];
+
+      for (let i = 0; i < liveFiles.length; i++) {
+        const s = liveFiles[i];
+        const sKey = toSafeDocKey(s.index !== undefined ? s.index : i);
+        const needsSave = forceAll || dirtySheetKeys.has(sKey) || !serializedSheetCache.has(sKey);
+
+        if (needsSave) {
+          const serialized = serializeSingleSheet(s, i);
+          serializedSheetCache.set(sKey, serialized);
+          sheetVersionMap.set(sKey, now);
+          await saveSingleSheetDocToFirestore(sKey, serialized, now, currentFileId);
+          updatedSheetKeys.push(sKey);
+        }
+
+        sheetOrderMeta.push({
+          index: String(s.index !== undefined ? s.index : i),
+          safeKey: sKey,
+          name: s.name || `Sheet${i + 1}`,
+          order: i,
+          updatedAt: sheetVersionMap.get(sKey) || now
+        });
+      }
+
+      dirtySheetKeys.clear();
+      structureDirty = false;
+
+      await setDoc(doc(db, "sheets", getMetaDocName()), {
+        version: 2,
+        fileId: currentFileId,
+        sheetOrder: sheetOrderMeta,
+        changedSheets: updatedSheetKeys,
+        sessionId: clientSessionId,
+        updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
+        updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
+        timestamp: now
+      });
+
+      dbStatusIndicator.classList.remove('saving', 'error', 'syncing');
+      const timeStr = new Date(now).toLocaleTimeString('ko-KR', { hour12: false });
+      dbStatusText.innerText = `실시간 동기화됨 (${timeStr})`;
+    } catch (error) {
+      console.error("저장 실패 상세:", error);
+      dbStatusIndicator.classList.remove('saving', 'syncing');
+      dbStatusIndicator.classList.add('error');
+      dbStatusText.innerText = "동기화 오류 (재시도 중)";
+    } finally {
+      isSavingInProgress = false;
+      if (pendingSaveAfterCurrent) {
+        pendingSaveAfterCurrent = false;
+        triggerAutoSave(700);
+      }
+    }
+  }
+
+  function listenRemoteSheetChanges() {
+    let isFirstDelta = true;
+    deltaUnsubscribe = onSnapshot(doc(db, "sheets", getDeltaDocName()), (docSnap) => {
+      if (isFirstDelta) {
+        isFirstDelta = false;
+        return;
+      }
+      if (!docSnap.exists()) return;
+      const d = docSnap.data();
+      if (!d || d.sessionId === clientSessionId || !Array.isArray(d.changes)) return;
+
+      try {
+        isApplyingRemoteUpdate = true;
+        const liveFiles = window.luckysheet.getluckysheetfile();
+        if (!liveFiles) return;
+
+        const targetSheet = liveFiles.find(s => toSafeDocKey(s.index) === d.sheetKey);
+        if (!targetSheet) return;
+
+        if (d.config) {
+          if (!targetSheet.config) targetSheet.config = {};
+          Object.assign(targetSheet.config, d.config);
+        }
+
+        if (targetSheet.data && Array.isArray(targetSheet.data)) {
+          d.changes.forEach(chg => {
+            if (targetSheet.data[chg.r]) {
+              targetSheet.data[chg.r][chg.c] = chg.v ? expandCell(chg.v) : null;
+            }
+          });
+          if (targetSheet.status == 1 && typeof window.luckysheet.jfrefreshgrid === 'function') {
+            window.luckysheet.jfrefreshgrid();
+          }
+        }
+
+        dbStatusIndicator.classList.remove('saving', 'error');
+        dbStatusIndicator.classList.add('syncing');
+        const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+        dbStatusText.innerText = `🔄 ${d.updatedByName || '상대방'} 실시간 입력 반영 (${timeStr})`;
+      } catch (e) {
+        console.warn("델타 반영 오류:", e);
+      } finally {
+        setTimeout(() => { isApplyingRemoteUpdate = false; }, 60);
+      }
+    });
+
+    let isFirstMeta = true;
+    metaUnsubscribe = onSnapshot(doc(db, "sheets", getMetaDocName()), async (docSnap) => {
+      if (isFirstMeta) {
+        isFirstMeta = false;
+        return;
+      }
+      if (!docSnap.exists()) return;
+      const meta = docSnap.data();
+      if (!meta || meta.sessionId === clientSessionId) return;
+
+      const changedKeys = Array.isArray(meta.changedSheets) ? meta.changedSheets : [];
+      const sheetOrder = Array.isArray(meta.sheetOrder) ? meta.sheetOrder : [];
+
+      try {
+        isApplyingRemoteUpdate = true;
+        const liveSheets = window.luckysheet.getluckysheetfile();
+        if (!liveSheets) return;
+
+        const downloadedMap = new Map();
+        await Promise.all(
+          changedKeys.map(async (sKey) => {
+            const sObj = await loadSingleSheetDocFromFirestore(sKey, currentFileId);
+            if (sObj) {
+              serializedSheetCache.set(sKey, sObj);
+              downloadedMap.set(sKey, deserializeSingleSheet(sObj));
+            }
+          })
+        );
+
+        const structureChanged = liveSheets.length !== sheetOrder.length ||
+          liveSheets.some((s, i) => toSafeDocKey(s.index) !== sheetOrder[i]?.safeKey || s.name !== sheetOrder[i]?.name);
+
+        if (structureChanged) {
+          const currentActive = liveSheets.find(s => s.status == 1);
+          const activeKey = currentActive ? toSafeDocKey(currentActive.index) : null;
+
+          const newSheets = await Promise.all(
+            sheetOrder.map(async (m, idx) => {
+              const sKey = m.safeKey;
+              let sObj = downloadedMap.get(sKey);
+              if (!sObj) {
+                const cached = serializedSheetCache.set(sKey) || await loadSingleSheetDocFromFirestore(sKey, currentFileId);
+                if (cached) {
+                  serializedSheetCache.set(sKey, cached);
+                  sObj = deserializeSingleSheet(cached, idx);
+                }
+              }
+              if (!sObj) sObj = getDefaultData()[0];
+              sObj.name = m.name;
+              sObj.index = m.index;
+              sObj.order = idx;
+              sObj.status = (sKey === activeKey) ? 1 : 0;
+              return sObj;
+            })
+          );
+          if (!newSheets.some(s => s.status == 1) && newSheets[0]) newSheets[0].status = 1;
+          window.luckysheet.destroy();
+          renderLuckysheet(newSheets);
+        } else {
+          downloadedMap.forEach((rSheet, sKey) => {
+            const lSheet = liveSheets.find(s => toSafeDocKey(s.index) === sKey);
+            if (!lSheet) return;
+
+            if (!lSheet.config) lSheet.config = {};
+            Object.keys(lSheet.config).forEach(k => delete lSheet.config[k]);
+            Object.assign(lSheet.config, rSheet.config || {});
+
+            lSheet.calcChain = rSheet.calcChain || [];
+            lSheet.celldata = rSheet.celldata || [];
+
+            if (lSheet.data && Array.isArray(lSheet.data)) {
+              const targetRows = Math.max(lSheet.data.length, rSheet.row || 50);
+              const targetCols = Math.max(lSheet.data[0] ? lSheet.data[0].length : 20, rSheet.column || 20);
+
+              const freshGrid = new Array(targetRows);
+              for (let r = 0; r < targetRows; r++) {
+                freshGrid[r] = new Array(targetCols).fill(null);
+              }
+              const cells = rSheet.celldata || [];
+              for (let i = 0; i < cells.length; i++) {
+                const item = cells[i];
+                if (item && freshGrid[item.r]) {
+                  freshGrid[item.r][item.c] = item.v;
+                }
+              }
+              lSheet.data = freshGrid;
+              lSheet.row = targetRows;
+              lSheet.column = targetCols;
+            }
+          });
+
+          if (typeof window.luckysheet.jfrefreshgrid === 'function') {
+            window.luckysheet.jfrefreshgrid();
+          }
+          renderRemoteCellCursors();
+        }
+
+        dbStatusIndicator.classList.remove('saving', 'error');
+        dbStatusIndicator.classList.add('syncing');
+        const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+        dbStatusText.innerText = `🔄 ${meta.updatedByName || '상대방'} 수정 반영 (${timeStr})`;
+      } catch (e) {
+        console.error("실시간 시트 수신 오류:", e);
+      } finally {
+        setTimeout(() => { isApplyingRemoteUpdate = false; }, 100);
+      }
+    });
+  }
+
+  function schedulePresenceUpdate(force = false) {
+    if (!currentUserInfo || !currentUserInfo.uid) return;
+    const activeSheetName = getActiveSheetName();
+    const sig = `${activeSheetName}_${currentCellState.r}_${currentCellState.c}`;
+    if (!force && sig === lastPresenceSignature) return;
+
+    const now = Date.now();
+    if (force || now - lastPresenceSentAt >= 450) {
+      executePresenceWrite(activeSheetName, sig);
+    } else {
+      clearTimeout(presenceTimer);
+      presenceTimer = setTimeout(() => {
+        executePresenceWrite(getActiveSheetName(), `${getActiveSheetName()}_${currentCellState.r}_${currentCellState.c}`);
+      }, 450);
+    }
+  }
+
+  function executePresenceWrite(activeSheetName, sig) {
+    if (!currentUserInfo || !currentUserInfo.uid) return;
+    lastPresenceSentAt = Date.now();
+    lastPresenceSignature = sig;
+    const rect = getSelectedCellRect() || currentCellState.rect;
+
+    setDoc(doc(db, "presence", currentUserInfo.uid), {
+      uid: currentUserInfo.uid,
+      name: currentUserInfo.name,
+      dept: currentUserInfo.dept,
+      fileId: currentFileId,
+      sheet: activeSheetName,
+      r: currentCellState.r || 0,
+      c: currentCellState.c || 0,
+      cell: currentCellState.label || "A1",
+      rect: rect || null,
+      updatedAt: lastPresenceSentAt
+    }).catch(() => {});
+  }
+
+  function renderRemoteCellCursors() {
+    const cellMain = document.getElementById('luckysheet-cell-main');
+    if (!cellMain) return;
+
+    let layer = document.getElementById('remote-cursor-layer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'remote-cursor-layer';
+      cellMain.appendChild(layer);
+    }
+    layer.innerHTML = '';
+
+    const myActiveSheetName = getActiveSheetName();
+    const activeSheetObj = getActiveSheetObj();
+
+    latestRemoteUsers.forEach(u => {
+      if (u.sheet !== myActiveSheetName) return;
+
+      let left = 0, top = 0, width = 73, height = 19;
+      const r = Number(u.r || 0);
+      const c = Number(u.c || 0);
+
+      if (activeSheetObj && Array.isArray(activeSheetObj.visibledatarow) && Array.isArray(activeSheetObj.visibledatacolumn) &&
+          activeSheetObj.visibledatarow[r] !== undefined && activeSheetObj.visibledatacolumn[c] !== undefined) {
+        top = r === 0 ? 0 : activeSheetObj.visibledatarow[r - 1];
+        height = activeSheetObj.visibledatarow[r] - top;
+        left = c === 0 ? 0 : activeSheetObj.visibledatacolumn[c - 1];
+        width = activeSheetObj.visibledatacolumn[c] - left;
+      } else if (u.rect) {
+        left = u.rect.left;
+        top = u.rect.top;
+        width = u.rect.width;
+        height = u.rect.height;
+      }
+
+      const color = getColorForId(u.uid || u.name);
+      const box = document.createElement('div');
+      box.className = 'remote-cell-box';
+      box.style.left = `${left}px`;
+      box.style.top = `${top}px`;
+      box.style.width = `${width}px`;
+      box.style.height = `${height}px`;
+      box.style.borderColor = color;
+
+      const tag = document.createElement('div');
+      tag.className = 'remote-cell-tag';
+      tag.style.backgroundColor = color;
+      if (top < 20) {
+        tag.style.top = `${height}px`;
+      }
+      tag.innerText = `${u.name} (${u.cell || 'A1'})`;
+
+      box.appendChild(tag);
+      layer.appendChild(box);
+    });
+  }
+
+  function listenPresence() {
+    if (presenceUnsubscribe) presenceUnsubscribe();
+    presenceUnsubscribe = onSnapshot(collection(db, "presence"), (snapshot) => {
+      const now = Date.now();
+      const deduplicatedByUser = new Map();
+
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        if (!data || !data.updatedAt) return;
+
+        if (docSnap.id.startsWith('sess_') && now - data.updatedAt > 30000) {
+          deleteDoc(doc(db, "presence", docSnap.id)).catch(() => {});
+          return;
+        }
+
+        if (now - data.updatedAt >= 60000) return;
+
+        const targetUid = data.uid || docSnap.id;
+        if (currentUserInfo && (targetUid === currentUserInfo.uid || data.name === currentUserInfo.name)) {
+          return;
+        }
+        if (data.fileId && data.fileId !== currentFileId) {
+          return;
+        }
+
+        const existing = deduplicatedByUser.get(targetUid);
+        if (!existing || data.updatedAt > existing.updatedAt) {
+          deduplicatedByUser.set(targetUid, { ...data, uid: targetUid });
+        }
+      });
+
+      const activeList = Array.from(deduplicatedByUser.values());
+      latestRemoteUsers = activeList;
+
+      const badgeContainer = document.getElementById("concurrent-users");
+      badgeContainer.innerHTML = '';
+      if (activeList.length > 0) {
+        const mySheet = getActiveSheetName();
+        activeList.forEach(u => {
+          const pill = document.createElement('span');
+          pill.className = 'user-pill';
+          pill.style.backgroundColor = getColorForId(u.uid || u.name);
+          const locText = (u.sheet && u.sheet !== mySheet) ? `${u.sheet}:${u.cell || 'A1'}` : `${u.cell || 'A1'}`;
+          pill.innerText = `${u.name}(${locText})`;
+          badgeContainer.appendChild(pill);
+        });
+        badgeContainer.style.display = "flex";
+      } else {
+        badgeContainer.style.display = "none";
+      }
+
+      renderRemoteCellCursors();
+    });
+  }
+
+  // ==================== 관리자 계정 관리 ====================
+  bindEvent('btn-show-admin', 'click', () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') {
+      return alert("관리자 권한이 있는 계정만 접근할 수 있습니다.");
+    }
+    document.getElementById('admin-modal').style.display = 'flex';
+    loadUserList(true);
+  });
+
+  bindEvent('btn-close-admin', 'click', () => {
+    document.getElementById('admin-modal').style.display = 'none';
+  });
+
+  bindEvent('tab-list', 'click', () => {
+    document.getElementById('tab-list')?.classList.add('active');
+    document.getElementById('tab-create')?.classList.remove('active');
+    document.getElementById('view-list')?.classList.add('active');
+    document.getElementById('view-create')?.classList.remove('active');
+    loadUserList(false);
+  });
+
+  bindEvent('tab-create', 'click', () => {
+    document.getElementById('tab-create')?.classList.add('active');
+    document.getElementById('tab-list')?.classList.remove('active');
+    document.getElementById('view-create')?.classList.add('active');
+    document.getElementById('view-list')?.classList.remove('active');
+  });
+
+  bindEvent('user-search-input', 'input', (e) => {
+    userSearchQuery = e.target.value.trim().toLowerCase();
+    userCurrentPage = 1;
+    renderUserTablePage();
+  });
+
+  bindEvent('btn-reset-sort', 'click', () => {
+    userSortField = 'default';
+    userSortOrder = 'asc';
+    userCurrentPage = 1;
+    updateSortHeaderIcons();
+    renderUserTablePage();
+  });
+
+  function toggleColumnSort(field) {
+    if (userSortField === field) {
+      userSortOrder = (userSortOrder === 'asc') ? 'desc' : 'asc';
+    } else {
+      userSortField = field;
+      userSortOrder = 'asc';
+    }
+    userCurrentPage = 1;
+    updateSortHeaderIcons();
+    renderUserTablePage();
+  }
+
+  function updateSortHeaderIcons() {
+    const fields = ['dept', 'name', 'id'];
+    fields.forEach(f => {
+      const iconEl = document.getElementById(`sort-icon-${f}`);
+      if (!iconEl) return;
+      if (userSortField === f) {
+        iconEl.innerText = userSortOrder === 'asc' ? '▲' : '▼';
+      } else {
+        iconEl.innerText = '↕';
+      }
+    });
+  }
+
+  bindEvent('th-sort-dept', 'click', () => toggleColumnSort('dept'));
+  bindEvent('th-sort-name', 'click', () => toggleColumnSort('name'));
+  bindEvent('th-sort-id', 'click', () => toggleColumnSort('id'));
+
+  function compareDefaultSort(a, b) {
+    const roleA = a.role === 'admin' ? 0 : 1;
+    const roleB = b.role === 'admin' ? 0 : 1;
+    if (roleA !== roleB) return roleA - roleB;
+
+    const deptCmp = (a.dept || '').localeCompare(b.dept || '', 'ko', { numeric: true });
+    if (deptCmp !== 0) return deptCmp;
+
+    return (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true });
+  }
+
+  async function signInSecondaryForUser(userItem) {
+    const candidates = [
+      sessionStorage.getItem(`login_pw_${userItem.uid}`),
+      userItem.bridgeAuthPw,
+      userItem.bridgePw,
+      userItem.authPw,
+      userItem.pw,
+      toAuthPassword(userItem.id),
+      userItem.id
+    ].filter(Boolean);
+
+    const uniqueCandidates = [...new Set(candidates)];
+    let lastError = null;
+
+    for (const candidatePw of uniqueCandidates) {
+      try {
+        const cred = await signInWithEmailAndPassword(secondaryAuth, userItem.email, candidatePw);
+        return cred;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("인증 정보를 확인할 수 없습니다.");
+  }
+
+  async function loadUserList(resetState = false) {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+    if (resetState) {
+      userSearchQuery = "";
+      document.getElementById('user-search-input').value = "";
+      userSortField = "default";
+      userSortOrder = "asc";
+      userCurrentPage = 1;
+      updateSortHeaderIcons();
+    }
+
+    const tbody = document.getElementById('user-list-body');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px;">사용자 목록을 불러오는 중...</td></tr>';
+
+    try {
+      const [querySnapshot, bridgeSnap] = await Promise.all([
+        getDocs(collection(db, "users")),
+        getDoc(doc(db, "sheets", "user_cred_sync")).catch(() => null)
+      ]);
+      const bridgeData = (bridgeSnap && bridgeSnap.exists()) ? bridgeSnap.data() : {};
+
+      allUsersCache = [];
+      querySnapshot.forEach((docSnap) => {
+        const uid = docSnap.id;
+        const data = docSnap.data();
+        const bInfo = bridgeData[uid] || {};
+        const emailStr = data.email || bInfo.email || (data.id ? data.id + domain : '');
+        const idOnly = data.id || bInfo.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+
+        allUsersCache.push({
+          uid: uid,
+          id: idOnly || '',
+          email: emailStr,
+          name: data.name || '',
+          dept: data.dept || '',
+          role: data.role || 'user',
+          pw: data.pw || '',
+          authPw: data.authPw || '',
+          bridgePw: bInfo.pw || '',
+          bridgeAuthPw: bInfo.authPw || ''
+        });
+      });
+
+      renderUserTablePage();
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red; padding: 20px;">목록 로드 실패: ${getKoreanAuthErrorMessage(err)}</td></tr>`;
+    }
+  }
+
+  function renderUserTablePage() {
+    const tbody = document.getElementById('user-list-body');
+    const paginationEl = document.getElementById('user-pagination');
+    const countLabel = document.getElementById('user-count-label');
+
+    let filtered = allUsersCache.filter(u => {
+      if (!userSearchQuery) return true;
+      const d = (u.dept || '').toLowerCase();
+      const n = (u.name || '').toLowerCase();
+      const i = (u.id || '').toLowerCase();
+      return d.includes(userSearchQuery) || n.includes(userSearchQuery) || i.includes(userSearchQuery);
+    });
+
+    filtered.sort((a, b) => {
+      if (userSortField === 'default') {
+        return compareDefaultSort(a, b);
+      }
+      const valA = String(a[userSortField] || '');
+      const valB = String(b[userSortField] || '');
+      const cmp = valA.localeCompare(valB, 'ko', { numeric: true });
+      if (cmp !== 0) {
+        return userSortOrder === 'asc' ? cmp : -cmp;
+      }
+      return compareDefaultSort(a, b);
+    });
+
+    countLabel.innerText = `총 ${filtered.length}명`;
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / USERS_PER_PAGE));
+    if (userCurrentPage > totalPages) userCurrentPage = totalPages;
+    if (userCurrentPage < 1) userCurrentPage = 1;
+
+    const startIdx = (userCurrentPage - 1) * USERS_PER_PAGE;
+    const pageItems = filtered.slice(startIdx, startIdx + USERS_PER_PAGE);
+
+    tbody.innerHTML = '';
+
+    if (pageItems.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 24px; color:#888;">검색 조건에 일치하는 사용자가 없습니다.</td></tr>';
+      paginationEl.innerHTML = '';
+      return;
+    }
+
+    pageItems.forEach((userItem) => {
+      const uid = userItem.uid;
+      const idOnly = userItem.id;
+      const emailStr = userItem.email || (idOnly ? idOnly + domain : '');
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <input type="text" class="inline-dept-input" value="${userItem.dept}" placeholder="부서명 입력">
+        </td>
+        <td title="${userItem.name}">
+          ${userItem.role === 'admin' ? '<span class="role-dot-admin" title="관리자"></span>' : ''}<b>${userItem.name || '-'}</b>
+        </td>
+        <td title="${emailStr}">
+          <span style="color:#1a73e8; font-weight:600;">${idOnly}</span>
+        </td>
+        <td>
+          <select class="inline-role-select">
+            <option value="user" ${userItem.role !== 'admin' ? 'selected' : ''}>일반 사용자</option>
+            <option value="admin" ${userItem.role === 'admin' ? 'selected' : ''}>관리자</option>
+          </select>
+        </td>
+        <td>
+          <div class="action-buttons">
+            <button class="small-btn save-row-btn" title="부서명 및 권한 변경사항을 저장합니다">변경저장</button>
+            <button class="small-btn warn-btn reset-pw-btn" title="비밀번호를 아이디와 동일하게 초기화합니다">PW초기화</button>
+            <button class="small-btn danger-btn delete-user-btn" title="계정을 완전히 삭제합니다">삭제</button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+
+      tr.querySelector('.save-row-btn').addEventListener('click', async () => {
+        const newDept = tr.querySelector('.inline-dept-input').value.trim();
+        const newRole = tr.querySelector('.inline-role-select').value;
+
+        if (!newDept) return alert("부서명을 입력해 주세요.");
+        if (uid === currentUserInfo.uid && newRole !== 'admin') {
+          return alert("현재 로그인 중인 관리자 본인의 권한은 일반 사용자로 해제할 수 없습니다.");
+        }
+
+        try {
+          await setDoc(doc(db, "users", uid), {
+            dept: newDept,
+            role: newRole
+          }, { merge: true });
+          userItem.dept = newDept;
+          userItem.role = newRole;
+          alert(`[${userItem.name}] 님의 부서(${newDept}) 및 권한(${newRole === 'admin' ? '관리자' : '일반 사용자'}) 수정이 완료되었습니다.`);
+          renderUserTablePage();
+        } catch (err) {
+          alert("정보 수정 실패: " + getKoreanAuthErrorMessage(err));
+        }
+      });
+
+      tr.querySelector('.reset-pw-btn').addEventListener('click', async () => {
+        if (!confirm(`[${userItem.name} (${idOnly})] 님의 비밀번호를 아이디(${idOnly})와 동일하게 초기화하시겠습니까?\n(초기화 후 기존 비밀번호로는 로그인이 차단되며, 다음 로그인 시 새 비밀번호 변경창이 자동으로 뜹니다.)`)) return;
+
+        const targetInitialPw = idOnly;
+        const targetAuthPw = toAuthPassword(targetInitialPw);
+
+        try {
+          let directAuthUpdated = false;
+
+          if (uid === currentUserInfo.uid && auth.currentUser) {
+            try {
+              await updatePassword(auth.currentUser, targetAuthPw);
+              directAuthUpdated = true;
+            } catch (_) {
+              try {
+                const cred = await signInSecondaryForUser(userItem);
+                await updatePassword(cred.user, targetAuthPw);
+                await signOut(secondaryAuth);
+                directAuthUpdated = true;
+              } catch (__) {}
+            }
+            localStorage.removeItem(`pw_changed_done_${uid}`);
+            sessionStorage.setItem(`login_pw_${uid}`, targetInitialPw);
+          } else {
+            try {
+              const cred = await signInSecondaryForUser(userItem);
+              await updatePassword(cred.user, targetAuthPw);
+              await signOut(secondaryAuth);
+              directAuthUpdated = true;
+            } catch (_) {
+              directAuthUpdated = false;
+            }
+          }
+
+          await setDoc(doc(db, "users", uid), {
+            id: idOnly,
+            pw: directAuthUpdated ? targetInitialPw : (userItem.pw || targetInitialPw),
+            authPw: directAuthUpdated ? targetAuthPw : (userItem.authPw || targetAuthPw),
+            mustChangePw: true,
+            forceResetToId: true,
+            pwUpdatedAt: 0
+          }, { merge: true });
+
+          await setDoc(doc(db, "sheets", "user_cred_sync"), {
+            [uid]: {
+              id: idOnly,
+              email: emailStr,
+              pw: directAuthUpdated ? targetInitialPw : (userItem.bridgePw || userItem.pw || targetInitialPw),
+              authPw: directAuthUpdated ? targetAuthPw : (userItem.bridgeAuthPw || userItem.authPw || targetAuthPw),
+              mustChangePw: true,
+              forceResetToId: true,
+              pwUpdatedAt: 0,
+              updatedAt: Date.now()
+            }
+          }, { merge: true });
+
+          if (directAuthUpdated) {
+            userItem.pw = targetInitialPw;
+            userItem.authPw = targetAuthPw;
+            userItem.bridgePw = targetInitialPw;
+            userItem.bridgeAuthPw = targetAuthPw;
+          }
+
+          alert(`[${userItem.name} (${idOnly})] 님의 비밀번호 초기화가 완료되었습니다.\n• 초기화된 비밀번호: ${idOnly}\n※ 이제 기존 비밀번호로 접속이 차단되며, 로그인 시 새 비밀번호 설정창이 자동으로 표시됩니다.`);
+        } catch (err) {
+          alert("비밀번호 초기화 실패: " + getKoreanAuthErrorMessage(err));
+        }
+      });
+
+      tr.querySelector('.delete-user-btn').addEventListener('click', async () => {
+        if (uid === currentUserInfo.uid) {
+          return alert("현재 로그인 중인 관리자 본인의 계정은 삭제할 수 없습니다.");
+        }
+        if (!confirm(`[${userItem.name} (${idOnly})] 계정을 완전히 삭제하시겠습니까?`)) return;
+
+        let authDeleted = false;
+        try {
+          if (emailStr) {
+            try {
+              const cred = await signInSecondaryForUser(userItem);
+              await deleteUser(cred.user);
+              authDeleted = true;
+            } catch (authErr) {
+              console.warn("Auth 서버 계정 삭제 실패:", authErr);
+            }
+          }
+
+          await deleteDoc(doc(db, "users", uid));
+          await deleteDoc(doc(db, "presence", uid)).catch(() => {});
+          allUsersCache = allUsersCache.filter(u => u.uid !== uid);
+          renderUserTablePage();
+
+          if (authDeleted) {
+            alert(`[${userItem.name} (${idOnly})] 계정이 Firebase 인증 서버와 데이터베이스에서 모두 완전히 삭제되었습니다.`);
+          } else {
+            alert(`[${userItem.name} (${idOnly})] 계정의 시스템 접근 권한(DB)이 완전히 삭제되어 로그인이 즉시 차단되었습니다.`);
+          }
+        } catch (err) {
+          alert("계정 삭제 실패: " + getKoreanAuthErrorMessage(err));
+        }
+      });
+    });
+
+    paginationEl.innerHTML = '';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'page-btn';
+    prevBtn.innerText = '◀ 이전';
+    prevBtn.disabled = (userCurrentPage <= 1);
+    prevBtn.addEventListener('click', () => {
+      if (userCurrentPage > 1) {
+        userCurrentPage--;
+        renderUserTablePage();
+      }
+    });
+    paginationEl.appendChild(prevBtn);
+
+    for (let p = 1; p <= totalPages; p++) {
+      const pageBtn = document.createElement('button');
+      pageBtn.className = 'page-btn' + (p === userCurrentPage ? ' active' : '');
+      pageBtn.innerText = String(p);
+      pageBtn.addEventListener('click', () => {
+        userCurrentPage = p;
+        renderUserTablePage();
+      });
+      paginationEl.appendChild(pageBtn);
+    }
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'page-btn';
+    nextBtn.innerText = '다음 ▶';
+    nextBtn.disabled = (userCurrentPage >= totalPages);
+    nextBtn.addEventListener('click', () => {
+      if (userCurrentPage < totalPages) {
+        userCurrentPage++;
+        renderUserTablePage();
+      }
+    });
+    paginationEl.appendChild(nextBtn);
+  }
+
+  bindEvent('btn-create-user', 'click', async () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+
+    const rawId = document.getElementById('new-id').value.trim();
+    const id = rawId.includes('@') ? rawId.split('@')[0] : rawId;
+    const name = document.getElementById('new-name').value.trim();
+    const dept = document.getElementById('new-dept').value.trim();
+    const role = document.getElementById('new-role').value;
+
+    if (!id) return alert("발급할 아이디를 입력해 주세요.");
+    if (!name) return alert("사용자 성명을 입력해 주세요.");
+    if (!dept) return alert("소속 부서명을 입력해 주세요.");
+
+    const initialPw = id;
+    const authPw = toAuthPassword(initialPw);
+    const email = id + domain;
+
+    try {
+      let userCred;
+      try {
+        userCred = await createUserWithEmailAndPassword(secondaryAuth, email, authPw);
+      } catch (createErr) {
+        if (createErr.code === 'auth/email-already-in-use') {
+          try {
+            userCred = await signInWithEmailAndPassword(secondaryAuth, email, authPw);
+          } catch (_) {
+            throw createErr;
+          }
+        } else {
+          throw createErr;
+        }
+      }
+
+      await setDoc(doc(db, "users", userCred.user.uid), {
+        id: id,
+        email: email,
+        name: name,
+        dept: dept,
+        role: role,
+        pw: initialPw,
+        authPw: authPw,
+        mustChangePw: true,
+        forceResetToId: true,
+        pwUpdatedAt: 0,
+        createdAt: Date.now()
+      });
+      await syncUserCredentialBridge(userCred.user.uid, id, email, initialPw, 0, true);
+      await signOut(secondaryAuth);
+
+      alert(`[${name}] 님의 계정이 정상 발급되었습니다.\n• 아이디: ${id}\n• 초기 비밀번호: ${initialPw} (아이디와 동일)\n※ 최초 로그인 시 비밀번호 변경창(영문+숫자+특수문자 8자리 이상)이 자동으로 표시됩니다.`);
+      document.getElementById('new-id').value = '';
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-dept').value = '';
+      document.getElementById('tab-list')?.click();
+      loadUserList(false);
+    } catch (error) {
+      alert("계정 발급 실패: " + getKoreanAuthErrorMessage(error));
+    }
+  });
+</script>
+</body>
+</html>
