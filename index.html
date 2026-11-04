@@ -80,8 +80,6 @@
     
     .header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
     .header-actions button { padding: 8px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap; }
-    #btn-toggle-mask-preview { background: #f8f9fa; color: #3c4043; border: 1px solid #dadce0; display: none; }
-    #btn-toggle-mask-preview.active { background: #fce8e6; color: #c5221f; border-color: #f28b82; }
     #btn-show-files { background: #673ab7; color: white; display: none; }
     #btn-show-files:hover { background: #512da8; }
     #btn-show-admin { background: #34a853; color: white; display: none; }
@@ -211,7 +209,6 @@
       <div id="concurrent-users"></div>
     </div>
     <div class="header-actions">
-      <button id="btn-toggle-mask-preview" title="일반 사용자에게 보이는 개인정보 마스킹 화면을 미리 확인합니다">👁️ 마스킹 미리보기</button>
       <button id="btn-show-files" style="display: none;">📂 문서함/권한</button>
       <button id="btn-show-admin" style="display: none;">계정 관리(관리자)</button>
       <button id="btn-logout">로그아웃</button>
@@ -435,6 +432,7 @@
   const secondaryAuth = getAuth(secondaryApp);
   const domain = "@helloconnectn.com";
 
+  // 안전한 이벤트 등록 헬퍼 함수 (특정 요소가 없더라도 스크립트 전체가 멈추지 않도록 보호)
   function bindEvent(id, eventName, handler) {
     const el = document.getElementById(id);
     if (el) el.addEventListener(eventName, handler);
@@ -514,253 +512,6 @@
       return { valid: false, message: "비밀번호는 영문, 숫자, 특수문자 3종류를 모두 조합하여 8자리 이상으로 입력해 주세요." };
     }
     return { valid: true };
-  }
-
-  // ==================== ★ 개인정보 자동 마스킹 엔진 (B방식: DB 원본 보존 + 화면 마스킹) ====================
-  // 관리자도 마스킹 상태를 점검할 수 있는 미리보기 토글 변수
-  let isAdminMaskPreview = false;
-
-  // 현재 접속자의 화면에 마스킹을 적용해야 하는지 판단 (일반 사용자는 항상 적용, 관리자는 미리보기 켜진 경우만 적용)
-  function shouldApplyScreenMasking() {
-    if (!currentUserInfo) return true;
-    if (currentUserInfo.role !== 'admin') return true;
-    return isAdminMaskPreview;
-  }
-
-  // 1) 제외 대상 열 키워드 (사내 직원명, 담당자, 고객번호, 고객계정, 고번 등은 절대 마스킹하지 않음)
-  const EXCLUDE_HEADER_KEYWORDS = [
-    '소개자', '영업자', '영업매니저', '매니저', '플래너', '담당자', '컨택담당', '설치기사', '기사명', '작성자', '등록자', '사원', '직원',
-    '고객번호', '고객계정', '고번', '개소번호', '계약번호', '청구번호', '가입번호', '사업자번호', '법인번호', '관리번호', '일련번호', '우편번호',
-    '관할센터', '센터', '부서', '개소명', '상호', '업체명', '모델명', '통신사', '요금', '단가', '룸수', '일자', '날짜', '만료월', '구분', '주소', '아이디', 'id'
-  ];
-
-  // 2) 마스킹 대상 열 키워드
-  const NAME_HEADER_KEYWORDS = ['고객명', '고객성명', '가입자명', '계약자명', '계약자', '수취인', '수령인', '명의자', '예금주', '입금자', '신청인', '대표자명', '대표자', '성명', '이름'];
-  const PHONE_HEADER_KEYWORDS = ['전화번호', '전화', '연락처', '휴대폰', '핸드폰', '유선번호', '모바일', '팩스', 'tel', 'hp'];
-  const ACCOUNT_HEADER_KEYWORDS = ['계좌번호', '계좌', '출금계좌', '입금계좌', '환불계좌', '은행계좌'];
-
-  // 열 제목이 아닌 일반 명사/직책은 이름 마스킹에서 제외
-  const NON_NAME_WORDS = new Set(['대표', '직원', '사장', '총무', '실장', '팀장', '과장', '부장', '차장', '대리', '주임', '점장', '원장', '관장', '미상', '미확인', '확인불가', '없음', '본인', '가족', '공실', '일반', '숙박업']);
-
-  function classifyHeaderLabel(rawLabel) {
-    if (!rawLabel) return null;
-    const clean = String(rawLabel).replace(/\s+/g, '').toLowerCase();
-    if (!clean || clean.length > 20) return null;
-
-    // 직원명(소개자명, 영업자명, 플래너, 담당자 등) 및 고객번호(고번, 고객계정 등) 최우선 제외
-    for (const ex of EXCLUDE_HEADER_KEYWORDS) {
-      if (clean.includes(ex)) return 'EXCLUDED';
-    }
-    for (const ph of PHONE_HEADER_KEYWORDS) {
-      if (clean.includes(ph)) return 'PHONE';
-    }
-    for (const ac of ACCOUNT_HEADER_KEYWORDS) {
-      if (clean.includes(ac)) return 'ACCOUNT';
-    }
-    for (const nm of NAME_HEADER_KEYWORDS) {
-      if (clean.includes(nm)) return 'NAME';
-    }
-    return null;
-  }
-
-  // 고객명 가운데 1글자 마스킹 (홍길동 -> 홍*동, 이산 -> 이*, 남궁민수 -> 남*민수)
-  function maskPersonNameMiddleOne(val) {
-    if (val === null || val === undefined) return val;
-    const str = String(val).trim();
-    if (str.length < 2 || str.includes('*')) return val;
-    if (NON_NAME_WORDS.has(str)) return val;
-    // 순수 숫자나 날짜 형태는 이름이 아니므로 패스
-    if (/^[0-9-\/.:\s]+$/.test(str)) return val;
-
-    // 괄호가 포함된 경우 (예: 홍길동(본인)) 앞의 이름 부분만 마스킹
-    const parenIdx = str.indexOf('(');
-    if (parenIdx >= 2) {
-      const namePart = str.slice(0, parenIdx).trim();
-      const restPart = str.slice(parenIdx);
-      return maskPersonNameMiddleOne(namePart) + restPart;
-    }
-
-    if (str.length === 2) {
-      return str[0] + '*';
-    }
-    const midIdx = Math.floor((str.length - 1) / 2);
-    return str.slice(0, midIdx) + '*' + str.slice(midIdx + 1);
-  }
-
-  // 전화번호 가운데 2자리 마스킹 (010-1234-5678 -> 010-1**4-5678, 텍스트 내부 전화번호도 감지)
-  function maskPhoneMiddleTwo(val) {
-    if (val === null || val === undefined) return val;
-    const str = String(val);
-
-    // 1) 하이픈이 있는 전화번호 패턴 (예: 010-3544-4239, 02-123-4567)
-    const hyphenRegex = /(01[016789]|02|0[3-9][0-9])-(\d{3,4})-(\d{4})/g;
-    if (hyphenRegex.test(str)) {
-      return str.replace(/(01[016789]|02|0[3-9][0-9])-(\d{3,4})-(\d{4})/g, (match, p1, p2, p3) => {
-        const maskedMid = p2.length === 4 ? (p2[0] + '**' + p2[3]) : (p2[0] + '**');
-        return `${p1}-${maskedMid}-${p3}`;
-      });
-    }
-
-    // 2) 하이픈 없는 10~11자리 휴대폰/지역 전화번호 (예: 01012345678)
-    const plainPhoneRegex = /\b(01[016789]\d{7,8}|02\d{7,8}|0[3-6][1-5]\d{7,8})\b/g;
-    if (plainPhoneRegex.test(str)) {
-      return str.replace(plainPhoneRegex, (m) => {
-        const mid = Math.floor(m.length / 2) - 1;
-        return m.slice(0, mid) + '**' + m.slice(mid + 2);
-      });
-    }
-    return val;
-  }
-
-  // 계좌번호 가운데 2자리 마스킹 (예: 110-123-456789 -> 110-1**3-456789)
-  function maskAccountMiddleTwo(val) {
-    if (val === null || val === undefined) return val;
-    const str = String(val).trim();
-    if (str.includes('*')) return val;
-
-    // 숫자 개수가 최소 7개 이상일 때만 계좌번호로 간주하고 전체 숫자의 정중앙 2자리를 '*'로 변환
-    const digitPositions = [];
-    for (let i = 0; i < str.length; i++) {
-      if (/[0-9]/.test(str[i])) digitPositions.push(i);
-    }
-    if (digitPositions.length < 7) return val;
-
-    const midIdx = Math.floor(digitPositions.length / 2) - 1;
-    const pos1 = digitPositions[midIdx];
-    const pos2 = digitPositions[midIdx + 1];
-    const chars = str.split('');
-    chars[pos1] = '*';
-    chars[pos2] = '*';
-    return chars.join('');
-  }
-
-  // 열 분류 타입과 헤더 행 번호에 따라 셀 값 마스킹 계산
-  function computeMaskedValueForCell(rawVal, colType) {
-    if (rawVal === null || rawVal === undefined || rawVal === '') return rawVal;
-    if (colType === 'EXCLUDED') return rawVal;
-
-    const strVal = String(rawVal);
-    if (colType === 'NAME') {
-      return maskPersonNameMiddleOne(strVal);
-    }
-    if (colType === 'PHONE') {
-      return maskPhoneMiddleTwo(strVal);
-    }
-    if (colType === 'ACCOUNT') {
-      return maskAccountMiddleTwo(strVal);
-    }
-    // 특별히 지정되지 않은 일반 열(비고 등)에서도 휴대폰 번호(010-xxxx-xxxx)가 적혀 있으면 자동 마스킹
-    if (/(01[016789])-(\d{3,4})-(\d{4})/.test(strVal)) {
-      return maskPhoneMiddleTwo(strVal);
-    }
-    return rawVal;
-  }
-
-  // 시트의 상단 1~5행(index 0~4)을 스캔하여 각 열(Column)의 타입(NAME, PHONE, ACCOUNT, EXCLUDED) 맵 생성
-  function analyzeSheetColumnTypes(sheet) {
-    const colTypeMap = new Map(); // colIndex -> { type, headerRow }
-    const maxScanRow = 5;
-
-    if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
-      const scanLimit = Math.min(sheet.data.length, maxScanRow);
-      for (let r = 0; r < scanLimit; r++) {
-        const rowArr = sheet.data[r];
-        if (!rowArr) continue;
-        for (let c = 0; c < rowArr.length; c++) {
-          const cell = rowArr[c];
-          const rawText = cell ? (cell._rawV ?? cell.v ?? cell.m ?? '') : '';
-          const detected = classifyHeaderLabel(rawText);
-          if (detected) {
-            colTypeMap.set(c, { type: detected, headerRow: r });
-          }
-        }
-      }
-    } else if (sheet.celldata && Array.isArray(sheet.celldata)) {
-      for (let i = 0; i < sheet.celldata.length; i++) {
-        const item = sheet.celldata[i];
-        if (!item || item.r >= maxScanRow) continue;
-        const cell = item.v;
-        const rawText = cell ? (cell._rawV ?? cell.v ?? cell.m ?? '') : '';
-        const detected = classifyHeaderLabel(rawText);
-        if (detected) {
-          colTypeMap.set(item.c, { type: detected, headerRow: item.r });
-        }
-      }
-    }
-    return colTypeMap;
-  }
-
-  // 단일 셀 객체에 화면 표시용 마스킹 적용 또는 원본 복원 (DB 원본 _rawV는 절대 훼손하지 않음)
-  function applyDisplayMaskToCellObj(cell, r, c, colTypeMap, maskActive) {
-    if (!cell || typeof cell !== 'object') return cell;
-    if (cell.f) return cell; // 수식 셀은 건드리지 않음
-
-    // 최초 원본값 백업
-    if (cell._rawV === undefined && cell.v !== undefined) {
-      cell._rawV = cell.v;
-      cell._rawM = cell.m !== undefined ? cell.m : String(cell.v ?? '');
-    }
-    const trueRawV = cell._rawV !== undefined ? cell._rawV : cell.v;
-    const trueRawM = cell._rawM !== undefined ? cell._rawM : (cell.m !== undefined ? cell.m : String(trueRawV ?? ''));
-
-    const colInfo = colTypeMap.get(c);
-    // 헤더 행(제목 셀 자체)은 마스킹하지 않음
-    if (colInfo && r <= colInfo.headerRow) {
-      cell.v = trueRawV;
-      cell.m = trueRawM;
-      return cell;
-    }
-
-    const colType = colInfo ? colInfo.type : null;
-    const maskedStr = String(computeMaskedValueForCell(trueRawM || trueRawV, colType));
-    cell._maskedV = maskedStr;
-
-    if (maskActive && maskedStr !== String(trueRawV ?? '')) {
-      cell.v = maskedStr;
-      cell.m = maskedStr;
-    } else {
-      cell.v = trueRawV;
-      cell.m = trueRawM;
-    }
-    return cell;
-  }
-
-  // 시트 전체(2차원 data 배열 및 celldata 배열)에 마스킹/원본 뷰 일괄 반영
-  function applyPrivacyViewToSheet(sheet) {
-    if (!sheet) return sheet;
-    const maskActive = shouldApplyScreenMasking();
-    const colTypeMap = analyzeSheetColumnTypes(sheet);
-
-    if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
-      for (let r = 0; r < sheet.data.length; r++) {
-        const rowArr = sheet.data[r];
-        if (!rowArr) continue;
-        for (let c = 0; c < rowArr.length; c++) {
-          if (rowArr[c]) {
-            applyDisplayMaskToCellObj(rowArr[c], r, c, colTypeMap, maskActive);
-          }
-        }
-      }
-    }
-    if (sheet.celldata && Array.isArray(sheet.celldata)) {
-      for (let i = 0; i < sheet.celldata.length; i++) {
-        const item = sheet.celldata[i];
-        if (item && item.v) {
-          applyDisplayMaskToCellObj(item.v, item.r, item.c, colTypeMap, maskActive);
-        }
-      }
-    }
-    return sheet;
-  }
-
-  function refreshAllSheetsPrivacyView() {
-    if (!window.luckysheet || typeof window.luckysheet.getluckysheetfile !== 'function') return;
-    const liveFiles = window.luckysheet.getluckysheetfile();
-    if (!liveFiles) return;
-    liveFiles.forEach(s => applyPrivacyViewToSheet(s));
-    if (typeof window.luckysheet.jfrefreshgrid === 'function') {
-      window.luckysheet.jfrefreshgrid();
-    }
   }
 
   const clientSessionId = "sess_" + Math.random().toString(36).substring(2, 10) + "_" + Date.now();
@@ -919,4 +670,2380 @@
       undo: '실행 취소', redo: '다시 실행', paintFormat: '서식 복사', currencyFormat: '통화 서식',
       percentageFormat: '백분율 서식', numberDecrease: '소수점 줄임', numberIncrease: '소수점 늘림',
       moreFormats: '표시 형식', font: '글꼴', fontSize: '글자 크기', bold: '굵게', italic: '기울임꼴',
-      strikethrough: '취소선', underline: '밑줄', textColor: '글자 색상', reset
+      strikethrough: '취소선', underline: '밑줄', textColor: '글자 색상', resetColor: '색상 초기화',
+      fillColor: '채우기 색상', border: '테두리', borderColor: '테두리 색상', borderStyle: '테두리 스타일',
+      mergeCell: '셀 병합', chooseMergeType: '병합 유형 선택', horizontalAlign: '가로 정렬',
+      verticalAlign: '세로 정렬', textWrap: '줄 바꿈', textWrapMode: '줄 바꿈 방식',
+      textRotate: '텍스트 회전', textRotateMode: '회전 방식', insertImage: '이미지 삽입',
+      insertLink: '링크 삽입', chart: '차트', postil: '메모', pivotTable: '피벗 테이블',
+      function: '함수', freeze: '틀 고정', sortAndFilter: '정렬 및 필터',
+      conditionalFormat: '조건부 서식', dataVerification: '데이터 유효성 검사',
+      splitColumn: '텍스트 나누기', screenshot: '스크린샷', findAndReplace: '찾기 및 바꾸기',
+      protection: '시트 보호', print: '인쇄', more: '더보기', close: '닫기', clearFormat: '서식 지우기'
+    });
+
+    safePatchStringsOnly(en.rightclick, {
+      copy: '복사', copyAs: '다른 형식으로 복사', paste: '붙여넣기',
+      insert: '삽입', delete: '삭제', deleteCell: '셀 삭제', deleteSelected: '선택한 ',
+      hide: '숨기기', hideSelected: '선택한 ', showHide: '숨기기 취소 ',
+      to: '방향', left: '왼쪽', right: '오른쪽', top: '위쪽', bottom: '아래쪽',
+      moveLeft: '왼쪽으로 밀기', moveUp: '위로 밀기',
+      add: '추가', row: '행', column: '열', width: '너비', height: '높이',
+      clearContent: '내용 지우기', matrix: '행렬 연산', sortSelection: '정렬',
+      filterSelection: '필터', chartGeneration: '차트 생성', image: '이미지 삽입',
+      link: '링크 삽입', data: '데이터 유효성 검사', cellFormat: '셀 서식 설정'
+    });
+
+    safePatchStringsOnly(en.button, {
+      confirm: '확인', cancel: '취소', close: '닫기', update: '업데이트', delete: '삭제',
+      insert: '삽입', prevPage: '이전', nextPage: '다음'
+    });
+
+    safePatchStringsOnly(en.dataVerification, {
+      cellRange: '적용할 셀 범위', verificationCondition: '유효성 검사 조건',
+      dropdown: '드롭다운 목록', checkbox: '체크박스', number: '숫자', number_integer: '숫자 (정수)',
+      number_decimal: '숫자 (소수)', text_content: '텍스트 내용', text_length: '텍스트 길이',
+      date: '날짜', validity: '유효성 형식', placeholder1: '목록 항목을 쉼표(,)로 구분하여 입력하거나 셀 범위를 선택하세요',
+      remote: '원격 옵션 자동 가져오기', prohibitInput: '유효하지 않은 데이터 입력 시 거부',
+      hintShow: '셀 선택 시 안내 문구 표시', deleteVerification: '유효성 검사 삭제',
+      verification: '데이터 유효성 검사', between: '사이', notBetween: '사이에 없음',
+      equal: '같음', notEqualTo: '같지 않음', moreThanThe: '보다 큼', lessThan: '보다 작음',
+      greaterOrEqualTo: '크거나 같음', lessThanOrEqualTo: '작거나 같음', include: '포함', exclude: '포함하지 않음',
+      earlierThan: '이전 날짜', laterThan: '이후 날짜'
+    });
+
+    safePatchStringsOnly(en.sheetconfig, {
+      delete: '시트 삭제', copy: '시트 복제', rename: '이름 변경', move: '시트 이동',
+      hide: '시트 숨기기', unhide: '숨기기 취소', color: '탭 색상', resetColor: '색상 초기화',
+      left: '왼쪽으로 이동', right: '오른쪽으로 이동'
+    });
+  }
+
+  function translateUiElements(rootNode = document) {
+    rootNode.querySelectorAll('[data-tips]').forEach(el => {
+      const tip = el.getAttribute('data-tips')?.trim();
+      if (tip && KO_TEXT_MAP[tip]) {
+        el.setAttribute('data-tips', KO_TEXT_MAP[tip]);
+        el.setAttribute('title', KO_TEXT_MAP[tip]);
+      }
+    });
+
+    rootNode.querySelectorAll('input[placeholder]').forEach(inp => {
+      const ph = inp.getAttribute('placeholder')?.trim();
+      if (ph && KO_TEXT_MAP[ph]) inp.setAttribute('placeholder', KO_TEXT_MAP[ph]);
+    });
+
+    const targetContainers = rootNode === document
+      ? document.querySelectorAll('.luckysheet-wa-editor, .luckysheet-cols-menu, .luckysheet-modal-dialog, .luckysheet-sheet-area, #luckysheet-modal-dialog-slider-protection')
+      : [rootNode];
+
+    targetContainers.forEach(container => {
+      if (!container) return;
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null, false);
+      let node;
+      while ((node = walker.nextNode())) {
+        const raw = node.nodeValue;
+        const trimmed = raw ? raw.trim() : '';
+        if (!trimmed) continue;
+        if (KO_TEXT_MAP[trimmed]) {
+          node.nodeValue = raw.replace(trimmed, KO_TEXT_MAP[trimmed]);
+        } else if (trimmed === 'InsertRow') {
+          node.nodeValue = '행 삽입';
+        } else if (trimmed === 'InsertColumn') {
+          node.nodeValue = '열 삽입';
+        }
+      }
+    });
+  }
+
+  let currentUserInfo = null;
+  let saveTimeout = null;
+  let deltaFlushTimeout = null;
+  let isInitializing = true;
+  let isApplyingRemoteUpdate = false;
+  let isSavingInProgress = false;
+  let pendingSaveAfterCurrent = false;
+  let isLoggingIn = false;
+
+  const serializedSheetCache = new Map();
+  const sheetVersionMap = new Map();
+  const dirtySheetKeys = new Set();
+  let structureDirty = false;
+  let pendingDeltaCells = [];
+
+  let metaUnsubscribe = null;
+  let deltaUnsubscribe = null;
+  let presenceUnsubscribe = null;
+  let myUserUnsubscribe = null;
+
+  let currentCellState = { r: 0, c: 0, label: "A1", sheetName: "통합대시보드", rect: null };
+  let lastPresenceSentAt = 0;
+  let presenceTimer = null;
+  let lastPresenceSignature = "";
+  let latestRemoteUsers = [];
+
+  let allUsersCache = [];
+  let userSearchQuery = "";
+  let userSortField = "default";
+  let userSortOrder = "asc";
+  let userCurrentPage = 1;
+  const USERS_PER_PAGE = 10;
+
+  let normalUsersForPerm = [];
+  const selectedPermUserSet = new Set();
+  let permUserSearchFilter = "";
+
+  const dbStatusIndicator = document.getElementById('db-status-indicator');
+  const dbStatusText = document.getElementById('db-status-text');
+
+  function colToLetter(col) {
+    let temp, letter = '';
+    while (col >= 0) {
+      temp = col % 26;
+      letter = String.fromCharCode(temp + 65) + letter;
+      col = Math.floor((col - temp) / 26) - 1;
+    }
+    return letter;
+  }
+
+  function getDefaultData() {
+    if (currentFileId !== 'main') {
+      return [{
+        name: 'Sheet1',
+        index: '0',
+        order: 0,
+        status: 1,
+        row: 50,
+        column: 20,
+        config: {},
+        celldata: []
+      }];
+    }
+    const centers = ['통합대시보드', '부평센터', '계양센터', '해운대센터', '서부센터', '양산센터', '대구동구센터', '경주센터', '양천센터', '나라센터', '강릉센터', '속초센터'];
+    return centers.map((center, idx) => ({
+      name: center,
+      index: String(idx),
+      order: idx,
+      status: idx === 0 ? 1 : 0,
+      row: 50,
+      column: 20,
+      config: {},
+      celldata: []
+    }));
+  }
+
+  function getSelectedCellRect() {
+    const selBox = document.querySelector('#luckysheet-cell-selected-boxs .luckysheet-cell-selected');
+    if (!selBox) return null;
+    return {
+      left: parseFloat(selBox.style.left) || 0,
+      top: parseFloat(selBox.style.top) || 0,
+      width: parseFloat(selBox.style.width) || 74,
+      height: parseFloat(selBox.style.height) || 20
+    };
+  }
+
+  function getActiveSheetObj() {
+    if (window.luckysheet && typeof window.luckysheet.getluckysheetfile === 'function') {
+      const files = window.luckysheet.getluckysheetfile();
+      if (files && files.length > 0) {
+        return files.find(s => s.status == 1) || files[0];
+      }
+    }
+    return null;
+  }
+
+  function getActiveSheetName() {
+    const active = getActiveSheetObj();
+    return active ? active.name : (currentFileId === 'main' ? "통합대시보드" : "Sheet1");
+  }
+
+  function markActiveSheetDirty() {
+    const active = getActiveSheetObj();
+    if (active) {
+      dirtySheetKeys.add(toSafeDocKey(active.index));
+    }
+  }
+
+  function queueRealtimeCellDelta(r, c, newVal) {
+    const active = getActiveSheetObj();
+    if (!active) return;
+    const safeKey = toSafeDocKey(active.index);
+    pendingDeltaCells.push({
+      r: r,
+      c: c,
+      v: compactCell(newVal)
+    });
+
+    clearTimeout(deltaFlushTimeout);
+    deltaFlushTimeout = setTimeout(() => {
+      if (pendingDeltaCells.length === 0) return;
+      const batch = pendingDeltaCells.splice(0, 100);
+      setDoc(doc(db, "sheets", getDeltaDocName()), {
+        sessionId: clientSessionId,
+        fileId: currentFileId,
+        sheetKey: safeKey,
+        sheetName: active.name,
+        changes: batch,
+        config: active.config || {},
+        updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
+        timestamp: Date.now()
+      }).catch(() => {});
+    }, 80);
+  }
+
+  function injectCommaButton() {
+    if (document.getElementById('custom-comma-btn')) return;
+    const percentBtn = document.getElementById('luckysheet-icon-percent') || document.querySelector('[data-tips*="Percent"], [data-tips*="백분율"]');
+    const toolbar = document.getElementById('luckysheet-wa-editor') || document.querySelector('.luckysheet-toolbar-button-split-left')?.parentNode;
+    if (!percentBtn && !toolbar) return;
+
+    const commaBtn = document.createElement('div');
+    commaBtn.id = 'custom-comma-btn';
+    commaBtn.className = 'comma-format-btn';
+    commaBtn.setAttribute('data-tips', '천단위 콤마 (,) 서식');
+    commaBtn.title = '천단위 콤마 (,) 서식 적용';
+    commaBtn.innerText = ',';
+
+    commaBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const active = getActiveSheetObj();
+      if (!active || !active.data) return;
+
+      const ranges = active.luckysheet_select_save || [];
+      if (ranges.length === 0) return;
+
+      ranges.forEach(rng => {
+        const r1 = rng.row[0], r2 = rng.row[1];
+        const c1 = rng.column[0], c2 = rng.column[1];
+        for (let r = r1; r <= r2; r++) {
+          if (!active.data[r]) continue;
+          for (let c = c1; c <= c2; c++) {
+            let cell = active.data[r][c];
+            if (!cell || typeof cell !== 'object') {
+              cell = { v: cell ?? null };
+              active.data[r][c] = cell;
+            }
+            cell.ct = { fa: '#,##0', t: 'n' };
+            const num = Number(String(cell.v ?? '').replace(/,/g, ''));
+            if (cell.v !== null && cell.v !== undefined && cell.v !== '' && !isNaN(num)) {
+              cell.v = num;
+              cell.m = num.toLocaleString('ko-KR');
+            }
+            queueRealtimeCellDelta(r, c, cell);
+          }
+        }
+      });
+
+      if (typeof window.luckysheet.jfrefreshgrid === 'function') {
+        window.luckysheet.jfrefreshgrid();
+      }
+      markActiveSheetDirty();
+      triggerAutoSave(400);
+    });
+
+    if (percentBtn && percentBtn.parentNode) {
+      percentBtn.parentNode.insertBefore(commaBtn, percentBtn.nextSibling);
+    } else if (toolbar) {
+      toolbar.appendChild(commaBtn);
+    }
+  }
+
+  function compactCell(cell) {
+    if (!cell || typeof cell !== 'object') return null;
+    const c = {};
+    let hasProp = false;
+
+    if (cell.v !== undefined && cell.v !== null && cell.v !== '') { c.v = cell.v; hasProp = true; }
+    if (cell.m !== undefined && cell.m !== null && cell.m !== '' && String(cell.m) !== String(cell.v)) { c.m = cell.m; hasProp = true; }
+    if (cell.f) { c.f = cell.f; hasProp = true; }
+    if (cell.bg) { c.bg = cell.bg; hasProp = true; }
+    if (cell.fc && cell.fc !== '#000000' && cell.fc !== '#000' && cell.fc !== 'rgb(0, 0, 0)') { c.fc = cell.fc; hasProp = true; }
+    if (cell.bl) { c.bl = cell.bl; hasProp = true; }
+    if (cell.it) { c.it = cell.it; hasProp = true; }
+    if (cell.cl) { c.cl = cell.cl; hasProp = true; }
+    if (cell.un) { c.un = cell.un; hasProp = true; }
+    if (cell.fs && cell.fs !== 10 && cell.fs !== 11) { c.fs = cell.fs; hasProp = true; }
+    if (cell.ff && cell.ff !== 'Times New Roman' && cell.ff !== 0 && cell.ff !== '0') { c.ff = cell.ff; hasProp = true; }
+    if (cell.ht !== undefined && cell.ht !== 1 && cell.ht !== '1' && cell.ht !== 0 && cell.ht !== '0') { c.ht = cell.ht; hasProp = true; }
+    if (cell.vt !== undefined && cell.vt !== 1 && cell.vt !== '1' && cell.vt !== 0 && cell.vt !== '0') { c.vt = cell.vt; hasProp = true; }
+    if (cell.tb !== undefined && cell.tb !== 0 && cell.tb !== '0') { c.tb = cell.tb; hasProp = true; }
+    if (cell.mc) { c.mc = cell.mc; hasProp = true; }
+    if (cell.ps) { c.ps = cell.ps; hasProp = true; }
+    if (cell.ct) {
+      if (cell.ct.s && Array.isArray(cell.ct.s) && cell.ct.s.length > 0) {
+        c.ct = cell.ct; hasProp = true;
+      } else if (cell.ct.fa && cell.ct.fa !== 'General') {
+        c.ct = { fa: cell.ct.fa, t: cell.ct.t || 'g' }; hasProp = true;
+      }
+    }
+    return hasProp ? c : null;
+  }
+
+  function expandCell(cell) {
+    if (!cell || typeof cell !== 'object') return null;
+    const exp = { ...cell };
+    if (exp.v !== undefined && exp.m === undefined) {
+      exp.m = String(exp.v);
+    }
+    if (!exp.ct) {
+      exp.ct = { fa: 'General', t: typeof exp.v === 'number' ? 'n' : 'g' };
+    }
+    return exp;
+  }
+
+  function serializeSingleSheet(sheet, fallbackIdx = 0) {
+    let celldata = [];
+    let maxR = 0;
+    let maxC = 0;
+
+    if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
+      const rLen = sheet.data.length;
+      for (let r = 0; r < rLen; r++) {
+        const rowArr = sheet.data[r];
+        if (!rowArr) continue;
+        const cLen = rowArr.length;
+        for (let c = 0; c < cLen; c++) {
+          const rawCell = rowArr[c];
+          if (rawCell !== null && rawCell !== undefined) {
+            const slim = compactCell(rawCell);
+            if (slim) {
+              celldata.push({ r, c, v: slim });
+              if (r > maxR) maxR = r;
+              if (c > maxC) maxC = c;
+            }
+          }
+        }
+      }
+    } else if (sheet.celldata && Array.isArray(sheet.celldata)) {
+      const len = sheet.celldata.length;
+      for (let i = 0; i < len; i++) {
+        const item = sheet.celldata[i];
+        if (!item) continue;
+        const slim = compactCell(item.v);
+        if (slim) {
+          celldata.push({ r: item.r, c: item.c, v: slim });
+          if (item.r > maxR) maxR = item.r;
+          if (item.c > maxC) maxC = item.c;
+        }
+      }
+    }
+
+    const computedRow = Math.max(sheet.row || 50, maxR + 20, 50);
+    const computedCol = Math.max(sheet.column || 20, maxC + 5, 20);
+
+    const rawConfig = sheet.config || {};
+    const cleanConfig = { ...rawConfig };
+    if (Array.isArray(cleanConfig.borderInfo) && cleanConfig.borderInfo.length > 8000) {
+      cleanConfig.borderInfo = cleanConfig.borderInfo.slice(0, 8000);
+    }
+
+    return {
+      name: sheet.name || `Sheet${fallbackIdx + 1}`,
+      index: sheet.index !== undefined ? String(sheet.index) : String(fallbackIdx),
+      order: sheet.order !== undefined ? sheet.order : fallbackIdx,
+      status: sheet.status !== undefined ? sheet.status : 0,
+      row: computedRow,
+      column: computedCol,
+      config: cleanConfig,
+      calcChain: sheet.calcChain || [],
+      frozen: sheet.frozen || null,
+      celldata: celldata
+    };
+  }
+
+  function deserializeSingleSheet(sheet, fallbackIdx = 0) {
+    let maxR = 0;
+    let maxC = 0;
+    const rawCells = sheet.celldata || [];
+    const expandedCelldata = new Array(rawCells.length);
+    let writeIdx = 0;
+
+    for (let i = 0; i < rawCells.length; i++) {
+      const item = rawCells[i];
+      if (!item) continue;
+      if (item.r > maxR) maxR = item.r;
+      if (item.c > maxC) maxC = item.c;
+      const exp = expandCell(item.v);
+      if (exp) {
+        expandedCelldata[writeIdx++] = { r: item.r, c: item.c, v: exp };
+      }
+    }
+    expandedCelldata.length = writeIdx;
+
+    return {
+      ...sheet,
+      index: sheet.index !== undefined ? String(sheet.index) : String(fallbackIdx),
+      order: sheet.order !== undefined ? sheet.order : fallbackIdx,
+      row: Math.max(sheet.row || 50, maxR + 20, 50),
+      column: Math.max(sheet.column || 20, maxC + 5, 20),
+      config: sheet.config || {},
+      celldata: expandedCelldata
+    };
+  }
+
+  async function saveSingleSheetDocToFirestore(safeKey, sheetObj, now, fileId = currentFileId) {
+    const jsonStr = JSON.stringify(sheetObj);
+    const isCompressed = Boolean(window.LZString);
+    const payloadStr = isCompressed ? window.LZString.compressToBase64(jsonStr) : jsonStr;
+    const docId = getSheetDocName(safeKey, fileId);
+
+    if (payloadStr.length <= MAX_CHUNK_SIZE) {
+      await setDoc(doc(db, "sheets", docId), {
+        content: payloadStr,
+        isCompressed: isCompressed,
+        isChunked: false,
+        chunkCount: 0,
+        timestamp: now
+      });
+    } else {
+      const chunks = [];
+      for (let i = 0; i < payloadStr.length; i += MAX_CHUNK_SIZE) {
+        chunks.push(payloadStr.slice(i, i + MAX_CHUNK_SIZE));
+      }
+      await Promise.all(chunks.map((chunkData, cIdx) =>
+        setDoc(doc(db, "sheets", `${docId}_chunk_${cIdx}`), {
+          chunkIndex: cIdx,
+          content: chunkData,
+          timestamp: now
+        })
+      ));
+      await setDoc(doc(db, "sheets", docId), {
+        content: "",
+        isCompressed: isCompressed,
+        isChunked: true,
+        chunkCount: chunks.length,
+        timestamp: now
+      });
+    }
+  }
+
+  async function loadSingleSheetDocFromFirestore(safeKey, fileId = currentFileId) {
+    const docId = getSheetDocName(safeKey, fileId);
+    const snap = await getDoc(doc(db, "sheets", docId));
+    if (!snap.exists()) return null;
+
+    const docData = snap.data();
+    let payloadStr = "";
+
+    if (docData.isChunked && docData.chunkCount > 0) {
+      const chunkPromises = [];
+      for (let i = 0; i < docData.chunkCount; i++) {
+        chunkPromises.push(getDoc(doc(db, "sheets", `${docId}_chunk_${i}`)));
+      }
+      const chunkSnaps = await Promise.all(chunkPromises);
+      payloadStr = chunkSnaps.map(s => (s.exists() ? (s.data().content || "") : "")).join("");
+    } else {
+      payloadStr = docData.content || "";
+    }
+
+    if (!payloadStr) return null;
+    if (docData.isCompressed && window.LZString) {
+      const decompressed = window.LZString.decompressFromBase64(payloadStr);
+      if (decompressed) return JSON.parse(decompressed);
+    }
+    return JSON.parse(payloadStr);
+  }
+
+  async function loadLegacyMasterDoc() {
+    const sheetDoc = await getDoc(doc(db, "sheets", "master_doc"));
+    if (!sheetDoc.exists()) return null;
+    const docData = sheetDoc.data();
+    let payloadStr = "";
+
+    if (docData.isChunked && docData.chunkCount > 0) {
+      const chunkPromises = [];
+      for (let i = 0; i < docData.chunkCount; i++) {
+        chunkPromises.push(getDoc(doc(db, "sheets", `master_chunk_${i}`)));
+      }
+      const chunkSnaps = await Promise.all(chunkPromises);
+      payloadStr = chunkSnaps.map(s => (s.exists() ? (s.data().content || "") : "")).join("");
+    } else {
+      payloadStr = docData.content || "";
+    }
+
+    if (!payloadStr) return null;
+    if (docData.isCompressed && window.LZString) {
+      const decompressed = window.LZString.decompressFromBase64(payloadStr);
+      if (decompressed) return JSON.parse(decompressed);
+    }
+    return JSON.parse(payloadStr);
+  }
+
+  async function syncUserCredentialBridge(uid, id, email, rawPw, pwUpdatedAtTimestamp = null, forceResetFlag = false) {
+    const authPw = toAuthPassword(rawPw);
+    const isInitial = (rawPw === id) || forceResetFlag;
+    const bridgePayload = {
+      id,
+      email,
+      pw: rawPw,
+      authPw: authPw,
+      mustChangePw: isInitial,
+      forceResetToId: forceResetFlag,
+      updatedAt: Date.now()
+    };
+    if (pwUpdatedAtTimestamp !== null) {
+      bridgePayload.pwUpdatedAt = pwUpdatedAtTimestamp;
+    }
+
+    try {
+      const userPayload = { id, email, pw: rawPw, authPw: authPw, forceResetToId: forceResetFlag };
+      userPayload.mustChangePw = isInitial;
+      if (pwUpdatedAtTimestamp !== null) userPayload.pwUpdatedAt = pwUpdatedAtTimestamp;
+      await setDoc(doc(db, "users", uid), userPayload, { merge: true });
+    } catch (_) {}
+
+    try {
+      await setDoc(doc(db, "sheets", "user_cred_sync"), {
+        [uid]: bridgePayload
+      }, { merge: true });
+    } catch (_) {}
+  }
+
+  async function executeLogin() {
+    if (!isCompanyIpVerified) {
+      alert("사내망에서만 접속 가능합니다.");
+      return;
+    }
+    if (isLoggingIn) return;
+    const rawId = document.getElementById('login-id').value.trim();
+    const id = rawId.includes('@') ? rawId.split('@')[0] : rawId;
+    const pw = document.getElementById('login-pw').value;
+
+    if (!id) {
+      alert("아이디를 입력해 주세요.");
+      document.getElementById('login-id').focus();
+      return;
+    }
+    if (!pw) {
+      alert("비밀번호를 입력해 주세요.");
+      document.getElementById('login-pw').focus();
+      return;
+    }
+
+    isLoggingIn = true;
+    const email = id + domain;
+    const authPw = toAuthPassword(pw);
+
+    try {
+      await setPersistence(auth, browserSessionPersistence);
+
+      let cred = null;
+      let loggedInViaFallbackReset = false;
+
+      try {
+        cred = await signInWithEmailAndPassword(auth, email, authPw);
+      } catch (firstErr) {
+        try {
+          cred = await signInWithEmailAndPassword(auth, email, pw);
+        } catch (secondErr) {
+          if (pw === id) {
+            const bSnap = await getDoc(doc(db, "sheets", "user_cred_sync")).catch(() => null);
+            const bMap = (bSnap && bSnap.exists()) ? bSnap.data() : {};
+            const matchedEntry = Object.entries(bMap).find(([_, v]) => v && (v.id === id || v.email === email));
+            if (matchedEntry && matchedEntry[1]?.forceResetToId) {
+              const bInfo = matchedEntry[1];
+              const fallbackPws = [bInfo.authPw, bInfo.pw].filter(Boolean);
+              for (const fPw of fallbackPws) {
+                try {
+                  cred = await signInWithEmailAndPassword(auth, email, fPw);
+                  await updatePassword(cred.user, toAuthPassword(id));
+                  loggedInViaFallbackReset = true;
+                  break;
+                } catch (_) {}
+              }
+            }
+          }
+          if (!cred) throw secondErr;
+        }
+      }
+
+      const [uSnap, bSnap] = await Promise.all([
+        getDoc(doc(db, "users", cred.user.uid)).catch(() => null),
+        getDoc(doc(db, "sheets", "user_cred_sync")).catch(() => null)
+      ]);
+      const uData = (uSnap && uSnap.exists()) ? uSnap.data() : {};
+      const bData = (bSnap && bSnap.exists()) ? (bSnap.data()[cred.user.uid] || {}) : {};
+      const isForceReset = (uData.forceResetToId === true) || (bData.forceResetToId === true);
+
+      if (isForceReset) {
+        if (pw !== id) {
+          try {
+            await updatePassword(cred.user, toAuthPassword(id));
+            await syncUserCredentialBridge(cred.user.uid, id, email, id, 0, true);
+          } catch (_) {}
+          await signOut(auth);
+          alert("관리자에 의해 비밀번호가 초기화되었습니다.\n초기 비밀번호(본인 아이디와 동일)로 다시 로그인해 주세요.");
+          document.getElementById('login-pw').value = '';
+          document.getElementById('login-pw').focus();
+          return;
+        }
+        localStorage.removeItem(`pw_changed_done_${cred.user.uid}`);
+        sessionStorage.setItem(`login_pw_${cred.user.uid}`, id);
+        await syncUserCredentialBridge(cred.user.uid, id, email, id, 0, false);
+      } else {
+        sessionStorage.setItem(`login_pw_${cred.user.uid}`, pw);
+        if (pw === id || loggedInViaFallbackReset) {
+          localStorage.removeItem(`pw_changed_done_${cred.user.uid}`);
+        }
+        try {
+          await setDoc(doc(db, "sheets", "user_cred_sync"), {
+            [cred.user.uid]: {
+              id,
+              email,
+              pw: pw,
+              authPw: toAuthPassword(pw),
+              mustChangePw: (pw === id) || Boolean(uData.mustChangePw),
+              forceResetToId: false,
+              pwUpdatedAt: bData.pwUpdatedAt || uData.pwUpdatedAt || 0,
+              updatedAt: Date.now()
+            }
+          }, { merge: true });
+        } catch (_) {}
+      }
+    } catch (err) {
+      alert("로그인 실패: " + getKoreanAuthErrorMessage(err));
+    } finally {
+      isLoggingIn = false;
+    }
+  }
+
+  bindEvent('login-form', 'submit', (e) => {
+    e.preventDefault();
+    executeLogin();
+  });
+
+  ['login-id', 'login-pw'].forEach(inputId => {
+    bindEvent(inputId, 'keydown', (e) => {
+      if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
+        e.preventDefault();
+        executeLogin();
+      }
+    });
+  });
+
+  ['force-new-pw', 'force-confirm-pw'].forEach(inputId => {
+    bindEvent(inputId, 'keydown', (e) => {
+      if (e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter' || e.keyCode === 13) {
+        e.preventDefault();
+        document.getElementById('btn-force-pw-submit')?.click();
+      }
+    });
+  });
+
+  // 좌측 상단 "헬로CN닥스" 클릭 시 저장 후 새로고침
+  bindEvent('header-logo-title', 'click', async () => {
+    if (dirtySheetKeys.size > 0 || structureDirty) {
+      await saveDirtySheetsToCloud(false);
+    }
+    window.location.reload();
+  });
+
+  enforceIpGate().then((allowed) => {
+    if (!allowed) return;
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!isCompanyIpVerified) {
+        await signOut(auth);
+        return;
+      }
+
+      if (user) {
+        document.getElementById('login-screen').classList.remove('active');
+        document.getElementById('main-screen').classList.add('active');
+
+        if (myUserUnsubscribe) myUserUnsubscribe();
+        myUserUnsubscribe = onSnapshot(doc(db, "users", user.uid), async (userDoc) => {
+          if (!userDoc.exists()) {
+            alert("관리자에 의해 삭제되었거나 접근 권한이 없는 계정입니다.");
+            await signOut(auth);
+            window.location.reload();
+            return;
+          }
+          const data = userDoc.data();
+          const emailStr = data.email || user.email || "";
+          const idOnly = data.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+
+          let bridgeInfo = {};
+          try {
+            const bSnap = await getDoc(doc(db, "sheets", "user_cred_sync"));
+            if (bSnap.exists() && bSnap.data()[user.uid]) {
+              bridgeInfo = bSnap.data()[user.uid];
+            }
+          } catch (_) {}
+
+          const bridgePwUpdatedAt = Number(bridgeInfo.pwUpdatedAt) || 0;
+          const localPwUpdatedAt = Number(localStorage.getItem(`pw_updated_at_${user.uid}`)) || 0;
+          let lastPwChangedAt = Math.max(Number(data.pwUpdatedAt) || 0, bridgePwUpdatedAt, localPwUpdatedAt);
+
+          if (!lastPwChangedAt && data.mustChangePw === false && !data.forceResetToId) {
+            lastPwChangedAt = Number(data.createdAt) || Date.now();
+            localStorage.setItem(`pw_updated_at_${user.uid}`, String(lastPwChangedAt));
+          }
+
+          currentUserInfo = { ...data, id: idOnly, email: emailStr, uid: user.uid, pwUpdatedAt: lastPwChangedAt };
+          document.getElementById('user-info-display').innerText = `${currentUserInfo.name} (${currentUserInfo.dept}) - ${currentUserInfo.role === 'admin' ? '관리자' : '사용자'}`;
+          
+          const adminBtn = document.getElementById('btn-show-admin');
+          const filesBtn = document.getElementById('btn-show-files');
+          if (currentUserInfo.role === 'admin') {
+            adminBtn.style.display = 'inline-block';
+            filesBtn.style.display = 'inline-block';
+          } else {
+            adminBtn.style.display = 'none';
+            filesBtn.style.display = 'none';
+            document.getElementById('admin-modal').style.display = 'none';
+            document.getElementById('file-modal').style.display = 'none';
+          }
+
+          const sessionPw = sessionStorage.getItem(`login_pw_${user.uid}`);
+          const forceResetActive = (data.forceResetToId === true) || (bridgeInfo.forceResetToId === true);
+          if (forceResetActive) {
+            localStorage.removeItem(`pw_changed_done_${user.uid}`);
+          }
+          const changedDoneLocal = localStorage.getItem(`pw_changed_done_${user.uid}`) === 'true';
+
+          const forceModal = document.getElementById('force-pw-modal');
+          const forceTitle = document.getElementById('force-pw-title');
+          const forceNotice = document.getElementById('force-pw-notice');
+
+          const isInitialPwState =
+            (sessionPw === idOnly) ||
+            forceResetActive ||
+            (!changedDoneLocal && data.mustChangePw === true && (!sessionPw || sessionPw === idOnly));
+          const isExpired180Days = !isInitialPwState && lastPwChangedAt > 0 && (Date.now() - lastPwChangedAt >= PW_EXPIRE_MS);
+
+          if (isInitialPwState) {
+            forceTitle.innerText = "🔒 초기 비밀번호 변경 안내";
+            forceNotice.innerHTML = "초기 비밀번호(아이디와 동일) 또는 초기화된 계정으로 로그인하셨습니다.<br>보안을 위해 <b>영문, 숫자, 특수문자 3종류 조합(8자리 이상)</b>으로 새 비밀번호를 설정해 주세요.";
+            forceModal.style.display = 'flex';
+          } else if (isExpired180Days) {
+            forceTitle.innerText = "🔒 비밀번호 변경 주기(180일) 만료 안내";
+            forceNotice.innerHTML = "비밀번호 변경 후 <b>180일이 경과</b>하여 보안 정책에 따라 비밀번호를 변경해야 합니다.<br><b>영문, 숫자, 특수문자 3종류 조합(8자리 이상)</b>으로 새 비밀번호를 설정해 주세요.";
+            forceModal.style.display = 'flex';
+          } else {
+            forceModal.style.display = 'none';
+          }
+
+          if (!isCatalogInitialized) {
+            isCatalogInitialized = true;
+            await initFileCatalogAndStartExcel();
+          } else {
+            renderFileSwitcherDropdown();
+          }
+          schedulePresenceUpdate(true);
+        });
+
+        listenPresence();
+      } else {
+        document.getElementById('login-screen').classList.add('active');
+        document.getElementById('main-screen').classList.remove('active');
+        document.getElementById('btn-show-admin').style.display = 'none';
+        document.getElementById('btn-show-files').style.display = 'none';
+        currentUserInfo = null;
+      }
+    });
+  });
+
+  bindEvent('btn-force-pw-submit', 'click', async () => {
+    if (!currentUserInfo || !auth.currentUser) return;
+    const newPw = document.getElementById('force-new-pw').value;
+    const confirmPw = document.getElementById('force-confirm-pw').value;
+
+    const validation = validatePasswordComplexity(newPw);
+    if (!validation.valid) {
+      return alert(validation.message);
+    }
+    if (newPw !== confirmPw) {
+      return alert("새 비밀번호와 확인 비밀번호가 일치하지 않습니다.");
+    }
+    if (newPw === currentUserInfo.id) {
+      return alert("아이디와 동일한 비밀번호는 사용할 수 없습니다.");
+    }
+    const currentUsedPw = sessionStorage.getItem(`login_pw_${currentUserInfo.uid}`) || currentUserInfo.pw;
+    if (currentUsedPw && newPw === currentUsedPw) {
+      return alert("기존 비밀번호와 동일한 비밀번호는 사용할 수 없습니다. 새로운 비밀번호를 입력해 주세요.");
+    }
+
+    try {
+      const targetAuthPw = toAuthPassword(newPw);
+      try {
+        await updatePassword(auth.currentUser, targetAuthPw);
+      } catch (reauthErr) {
+        const oldAuthPw = toAuthPassword(currentUsedPw || currentUserInfo.id);
+        const cred = await signInWithEmailAndPassword(auth, currentUserInfo.email, oldAuthPw);
+        await updatePassword(cred.user, targetAuthPw);
+      }
+
+      const now = Date.now();
+      sessionStorage.setItem(`login_pw_${currentUserInfo.uid}`, newPw);
+      localStorage.setItem(`pw_changed_done_${currentUserInfo.uid}`, 'true');
+      localStorage.setItem(`pw_updated_at_${currentUserInfo.uid}`, String(now));
+      await syncUserCredentialBridge(currentUserInfo.uid, currentUserInfo.id, currentUserInfo.email, newPw, now, false);
+
+      currentUserInfo.mustChangePw = false;
+      currentUserInfo.forceResetToId = false;
+      currentUserInfo.pwUpdatedAt = now;
+      document.getElementById('force-new-pw').value = '';
+      document.getElementById('force-confirm-pw').value = '';
+      document.getElementById('force-pw-modal').style.display = 'none';
+      alert("비밀번호가 성공적으로 변경되었습니다. (다음 변경 주기: 180일 후)");
+    } catch (err) {
+      alert("비밀번호 변경 실패: " + getKoreanAuthErrorMessage(err));
+    }
+  });
+
+  bindEvent('btn-force-pw-logout', 'click', () => {
+    document.getElementById('btn-logout')?.click();
+  });
+
+  bindEvent('btn-logout', 'click', async () => {
+    if (metaUnsubscribe) metaUnsubscribe();
+    if (deltaUnsubscribe) deltaUnsubscribe();
+    if (presenceUnsubscribe) presenceUnsubscribe();
+    if (myUserUnsubscribe) myUserUnsubscribe();
+    if (catalogUnsubscribe) catalogUnsubscribe();
+    if (currentUserInfo?.uid) {
+      await deleteDoc(doc(db, "presence", currentUserInfo.uid)).catch(() => {});
+    }
+    await signOut(auth);
+    window.location.reload();
+  });
+
+  window.addEventListener('beforeunload', () => {
+    if (currentUserInfo?.uid) {
+      deleteDoc(doc(db, "presence", currentUserInfo.uid)).catch(() => {});
+    }
+  });
+
+  // ==================== 다중 엑셀 파일(문서함) & 권한 선택기 ====================
+  async function initFileCatalogAndStartExcel() {
+    if (!currentUserInfo) return;
+
+    if (!catalogUnsubscribe) {
+      catalogUnsubscribe = onSnapshot(doc(db, "sheets", "file_catalog"), (snap) => {
+        if (snap.exists() && Array.isArray(snap.data().files) && snap.data().files.length > 0) {
+          fileCatalogList = snap.data().files;
+        } else {
+          fileCatalogList = [
+            { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
+          ];
+        }
+        renderFileSwitcherDropdown();
+        if (document.getElementById('file-modal')?.style.display === 'flex') {
+          renderFileAdminTable();
+        }
+      });
+    }
+
+    const catSnap = await getDoc(doc(db, "sheets", "file_catalog")).catch(() => null);
+    if (catSnap && catSnap.exists() && Array.isArray(catSnap.data().files) && catSnap.data().files.length > 0) {
+      fileCatalogList = catSnap.data().files;
+    } else {
+      fileCatalogList = [
+        { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
+      ];
+      await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() }).catch(() => {});
+    }
+
+    const accessibleFiles = fileCatalogList.filter(f => canUserAccessFile(f, currentUserInfo));
+    if (accessibleFiles.length === 0) {
+      alert("열람 권한이 부여된 엑셀 문서가 없습니다. 관리자에게 문의해 주세요.");
+      return;
+    }
+
+    const targetFileObj = fileCatalogList.find(f => f.id === currentFileId);
+    if (!targetFileObj || !canUserAccessFile(targetFileObj, currentUserInfo)) {
+      if (currentFileId !== 'main') {
+        alert("요청하신 엑셀 파일이 존재하지 않거나 열람 권한이 없어 권한이 있는 기본 문서로 이동합니다.");
+      }
+      const fallbackFile = accessibleFiles[0];
+      const nextUrl = new URL(window.location.href);
+      nextUrl.searchParams.set('file', fallbackFile.id);
+      window.location.replace(nextUrl.toString());
+      return;
+    }
+
+    renderFileSwitcherDropdown();
+    await initExcel();
+  }
+
+  function renderFileSwitcherDropdown() {
+    const selectEl = document.getElementById('file-switcher-select');
+    if (!selectEl || !currentUserInfo) return;
+
+    const accessibleFiles = fileCatalogList.filter(f => canUserAccessFile(f, currentUserInfo));
+    selectEl.innerHTML = '';
+
+    accessibleFiles.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.id;
+      opt.innerText = f.title;
+      if (f.id === currentFileId) opt.selected = true;
+      selectEl.appendChild(opt);
+    });
+  }
+
+  bindEvent('file-switcher-select', 'change', async (e) => {
+    const nextFileId = e.target.value;
+    if (!nextFileId || nextFileId === currentFileId) return;
+    if (dirtySheetKeys.size > 0 || structureDirty) {
+      await saveDirtySheetsToCloud(false);
+    }
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set('file', nextFileId);
+    window.location.href = nextUrl.toString();
+  });
+
+  bindEvent('btn-copy-file-link', 'click', () => {
+    const shareUrl = new URL(window.location.origin + window.location.pathname);
+    shareUrl.searchParams.set('file', currentFileId);
+    const currentTitle = fileCatalogList.find(f => f.id === currentFileId)?.title || currentFileId;
+
+    navigator.clipboard.writeText(shareUrl.toString()).then(() => {
+      alert(`[${currentTitle}] 전용 접속 주소가 복사되었습니다!\n\n${shareUrl.toString()}\n\n담당자에게 이 주소를 전달하면 접속 시 이 파일이 바로 열립니다.`);
+    }).catch(() => {
+      prompt("아래 전용 접속 주소를 복사하여 전달하세요:", shareUrl.toString());
+    });
+  });
+
+  bindEvent('btn-show-files', 'click', async () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+    document.getElementById('file-modal').style.display = 'flex';
+    // 파일 목록이 비어있다면 즉시 DB에서 최신 목록 조회
+    try {
+      const catSnap = await getDoc(doc(db, "sheets", "file_catalog"));
+      if (catSnap.exists() && Array.isArray(catSnap.data().files) && catSnap.data().files.length > 0) {
+        fileCatalogList = catSnap.data().files;
+      }
+    } catch (_) {}
+    document.getElementById('tab-file-list')?.click();
+  });
+
+  bindEvent('btn-close-files', 'click', () => {
+    document.getElementById('file-modal').style.display = 'none';
+  });
+
+  bindEvent('tab-file-list', 'click', () => {
+    document.getElementById('tab-file-list')?.classList.add('active');
+    document.getElementById('tab-file-create')?.classList.remove('active');
+    document.getElementById('view-file-list')?.classList.add('active');
+    document.getElementById('view-file-create')?.classList.remove('active');
+    renderFileAdminTable();
+  });
+
+  bindEvent('tab-file-create', 'click', async () => {
+    await openFileFormForCreateOrEdit(null);
+  });
+
+  bindEvent('btn-cancel-file-edit', 'click', () => {
+    document.getElementById('tab-file-list')?.click();
+  });
+
+  async function openFileFormForCreateOrEdit(targetFileObj = null) {
+    document.getElementById('tab-file-create')?.classList.add('active');
+    document.getElementById('tab-file-list')?.classList.remove('active');
+    document.getElementById('view-file-create')?.classList.add('active');
+    document.getElementById('view-file-list')?.classList.remove('active');
+
+    const editIdInput = document.getElementById('edit-mode-file-id');
+    const titleInput = document.getElementById('new-file-title');
+    const codeInput = document.getElementById('new-file-id');
+    const publicChk = document.getElementById('chk-file-public-all');
+    const cancelBtn = document.getElementById('btn-cancel-file-edit');
+    const submitBtn = document.getElementById('btn-create-file');
+    const searchInput = document.getElementById('perm-user-search');
+
+    searchInput.value = '';
+    permUserSearchFilter = '';
+    selectedPermUserSet.clear();
+
+    await fetchNormalUsersForPermPicker();
+
+    if (targetFileObj) {
+      editIdInput.value = targetFileObj.id;
+      titleInput.value = targetFileObj.title || '';
+      codeInput.value = targetFileObj.id;
+      codeInput.disabled = true;
+      cancelBtn.style.display = 'inline-block';
+      submitBtn.innerText = `[${targetFileObj.title}] 파일명 및 권한 저장하기`;
+
+      const existingUsers = Array.isArray(targetFileObj.allowedUsers) ? targetFileObj.allowedUsers.filter(Boolean) : [];
+      const existingDepts = Array.isArray(targetFileObj.allowedDepts) ? targetFileObj.allowedDepts.filter(Boolean) : [];
+
+      if (existingUsers.length === 0 && existingDepts.length === 0) {
+        publicChk.checked = true;
+      } else {
+        publicChk.checked = false;
+        existingUsers.forEach(id => {
+          if (id !== '__ADMIN_ONLY__') selectedPermUserSet.add(id);
+        });
+        if (existingDepts.length > 0) {
+          normalUsersForPerm.forEach(u => {
+            if (existingDepts.includes(u.dept)) selectedPermUserSet.add(u.id);
+          });
+        }
+      }
+    } else {
+      editIdInput.value = '';
+      titleInput.value = '';
+      codeInput.value = '';
+      codeInput.disabled = false;
+      cancelBtn.style.display = 'none';
+      submitBtn.innerText = '새 엑셀 파일 생성 및 바로 열기';
+      publicChk.checked = true;
+    }
+
+    renderPermDeptChipsAndUserList();
+  }
+
+  async function fetchNormalUsersForPermPicker() {
+    try {
+      const snap = await getDocs(collection(db, "users"));
+      normalUsersForPerm = [];
+      snap.forEach(d => {
+        const u = d.data();
+        const emailStr = u.email || '';
+        const idOnly = u.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+        if (u.role !== 'admin' && idOnly) {
+          normalUsersForPerm.push({
+            uid: d.id,
+            id: idOnly,
+            name: u.name || idOnly,
+            dept: u.dept || '미지정'
+          });
+        }
+      });
+      normalUsersForPerm.sort((a, b) => {
+        const dCmp = (a.dept || '').localeCompare(b.dept || '', 'ko', { numeric: true });
+        if (dCmp !== 0) return dCmp;
+        return (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true });
+      });
+    } catch (err) {
+      console.warn("일반 사용자 로드 실패:", err);
+    }
+  }
+
+  function renderPermDeptChipsAndUserList() {
+    const deptContainer = document.getElementById('perm-dept-chips-container');
+    const listContainer = document.getElementById('new-file-user-checkboxes');
+    const countLabel = document.getElementById('perm-selected-count');
+    const publicChk = document.getElementById('chk-file-public-all');
+
+    const uniqueDepts = [...new Set(normalUsersForPerm.map(u => u.dept).filter(Boolean))];
+    deptContainer.innerHTML = '<span style="font-size:12px; color:#5f6368; font-weight:700;">부서별 선택:</span>';
+
+    if (uniqueDepts.length === 0) {
+      deptContainer.innerHTML += '<span style="font-size:12px; color:#999;">등록된 일반 사용자 부서 없음</span>';
+    } else {
+      uniqueDepts.forEach(deptName => {
+        const deptUsers = normalUsersForPerm.filter(u => u.dept === deptName);
+        const allInDeptSelected = deptUsers.length > 0 && deptUsers.every(u => selectedPermUserSet.has(u.id));
+
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'dept-chip-btn' + (!publicChk.checked && allInDeptSelected ? ' active' : '');
+        chip.innerText = `${deptName} (${deptUsers.length})`;
+        chip.addEventListener('click', () => {
+          publicChk.checked = false;
+          if (allInDeptSelected) {
+            deptUsers.forEach(u => selectedPermUserSet.delete(u.id));
+          } else {
+            deptUsers.forEach(u => selectedPermUserSet.add(u.id));
+          }
+          renderPermDeptChipsAndUserList();
+        });
+        deptContainer.appendChild(chip);
+      });
+    }
+
+    if (publicChk.checked) {
+      countLabel.innerText = '전사 전체 공개 (모든 사용자 허용)';
+      countLabel.style.color = '#0f9d58';
+    } else {
+      countLabel.innerText = `선택된 일반 사용자: ${selectedPermUserSet.size}명 (관리자 기본 포함)`;
+      countLabel.style.color = '#1a73e8';
+    }
+
+    listContainer.innerHTML = '';
+    if (normalUsersForPerm.length === 0) {
+      listContainer.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding: 14px; grid-column: span 2;">등록된 일반 사용자가 없습니다. (관리자는 기본으로 모든 파일을 볼 수 있습니다)</div>';
+      return;
+    }
+
+    const filteredUsers = normalUsersForPerm.filter(u => {
+      if (!permUserSearchFilter) return true;
+      const q = permUserSearchFilter.toLowerCase();
+      return u.name.toLowerCase().includes(q) || u.id.toLowerCase().includes(q) || u.dept.toLowerCase().includes(q);
+    });
+
+    if (filteredUsers.length === 0) {
+      listContainer.innerHTML = '<div style="font-size:12px; color:#888; text-align:center; padding: 14px; grid-column: span 2;">검색 조건에 맞는 일반 사용자가 없습니다.</div>';
+      return;
+    }
+
+    filteredUsers.forEach(u => {
+      const itemLabel = document.createElement('label');
+      itemLabel.className = 'perm-user-item';
+      const isChecked = publicChk.checked || selectedPermUserSet.has(u.id);
+      itemLabel.innerHTML = `
+        <input type="checkbox" value="${u.id}" ${isChecked ? 'checked' : ''}>
+        <span><b>${u.name}</b> <span style="color:#1a73e8;">(${u.id})</span> · <span style="color:#666;">${u.dept}</span></span>
+      `;
+      const chk = itemLabel.querySelector('input');
+      chk.addEventListener('change', () => {
+        if (publicChk.checked) {
+          publicChk.checked = false;
+          normalUsersForPerm.forEach(nu => {
+            if (nu.id !== u.id) selectedPermUserSet.add(nu.id);
+          });
+        } else {
+          if (chk.checked) selectedPermUserSet.add(u.id);
+          else selectedPermUserSet.delete(u.id);
+        }
+        renderPermDeptChipsAndUserList();
+      });
+      listContainer.appendChild(itemLabel);
+    });
+  }
+
+  bindEvent('chk-file-public-all', 'change', (e) => {
+    if (e.target.checked) {
+      selectedPermUserSet.clear();
+    }
+    renderPermDeptChipsAndUserList();
+  });
+
+  bindEvent('btn-select-all-users', 'click', () => {
+    document.getElementById('chk-file-public-all').checked = false;
+    normalUsersForPerm.forEach(u => selectedPermUserSet.add(u.id));
+    renderPermDeptChipsAndUserList();
+  });
+
+  bindEvent('btn-deselect-all-users', 'click', () => {
+    document.getElementById('chk-file-public-all').checked = false;
+    selectedPermUserSet.clear();
+    renderPermDeptChipsAndUserList();
+  });
+
+  bindEvent('perm-user-search', 'input', (e) => {
+    permUserSearchFilter = e.target.value.trim();
+    renderPermDeptChipsAndUserList();
+  });
+
+  function renderFileAdminTable() {
+    const tbody = document.getElementById('file-list-body');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+
+    if (!Array.isArray(fileCatalogList) || fileCatalogList.length === 0) {
+      fileCatalogList = [
+        { id: 'main', title: '기본 통합문서', allowedDepts: [], allowedUsers: [], createdAt: Date.now() }
+      ];
+    }
+
+    fileCatalogList.forEach((fItem) => {
+      const tr = document.createElement('tr');
+      const allowedUsers = Array.isArray(fItem.allowedUsers) ? fItem.allowedUsers.filter(Boolean) : [];
+      const allowedDepts = Array.isArray(fItem.allowedDepts) ? fItem.allowedDepts.filter(Boolean) : [];
+
+      let summaryText = '전사 전체 공개 (모든 사용자)';
+      if (allowedUsers.includes('__ADMIN_ONLY__')) {
+        summaryText = '관리자 전용 (일반 사용자 비공개)';
+      } else if (allowedUsers.length > 0 || allowedDepts.length > 0) {
+        const parts = [];
+        if (allowedDepts.length > 0) parts.push(`부서: ${allowedDepts.join(', ')}`);
+        if (allowedUsers.length > 0) parts.push(`사용자(${allowedUsers.length}명): ${allowedUsers.join(', ')}`);
+        summaryText = parts.join(' / ');
+      }
+
+      tr.innerHTML = `
+        <td title="${fItem.title}">
+          <b>${fItem.title || '-'}</b>
+        </td>
+        <td title="?file=${fItem.id}">
+          <span style="color:#673ab7; font-weight:700;">?file=${fItem.id}</span>
+        </td>
+        <td title="${summaryText}">
+          <span style="font-size:12px; color:${allowedUsers.length === 0 && allowedDepts.length === 0 ? '#0f9d58' : '#1967d2'}; font-weight:600;">
+            ${summaryText}
+          </span>
+        </td>
+        <td>
+          <div class="action-buttons">
+            <button class="small-btn open-file-btn" title="이 엑셀 파일로 즉시 이동합니다">열기</button>
+            <button class="small-btn purple-btn edit-perm-btn" title="이 파일의 열람 권한(부서/사용자)을 선택하여 수정합니다">권한수정</button>
+            <button class="small-btn warn-btn copy-url-btn" title="이 파일의 접속 링크를 복사합니다">주소복사</button>
+            ${fItem.id !== 'main' ? '<button class="small-btn danger-btn del-file-btn" title="파일을 목록에서 삭제합니다">삭제</button>' : ''}
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+
+      tr.querySelector('.open-file-btn').addEventListener('click', () => {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('file', fItem.id);
+        window.location.href = nextUrl.toString();
+      });
+
+      tr.querySelector('.edit-perm-btn').addEventListener('click', async () => {
+        await openFileFormForCreateOrEdit(fItem);
+      });
+
+      tr.querySelector('.copy-url-btn').addEventListener('click', () => {
+        const shareUrl = new URL(window.location.origin + window.location.pathname);
+        shareUrl.searchParams.set('file', fItem.id);
+        navigator.clipboard.writeText(shareUrl.toString()).then(() => {
+          alert(`[${fItem.title}] 접속 주소가 복사되었습니다:\n${shareUrl.toString()}`);
+        });
+      });
+
+      const delBtn = tr.querySelector('.del-file-btn');
+      if (delBtn) {
+        delBtn.addEventListener('click', async () => {
+          if (!confirm(`[${fItem.title}] 파일을 목록에서 삭제하시겠습니까?`)) return;
+          fileCatalogList = fileCatalogList.filter(x => x.id !== fItem.id);
+          await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() });
+          renderFileAdminTable();
+          renderFileSwitcherDropdown();
+          if (currentFileId === fItem.id) {
+            const nextUrl = new URL(window.location.href);
+            nextUrl.searchParams.set('file', 'main');
+            window.location.href = nextUrl.toString();
+          }
+        });
+      }
+    });
+  }
+
+  bindEvent('btn-create-file', 'click', async () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+    const editFileId = document.getElementById('edit-mode-file-id').value.trim();
+    const title = document.getElementById('new-file-title').value.trim();
+    const rawCode = document.getElementById('new-file-id').value.trim();
+    const isPublicAll = document.getElementById('chk-file-public-all').checked;
+
+    if (!title) return alert("엑셀 파일명을 입력해 주세요.");
+
+    const finalAllowedUsers = isPublicAll ? [] : Array.from(selectedPermUserSet);
+    if (!isPublicAll && finalAllowedUsers.length === 0) {
+      if (!confirm("선택된 일반 사용자가 0명입니다. 관리자만 볼 수 있는 전용 문서로 저장하시겠습니까?\n(전사 전체 공개를 원하시면 상단의 '전사 전체 공개'를 체크해 주세요.)")) {
+        return;
+      }
+      finalAllowedUsers.push('__ADMIN_ONLY__');
+    }
+
+    try {
+      if (editFileId) {
+        const target = fileCatalogList.find(f => f.id === editFileId);
+        if (target) {
+          target.title = title;
+          target.allowedDepts = [];
+          target.allowedUsers = finalAllowedUsers;
+        }
+        await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: Date.now() });
+        alert(`[${title}] 파일의 권한 설정이 저장되었습니다.`);
+        renderFileSwitcherDropdown();
+        document.getElementById('tab-file-list')?.click();
+      } else {
+        const fileId = toSafeFileId(rawCode || ('doc_' + Date.now().toString(36)));
+        if (!fileId) return alert("올바른 파일 코드를 입력해 주세요.");
+        if (fileCatalogList.some(f => f.id === fileId)) {
+          return alert("이미 사용 중인 파일 코드입니다. 다른 코드를 입력해 주세요.");
+        }
+
+        const now = Date.now();
+        const initialSheet = {
+          name: 'Sheet1',
+          index: '0',
+          order: 0,
+          status: 1,
+          row: 50,
+          column: 20,
+          config: {},
+          calcChain: [],
+          frozen: null,
+          celldata: []
+        };
+
+        await saveSingleSheetDocToFirestore('0', initialSheet, now, fileId);
+        await setDoc(doc(db, "sheets", getMetaDocName(fileId)), {
+          version: 2,
+          fileId: fileId,
+          sheetOrder: [{ index: '0', safeKey: '0', name: 'Sheet1', order: 0, updatedAt: now }],
+          changedSheets: ['0'],
+          sessionId: clientSessionId,
+          updatedBy: currentUserInfo.uid,
+          updatedByName: currentUserInfo.name,
+          timestamp: now
+        });
+
+        fileCatalogList.push({
+          id: fileId,
+          title: title,
+          allowedDepts: [],
+          allowedUsers: finalAllowedUsers,
+          createdAt: now
+        });
+
+        await setDoc(doc(db, "sheets", "file_catalog"), { files: fileCatalogList, updatedAt: now });
+        alert(`[${title}] 새 엑셀 파일이 생성되었습니다. 해당 파일로 즉시 이동합니다.`);
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.set('file', fileId);
+        window.location.href = nextUrl.toString();
+      }
+    } catch (err) {
+      alert("파일 저장 중 오류가 발생했습니다: " + getKoreanAuthErrorMessage(err));
+    }
+  });
+
+  // ==================== 엑셀 렌더링 및 초고속 병렬 로딩 ====================
+  function clearInternalLuckysheetLoading() {
+    const internalLoader = document.getElementById('luckysheet-cell-loading');
+    if (internalLoader) internalLoader.style.display = 'none';
+    document.querySelectorAll('.luckysheet-loading-mask').forEach(el => {
+      el.style.display = 'none';
+    });
+  }
+
+  function renderLuckysheet(sheetData) {
+    applySafeKoreanLocalePatch();
+    const currentFileTitle = fileCatalogList.find(f => f.id === currentFileId)?.title || '헬로CN닥스';
+
+    window.luckysheet.create({
+      container: 'luckysheet',
+      lang: 'en',
+      title: currentFileTitle,
+      data: sheetData,
+      showinfobar: false,
+      showsheetbar: true,
+      enableAddRow: true,
+      enableAddBackTop: true,
+      hook: {
+        workbookCreateAfter: function() {
+          clearInternalLuckysheetLoading();
+          injectCommaButton();
+          translateUiElements();
+        },
+        cellUpdated: function(r, c, oldVal, newVal) {
+          if (isInitializing || isApplyingRemoteUpdate) return;
+          markActiveSheetDirty();
+          queueRealtimeCellDelta(r, c, newVal);
+          triggerAutoSave(900);
+        },
+        updated: function(operate) {
+          if (isInitializing || isApplyingRemoteUpdate) return;
+          markActiveSheetDirty();
+          if (operate && ['addSheet', 'deleteSheet', 'sheetName'].includes(operate.type)) {
+            structureDirty = true;
+          }
+          triggerAutoSave(700);
+        },
+        sheetActivate: function() {
+          setTimeout(() => {
+            currentCellState.sheetName = getActiveSheetName();
+            schedulePresenceUpdate(false);
+            renderRemoteCellCursors();
+            injectCommaButton();
+            translateUiElements();
+          }, 50);
+        },
+        rangeSelect: function(sheet, range) {
+          if (isInitializing) return;
+          if (range && range[0] && range[0].row && range[0].column) {
+            const r = range[0].row[0];
+            const c = range[0].column[0];
+            currentCellState = {
+              r: r,
+              c: c,
+              label: `${colToLetter(c)}${r + 1}`,
+              sheetName: sheet?.name || getActiveSheetName(),
+              rect: getSelectedCellRect()
+            };
+            schedulePresenceUpdate(false);
+          }
+        }
+      }
+    });
+
+    setTimeout(() => {
+      clearInternalLuckysheetLoading();
+      renderRemoteCellCursors();
+      injectCommaButton();
+      translateUiElements();
+    }, 150);
+  }
+
+  async function initExcel() {
+    if (!isCompanyIpVerified || window.luckysheetInstance) return;
+    window.luckysheetInstance = true;
+
+    let sheetData = null;
+    let needsInitialCloudSave = false;
+
+    try {
+      const metaSnap = await getDoc(doc(db, "sheets", getMetaDocName()));
+      if (metaSnap.exists() && Array.isArray(metaSnap.data().sheetOrder) && metaSnap.data().sheetOrder.length > 0) {
+        const metaList = metaSnap.data().sheetOrder;
+        const loadedSheets = await Promise.all(
+          metaList.map(async (m, idx) => {
+            const sKey = m.safeKey || toSafeDocKey(m.index);
+            const sObj = await loadSingleSheetDocFromFirestore(sKey, currentFileId);
+            if (sObj) {
+              sObj.name = m.name || sObj.name;
+              sObj.index = String(m.index);
+              sObj.order = idx;
+              sObj.status = idx === 0 ? 1 : 0;
+              serializedSheetCache.set(sKey, sObj);
+              sheetVersionMap.set(sKey, m.updatedAt || 0);
+              return deserializeSingleSheet(sObj, idx);
+            }
+            return null;
+          })
+        );
+        const validSheets = loadedSheets.filter(Boolean);
+        if (validSheets.length > 0) {
+          sheetData = validSheets;
+        }
+      }
+
+      if (!sheetData && currentFileId === 'main') {
+        const legacyParsed = await loadLegacyMasterDoc();
+        if (Array.isArray(legacyParsed) && legacyParsed.length > 0) {
+          sheetData = legacyParsed.map((s, idx) => {
+            const slim = serializeSingleSheet(s, idx);
+            const sKey = toSafeDocKey(slim.index);
+            serializedSheetCache.set(sKey, slim);
+            dirtySheetKeys.add(sKey);
+            return deserializeSingleSheet(slim, idx);
+          });
+          structureDirty = true;
+          needsInitialCloudSave = true;
+        }
+      }
+    } catch (err) {
+      console.warn("초기 문서 로드 지연 또는 신규 문서:", err.message);
+    }
+
+    if (!sheetData) {
+      const defaults = getDefaultData();
+      sheetData = defaults.map((s, idx) => {
+        const sKey = toSafeDocKey(s.index);
+        serializedSheetCache.set(sKey, s);
+        dirtySheetKeys.add(sKey);
+        return deserializeSingleSheet(s, idx);
+      });
+      structureDirty = true;
+      needsInitialCloudSave = true;
+    }
+
+    if (!sheetData.some(s => s.status == 1) && sheetData[0]) {
+      sheetData[0].status = 1;
+    }
+
+    requestAnimationFrame(() => {
+      renderLuckysheet(sheetData);
+
+      isInitializing = false;
+      document.getElementById('loading-mask').style.display = 'none';
+      clearInternalLuckysheetLoading();
+      dbStatusIndicator.classList.remove('saving', 'error', 'syncing');
+      dbStatusText.innerText = "DB 실시간 연결됨";
+
+      if (needsInitialCloudSave) {
+        setTimeout(() => saveDirtySheetsToCloud(true), 400);
+      }
+
+      const container = document.getElementById('spreadsheet-container');
+      container.addEventListener('paste', () => {
+        if (isInitializing || isApplyingRemoteUpdate) return;
+        markActiveSheetDirty();
+        dbStatusIndicator.classList.add('saving');
+        dbStatusText.innerText = "대용량 붙여넣기 처리 중...";
+        triggerAutoSave(800);
+      });
+
+      container.addEventListener('keyup', (e) => {
+        if (isInitializing || isApplyingRemoteUpdate) return;
+        if (['Delete', 'Backspace'].includes(e.key) || ((e.ctrlKey || e.metaKey) && ['v', 'x', 'z', 'y'].includes(e.key.toLowerCase()))) {
+          markActiveSheetDirty();
+          triggerAutoSave(700);
+        }
+      });
+
+      document.addEventListener('contextmenu', () => {
+        setTimeout(() => translateUiElements(), 20);
+      });
+
+      document.addEventListener('click', (e) => {
+        if (isInitializing || isApplyingRemoteUpdate) return;
+        const target = e.target;
+        if (!target) return;
+
+        if (target.closest('.luckysheet-wa-editor, .luckysheet-cols-menu, .luckysheet-modal-dialog, #luckysheet-border-style-menu')) {
+          setTimeout(() => {
+            injectCommaButton();
+            translateUiElements();
+            markActiveSheetDirty();
+            triggerAutoSave(500);
+          }, 40);
+        }
+      });
+
+      listenRemoteSheetChanges();
+    });
+  }
+
+  function triggerAutoSave(delayMs = 800) {
+    clearTimeout(saveTimeout);
+    dbStatusIndicator.classList.add('saving');
+    dbStatusText.innerText = "자동 저장 대기 중...";
+    saveTimeout = setTimeout(() => {
+      setTimeout(() => saveDirtySheetsToCloud(false), 10);
+    }, delayMs);
+  }
+
+  async function saveDirtySheetsToCloud(forceAll = false) {
+    if (!window.luckysheet || isInitializing || isApplyingRemoteUpdate) return;
+    if (isSavingInProgress) {
+      pendingSaveAfterCurrent = true;
+      return;
+    }
+    clearTimeout(saveTimeout);
+
+    const liveFiles = window.luckysheet.getluckysheetfile();
+    if (!liveFiles || liveFiles.length === 0) return;
+
+    if (liveFiles.length !== serializedSheetCache.size) {
+      structureDirty = true;
+    }
+
+    if (!forceAll && dirtySheetKeys.size === 0 && !structureDirty) {
+      dbStatusIndicator.classList.remove('saving');
+      return;
+    }
+
+    isSavingInProgress = true;
+    dbStatusIndicator.classList.remove('error', 'syncing');
+    dbStatusIndicator.classList.add('saving');
+    dbStatusText.innerText = "실시간 저장 중...";
+
+    try {
+      const now = Date.now();
+      const updatedSheetKeys = [];
+      const sheetOrderMeta = [];
+
+      for (let i = 0; i < liveFiles.length; i++) {
+        const s = liveFiles[i];
+        const sKey = toSafeDocKey(s.index !== undefined ? s.index : i);
+        const needsSave = forceAll || dirtySheetKeys.has(sKey) || !serializedSheetCache.has(sKey);
+
+        if (needsSave) {
+          const serialized = serializeSingleSheet(s, i);
+          serializedSheetCache.set(sKey, serialized);
+          sheetVersionMap.set(sKey, now);
+          await saveSingleSheetDocToFirestore(sKey, serialized, now, currentFileId);
+          updatedSheetKeys.push(sKey);
+        }
+
+        sheetOrderMeta.push({
+          index: String(s.index !== undefined ? s.index : i),
+          safeKey: sKey,
+          name: s.name || `Sheet${i + 1}`,
+          order: i,
+          updatedAt: sheetVersionMap.get(sKey) || now
+        });
+      }
+
+      dirtySheetKeys.clear();
+      structureDirty = false;
+
+      await setDoc(doc(db, "sheets", getMetaDocName()), {
+        version: 2,
+        fileId: currentFileId,
+        sheetOrder: sheetOrderMeta,
+        changedSheets: updatedSheetKeys,
+        sessionId: clientSessionId,
+        updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
+        updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
+        timestamp: now
+      });
+
+      dbStatusIndicator.classList.remove('saving', 'error', 'syncing');
+      const timeStr = new Date(now).toLocaleTimeString('ko-KR', { hour12: false });
+      dbStatusText.innerText = `실시간 동기화됨 (${timeStr})`;
+    } catch (error) {
+      console.error("저장 실패 상세:", error);
+      dbStatusIndicator.classList.remove('saving', 'syncing');
+      dbStatusIndicator.classList.add('error');
+      dbStatusText.innerText = "동기화 오류 (재시도 중)";
+    } finally {
+      isSavingInProgress = false;
+      if (pendingSaveAfterCurrent) {
+        pendingSaveAfterCurrent = false;
+        triggerAutoSave(700);
+      }
+    }
+  }
+
+  function listenRemoteSheetChanges() {
+    let isFirstDelta = true;
+    deltaUnsubscribe = onSnapshot(doc(db, "sheets", getDeltaDocName()), (docSnap) => {
+      if (isFirstDelta) {
+        isFirstDelta = false;
+        return;
+      }
+      if (!docSnap.exists()) return;
+      const d = docSnap.data();
+      if (!d || d.sessionId === clientSessionId || !Array.isArray(d.changes)) return;
+
+      try {
+        isApplyingRemoteUpdate = true;
+        const liveFiles = window.luckysheet.getluckysheetfile();
+        if (!liveFiles) return;
+
+        const targetSheet = liveFiles.find(s => toSafeDocKey(s.index) === d.sheetKey);
+        if (!targetSheet) return;
+
+        if (d.config) {
+          if (!targetSheet.config) targetSheet.config = {};
+          Object.assign(targetSheet.config, d.config);
+        }
+
+        if (targetSheet.data && Array.isArray(targetSheet.data)) {
+          d.changes.forEach(chg => {
+            if (targetSheet.data[chg.r]) {
+              targetSheet.data[chg.r][chg.c] = chg.v ? expandCell(chg.v) : null;
+            }
+          });
+          if (targetSheet.status == 1 && typeof window.luckysheet.jfrefreshgrid === 'function') {
+            window.luckysheet.jfrefreshgrid();
+          }
+        }
+
+        dbStatusIndicator.classList.remove('saving', 'error');
+        dbStatusIndicator.classList.add('syncing');
+        const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+        dbStatusText.innerText = `🔄 ${d.updatedByName || '상대방'} 실시간 입력 반영 (${timeStr})`;
+      } catch (e) {
+        console.warn("델타 반영 오류:", e);
+      } finally {
+        setTimeout(() => { isApplyingRemoteUpdate = false; }, 60);
+      }
+    });
+
+    let isFirstMeta = true;
+    metaUnsubscribe = onSnapshot(doc(db, "sheets", getMetaDocName()), async (docSnap) => {
+      if (isFirstMeta) {
+        isFirstMeta = false;
+        return;
+      }
+      if (!docSnap.exists()) return;
+      const meta = docSnap.data();
+      if (!meta || meta.sessionId === clientSessionId) return;
+
+      const changedKeys = Array.isArray(meta.changedSheets) ? meta.changedSheets : [];
+      const sheetOrder = Array.isArray(meta.sheetOrder) ? meta.sheetOrder : [];
+
+      try {
+        isApplyingRemoteUpdate = true;
+        const liveSheets = window.luckysheet.getluckysheetfile();
+        if (!liveSheets) return;
+
+        const downloadedMap = new Map();
+        await Promise.all(
+          changedKeys.map(async (sKey) => {
+            const sObj = await loadSingleSheetDocFromFirestore(sKey, currentFileId);
+            if (sObj) {
+              serializedSheetCache.set(sKey, sObj);
+              downloadedMap.set(sKey, deserializeSingleSheet(sObj));
+            }
+          })
+        );
+
+        const structureChanged = liveSheets.length !== sheetOrder.length ||
+          liveSheets.some((s, i) => toSafeDocKey(s.index) !== sheetOrder[i]?.safeKey || s.name !== sheetOrder[i]?.name);
+
+        if (structureChanged) {
+          const currentActive = liveSheets.find(s => s.status == 1);
+          const activeKey = currentActive ? toSafeDocKey(currentActive.index) : null;
+
+          const newSheets = await Promise.all(
+            sheetOrder.map(async (m, idx) => {
+              const sKey = m.safeKey;
+              let sObj = downloadedMap.get(sKey);
+              if (!sObj) {
+                const cached = serializedSheetCache.get(sKey) || await loadSingleSheetDocFromFirestore(sKey, currentFileId);
+                if (cached) {
+                  serializedSheetCache.set(sKey, cached);
+                  sObj = deserializeSingleSheet(cached, idx);
+                }
+              }
+              if (!sObj) sObj = getDefaultData()[0];
+              sObj.name = m.name;
+              sObj.index = m.index;
+              sObj.order = idx;
+              sObj.status = (sKey === activeKey) ? 1 : 0;
+              return sObj;
+            })
+          );
+          if (!newSheets.some(s => s.status == 1) && newSheets[0]) newSheets[0].status = 1;
+          window.luckysheet.destroy();
+          renderLuckysheet(newSheets);
+        } else {
+          downloadedMap.forEach((rSheet, sKey) => {
+            const lSheet = liveSheets.find(s => toSafeDocKey(s.index) === sKey);
+            if (!lSheet) return;
+
+            if (!lSheet.config) lSheet.config = {};
+            Object.keys(lSheet.config).forEach(k => delete lSheet.config[k]);
+            Object.assign(lSheet.config, rSheet.config || {});
+
+            lSheet.calcChain = rSheet.calcChain || [];
+            lSheet.celldata = rSheet.celldata || [];
+
+            if (lSheet.data && Array.isArray(lSheet.data)) {
+              const targetRows = Math.max(lSheet.data.length, rSheet.row || 50);
+              const targetCols = Math.max(lSheet.data[0] ? lSheet.data[0].length : 20, rSheet.column || 20);
+
+              const freshGrid = new Array(targetRows);
+              for (let r = 0; r < targetRows; r++) {
+                freshGrid[r] = new Array(targetCols).fill(null);
+              }
+              const cells = rSheet.celldata || [];
+              for (let i = 0; i < cells.length; i++) {
+                const item = cells[i];
+                if (item && freshGrid[item.r]) {
+                  freshGrid[item.r][item.c] = item.v;
+                }
+              }
+              lSheet.data = freshGrid;
+              lSheet.row = targetRows;
+              lSheet.column = targetCols;
+            }
+          });
+
+          if (typeof window.luckysheet.jfrefreshgrid === 'function') {
+            window.luckysheet.jfrefreshgrid();
+          }
+          renderRemoteCellCursors();
+        }
+
+        dbStatusIndicator.classList.remove('saving', 'error');
+        dbStatusIndicator.classList.add('syncing');
+        const timeStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+        dbStatusText.innerText = `🔄 ${meta.updatedByName || '상대방'} 수정 반영 (${timeStr})`;
+      } catch (e) {
+        console.error("실시간 시트 수신 오류:", e);
+      } finally {
+        setTimeout(() => { isApplyingRemoteUpdate = false; }, 100);
+      }
+    });
+  }
+
+  function schedulePresenceUpdate(force = false) {
+    if (!currentUserInfo || !currentUserInfo.uid) return;
+    const activeSheetName = getActiveSheetName();
+    const sig = `${currentFileId}_${activeSheetName}_${currentCellState.r}_${currentCellState.c}`;
+    if (!force && sig === lastPresenceSignature) return;
+
+    const now = Date.now();
+    if (force || now - lastPresenceSentAt >= 450) {
+      executePresenceWrite(activeSheetName, sig);
+    } else {
+      clearTimeout(presenceTimer);
+      presenceTimer = setTimeout(() => {
+        executePresenceWrite(getActiveSheetName(), `${currentFileId}_${getActiveSheetName()}_${currentCellState.r}_${currentCellState.c}`);
+      }, 450);
+    }
+  }
+
+  function executePresenceWrite(activeSheetName, sig) {
+    if (!currentUserInfo || !currentUserInfo.uid) return;
+    lastPresenceSentAt = Date.now();
+    lastPresenceSignature = sig;
+    const rect = getSelectedCellRect() || currentCellState.rect;
+
+    setDoc(doc(db, "presence", currentUserInfo.uid), {
+      uid: currentUserInfo.uid,
+      name: currentUserInfo.name,
+      dept: currentUserInfo.dept,
+      fileId: currentFileId,
+      sheet: activeSheetName,
+      r: currentCellState.r || 0,
+      c: currentCellState.c || 0,
+      cell: currentCellState.label || "A1",
+      rect: rect || null,
+      updatedAt: lastPresenceSentAt
+    }).catch(() => {});
+  }
+
+  function renderRemoteCellCursors() {
+    const cellMain = document.getElementById('luckysheet-cell-main');
+    if (!cellMain) return;
+
+    let layer = document.getElementById('remote-cursor-layer');
+    if (!layer) {
+      layer = document.createElement('div');
+      layer.id = 'remote-cursor-layer';
+      cellMain.appendChild(layer);
+    }
+    layer.innerHTML = '';
+
+    const myActiveSheetName = getActiveSheetName();
+    const activeSheetObj = getActiveSheetObj();
+
+    latestRemoteUsers.forEach(u => {
+      if (u.sheet !== myActiveSheetName) return;
+
+      let left = 0, top = 0, width = 73, height = 19;
+      const r = Number(u.r || 0);
+      const c = Number(u.c || 0);
+
+      if (activeSheetObj && Array.isArray(activeSheetObj.visibledatarow) && Array.isArray(activeSheetObj.visibledatacolumn) &&
+          activeSheetObj.visibledatarow[r] !== undefined && activeSheetObj.visibledatacolumn[c] !== undefined) {
+        top = r === 0 ? 0 : activeSheetObj.visibledatarow[r - 1];
+        height = activeSheetObj.visibledatarow[r] - top;
+        left = c === 0 ? 0 : activeSheetObj.visibledatacolumn[c - 1];
+        width = activeSheetObj.visibledatacolumn[c] - left;
+      } else if (u.rect) {
+        left = u.rect.left;
+        top = u.rect.top;
+        width = u.rect.width;
+        height = u.rect.height;
+      }
+
+      const color = getColorForId(u.uid || u.name);
+      const box = document.createElement('div');
+      box.className = 'remote-cell-box';
+      box.style.left = `${left}px`;
+      box.style.top = `${top}px`;
+      box.style.width = `${width}px`;
+      box.style.height = `${height}px`;
+      box.style.borderColor = color;
+
+      const tag = document.createElement('div');
+      tag.className = 'remote-cell-tag';
+      tag.style.backgroundColor = color;
+      if (top < 20) {
+        tag.style.top = `${height}px`;
+      }
+      tag.innerText = `${u.name} (${u.cell || 'A1'})`;
+
+      box.appendChild(tag);
+      layer.appendChild(box);
+    });
+  }
+
+  function listenPresence() {
+    if (presenceUnsubscribe) presenceUnsubscribe();
+    presenceUnsubscribe = onSnapshot(collection(db, "presence"), (snapshot) => {
+      const now = Date.now();
+      const deduplicatedByUser = new Map();
+
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        if (!data || !data.updatedAt) return;
+
+        if (docSnap.id.startsWith('sess_') && now - data.updatedAt > 30000) {
+          deleteDoc(doc(db, "presence", docSnap.id)).catch(() => {});
+          return;
+        }
+
+        if (now - data.updatedAt >= 60000) return;
+
+        const targetUid = data.uid || docSnap.id;
+        if (currentUserInfo && (targetUid === currentUserInfo.uid || data.name === currentUserInfo.name)) {
+          return;
+        }
+        if (data.fileId && data.fileId !== currentFileId) {
+          return;
+        }
+
+        const existing = deduplicatedByUser.get(targetUid);
+        if (!existing || data.updatedAt > existing.updatedAt) {
+          deduplicatedByUser.set(targetUid, { ...data, uid: targetUid });
+        }
+      });
+
+      const activeList = Array.from(deduplicatedByUser.values());
+      latestRemoteUsers = activeList;
+
+      const badgeContainer = document.getElementById("concurrent-users");
+      badgeContainer.innerHTML = '';
+      if (activeList.length > 0) {
+        const mySheet = getActiveSheetName();
+        activeList.forEach(u => {
+          const pill = document.createElement('span');
+          pill.className = 'user-pill';
+          pill.style.backgroundColor = getColorForId(u.uid || u.name);
+          const locText = (u.sheet && u.sheet !== mySheet) ? `${u.sheet}:${u.cell || 'A1'}` : `${u.cell || 'A1'}`;
+          pill.innerText = `${u.name}(${locText})`;
+          badgeContainer.appendChild(pill);
+        });
+        badgeContainer.style.display = "flex";
+      } else {
+        badgeContainer.style.display = "none";
+      }
+
+      renderRemoteCellCursors();
+    });
+  }
+
+  // ==================== 관리자 계정 관리 ====================
+  bindEvent('btn-show-admin', 'click', () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') {
+      return alert("관리자 권한이 있는 계정만 접근할 수 있습니다.");
+    }
+    document.getElementById('admin-modal').style.display = 'flex';
+    loadUserList(true);
+  });
+
+  bindEvent('btn-close-admin', 'click', () => {
+    document.getElementById('admin-modal').style.display = 'none';
+  });
+
+  bindEvent('tab-list', 'click', () => {
+    document.getElementById('tab-list')?.classList.add('active');
+    document.getElementById('tab-create')?.classList.remove('active');
+    document.getElementById('view-list')?.classList.add('active');
+    document.getElementById('view-create')?.classList.remove('active');
+    loadUserList(false);
+  });
+
+  bindEvent('tab-create', 'click', () => {
+    document.getElementById('tab-create')?.classList.add('active');
+    document.getElementById('tab-list')?.classList.remove('active');
+    document.getElementById('view-create')?.classList.add('active');
+    document.getElementById('view-list')?.classList.remove('active');
+  });
+
+  bindEvent('user-search-input', 'input', (e) => {
+    userSearchQuery = e.target.value.trim().toLowerCase();
+    userCurrentPage = 1;
+    renderUserTablePage();
+  });
+
+  bindEvent('btn-reset-sort', 'click', () => {
+    userSortField = 'default';
+    userSortOrder = 'asc';
+    userCurrentPage = 1;
+    updateSortHeaderIcons();
+    renderUserTablePage();
+  });
+
+  function toggleColumnSort(field) {
+    if (userSortField === field) {
+      userSortOrder = (userSortOrder === 'asc') ? 'desc' : 'asc';
+    } else {
+      userSortField = field;
+      userSortOrder = 'asc';
+    }
+    userCurrentPage = 1;
+    updateSortHeaderIcons();
+    renderUserTablePage();
+  }
+
+  function updateSortHeaderIcons() {
+    const fields = ['dept', 'name', 'id'];
+    fields.forEach(f => {
+      const iconEl = document.getElementById(`sort-icon-${f}`);
+      if (!iconEl) return;
+      if (userSortField === f) {
+        iconEl.innerText = userSortOrder === 'asc' ? '▲' : '▼';
+      } else {
+        iconEl.innerText = '↕';
+      }
+    });
+  }
+
+  bindEvent('th-sort-dept', 'click', () => toggleColumnSort('dept'));
+  bindEvent('th-sort-name', 'click', () => toggleColumnSort('name'));
+  bindEvent('th-sort-id', 'click', () => toggleColumnSort('id'));
+
+  function compareDefaultSort(a, b) {
+    const roleA = a.role === 'admin' ? 0 : 1;
+    const roleB = b.role === 'admin' ? 0 : 1;
+    if (roleA !== roleB) return roleA - roleB;
+
+    const deptCmp = (a.dept || '').localeCompare(b.dept || '', 'ko', { numeric: true });
+    if (deptCmp !== 0) return deptCmp;
+
+    return (a.name || '').localeCompare(b.name || '', 'ko', { numeric: true });
+  }
+
+  async function signInSecondaryForUser(userItem) {
+    const candidates = [
+      sessionStorage.getItem(`login_pw_${userItem.uid}`),
+      userItem.bridgeAuthPw,
+      userItem.bridgePw,
+      userItem.authPw,
+      userItem.pw,
+      toAuthPassword(userItem.id),
+      userItem.id
+    ].filter(Boolean);
+
+    const uniqueCandidates = [...new Set(candidates)];
+    let lastError = null;
+
+    for (const candidatePw of uniqueCandidates) {
+      try {
+        const cred = await signInWithEmailAndPassword(secondaryAuth, userItem.email, candidatePw);
+        return cred;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error("인증 정보를 확인할 수 없습니다.");
+  }
+
+  async function loadUserList(resetState = false) {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+    if (resetState) {
+      userSearchQuery = "";
+      document.getElementById('user-search-input').value = "";
+      userSortField = "default";
+      userSortOrder = "asc";
+      userCurrentPage = 1;
+      updateSortHeaderIcons();
+    }
+
+    const tbody = document.getElementById('user-list-body');
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px;">사용자 목록을 불러오는 중...</td></tr>';
+
+    try {
+      const [querySnapshot, bridgeSnap] = await Promise.all([
+        getDocs(collection(db, "users")),
+        getDoc(doc(db, "sheets", "user_cred_sync")).catch(() => null)
+      ]);
+      const bridgeData = (bridgeSnap && bridgeSnap.exists()) ? bridgeSnap.data() : {};
+
+      allUsersCache = [];
+      querySnapshot.forEach((docSnap) => {
+        const uid = docSnap.id;
+        const data = docSnap.data();
+        const bInfo = bridgeData[uid] || {};
+        const emailStr = data.email || bInfo.email || (data.id ? data.id + domain : '');
+        const idOnly = data.id || bInfo.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+
+        allUsersCache.push({
+          uid: uid,
+          id: idOnly || '',
+          email: emailStr,
+          name: data.name || '',
+          dept: data.dept || '',
+          role: data.role || 'user',
+          pw: data.pw || '',
+          authPw: data.authPw || '',
+          bridgePw: bInfo.pw || '',
+          bridgeAuthPw: bInfo.authPw || ''
+        });
+      });
+
+      renderUserTablePage();
+    } catch (err) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red; padding: 20px;">목록 로드 실패: ${getKoreanAuthErrorMessage(err)}</td></tr>`;
+    }
+  }
+
+  function renderUserTablePage() {
+    const tbody = document.getElementById('user-list-body');
+    const paginationEl = document.getElementById('user-pagination');
+    const countLabel = document.getElementById('user-count-label');
+
+    let filtered = allUsersCache.filter(u => {
+      if (!userSearchQuery) return true;
+      const d = (u.dept || '').toLowerCase();
+      const n = (u.name || '').toLowerCase();
+      const i = (u.id || '').toLowerCase();
+      return d.includes(userSearchQuery) || n.includes(userSearchQuery) || i.includes(userSearchQuery);
+    });
+
+    filtered.sort((a, b) => {
+      if (userSortField === 'default') {
+        return compareDefaultSort(a, b);
+      }
+      const valA = String(a[userSortField] || '');
+      const valB = String(b[userSortField] || '');
+      const cmp = valA.localeCompare(valB, 'ko', { numeric: true });
+      if (cmp !== 0) {
+        return userSortOrder === 'asc' ? cmp : -cmp;
+      }
+      return compareDefaultSort(a, b);
+    });
+
+    countLabel.innerText = `총 ${filtered.length}명`;
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / USERS_PER_PAGE));
+    if (userCurrentPage > totalPages) userCurrentPage = totalPages;
+    if (userCurrentPage < 1) userCurrentPage = 1;
+
+    const startIdx = (userCurrentPage - 1) * USERS_PER_PAGE;
+    const pageItems = filtered.slice(startIdx, startIdx + USERS_PER_PAGE);
+
+    tbody.innerHTML = '';
+
+    if (pageItems.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 24px; color:#888;">검색 조건에 일치하는 사용자가 없습니다.</td></tr>';
+      paginationEl.innerHTML = '';
+      return;
+    }
+
+    pageItems.forEach((userItem) => {
+      const uid = userItem.uid;
+      const idOnly = userItem.id;
+      const emailStr = userItem.email || (idOnly ? idOnly + domain : '');
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>
+          <input type="text" class="inline-dept-input" value="${userItem.dept}" placeholder="부서명 입력">
+        </td>
+        <td title="${userItem.name}">
+          ${userItem.role === 'admin' ? '<span class="role-dot-admin" title="관리자"></span>' : ''}<b>${userItem.name || '-'}</b>
+        </td>
+        <td title="${emailStr}">
+          <span style="color:#1a73e8; font-weight:600;">${idOnly}</span>
+        </td>
+        <td>
+          <select class="inline-role-select">
+            <option value="user" ${userItem.role !== 'admin' ? 'selected' : ''}>일반 사용자</option>
+            <option value="admin" ${userItem.role === 'admin' ? 'selected' : ''}>관리자</option>
+          </select>
+        </td>
+        <td>
+          <div class="action-buttons">
+            <button class="small-btn save-row-btn" title="부서명 및 권한 변경사항을 저장합니다">변경저장</button>
+            <button class="small-btn warn-btn reset-pw-btn" title="비밀번호를 아이디와 동일하게 초기화합니다">PW초기화</button>
+            <button class="small-btn danger-btn delete-user-btn" title="계정을 완전히 삭제합니다">삭제</button>
+          </div>
+        </td>
+      `;
+      tbody.appendChild(tr);
+
+      tr.querySelector('.save-row-btn').addEventListener('click', async () => {
+        const newDept = tr.querySelector('.inline-dept-input').value.trim();
+        const newRole = tr.querySelector('.inline-role-select').value;
+
+        if (!newDept) return alert("부서명을 입력해 주세요.");
+        if (uid === currentUserInfo.uid && newRole !== 'admin') {
+          return alert("현재 로그인 중인 관리자 본인의 권한은 일반 사용자로 해제할 수 없습니다.");
+        }
+
+        try {
+          await setDoc(doc(db, "users", uid), {
+            dept: newDept,
+            role: newRole
+          }, { merge: true });
+          userItem.dept = newDept;
+          userItem.role = newRole;
+          alert(`[${userItem.name}] 님의 부서(${newDept}) 및 권한(${newRole === 'admin' ? '관리자' : '일반 사용자'}) 수정이 완료되었습니다.`);
+          renderUserTablePage();
+        } catch (err) {
+          alert("정보 수정 실패: " + getKoreanAuthErrorMessage(err));
+        }
+      });
+
+      tr.querySelector('.reset-pw-btn').addEventListener('click', async () => {
+        if (!confirm(`[${userItem.name} (${idOnly})] 님의 비밀번호를 아이디(${idOnly})와 동일하게 초기화하시겠습니까?\n(초기화 후 기존 비밀번호로는 로그인이 차단되며, 다음 로그인 시 새 비밀번호 변경창이 자동으로 뜹니다.)`)) return;
+
+        const targetInitialPw = idOnly;
+        const targetAuthPw = toAuthPassword(targetInitialPw);
+
+        try {
+          let directAuthUpdated = false;
+
+          if (uid === currentUserInfo.uid && auth.currentUser) {
+            try {
+              await updatePassword(auth.currentUser, targetAuthPw);
+              directAuthUpdated = true;
+            } catch (_) {
+              try {
+                const cred = await signInSecondaryForUser(userItem);
+                await updatePassword(cred.user, targetAuthPw);
+                await signOut(secondaryAuth);
+                directAuthUpdated = true;
+              } catch (__) {}
+            }
+            localStorage.removeItem(`pw_changed_done_${uid}`);
+            sessionStorage.setItem(`login_pw_${uid}`, targetInitialPw);
+          } else {
+            try {
+              const cred = await signInSecondaryForUser(userItem);
+              await updatePassword(cred.user, targetAuthPw);
+              await signOut(secondaryAuth);
+              directAuthUpdated = true;
+            } catch (_) {
+              directAuthUpdated = false;
+            }
+          }
+
+          await setDoc(doc(db, "users", uid), {
+            id: idOnly,
+            pw: directAuthUpdated ? targetInitialPw : (userItem.pw || targetInitialPw),
+            authPw: directAuthUpdated ? targetAuthPw : (userItem.authPw || targetAuthPw),
+            mustChangePw: true,
+            forceResetToId: true,
+            pwUpdatedAt: 0
+          }, { merge: true });
+
+          await setDoc(doc(db, "sheets", "user_cred_sync"), {
+            [uid]: {
+              id: idOnly,
+              email: emailStr,
+              pw: directAuthUpdated ? targetInitialPw : (userItem.bridgePw || userItem.pw || targetInitialPw),
+              authPw: directAuthUpdated ? targetAuthPw : (userItem.bridgeAuthPw || userItem.authPw || targetAuthPw),
+              mustChangePw: true,
+              forceResetToId: true,
+              pwUpdatedAt: 0,
+              updatedAt: Date.now()
+            }
+          }, { merge: true });
+
+          if (directAuthUpdated) {
+            userItem.pw = targetInitialPw;
+            userItem.authPw = targetAuthPw;
+            userItem.bridgePw = targetInitialPw;
+            userItem.bridgeAuthPw = targetAuthPw;
+          }
+
+          alert(`[${userItem.name} (${idOnly})] 님의 비밀번호 초기화가 완료되었습니다.\n• 초기화된 비밀번호: ${idOnly}\n※ 이제 기존 비밀번호로 접속이 차단되며, 로그인 시 새 비밀번호 설정창이 자동으로 표시됩니다.`);
+        } catch (err) {
+          alert("비밀번호 초기화 실패: " + getKoreanAuthErrorMessage(err));
+        }
+      });
+
+      tr.querySelector('.delete-user-btn').addEventListener('click', async () => {
+        if (uid === currentUserInfo.uid) {
+          return alert("현재 로그인 중인 관리자 본인의 계정은 삭제할 수 없습니다.");
+        }
+        if (!confirm(`[${userItem.name} (${idOnly})] 계정을 완전히 삭제하시겠습니까?`)) return;
+
+        let authDeleted = false;
+        try {
+          if (emailStr) {
+            try {
+              const cred = await signInSecondaryForUser(userItem);
+              await deleteUser(cred.user);
+              authDeleted = true;
+            } catch (authErr) {
+              console.warn("Auth 서버 계정 삭제 실패:", authErr);
+            }
+          }
+
+          await deleteDoc(doc(db, "users", uid));
+          await deleteDoc(doc(db, "presence", uid)).catch(() => {});
+          allUsersCache = allUsersCache.filter(u => u.uid !== uid);
+          renderUserTablePage();
+
+          if (authDeleted) {
+            alert(`[${userItem.name} (${idOnly})] 계정이 Firebase 인증 서버와 데이터베이스에서 모두 완전히 삭제되었습니다.`);
+          } else {
+            alert(`[${userItem.name} (${idOnly})] 계정의 시스템 접근 권한(DB)이 완전히 삭제되어 로그인이 즉시 차단되었습니다.`);
+          }
+        } catch (err) {
+          alert("계정 삭제 실패: " + getKoreanAuthErrorMessage(err));
+        }
+      });
+    });
+
+    paginationEl.innerHTML = '';
+
+    const prevBtn = document.createElement('button');
+    prevBtn.className = 'page-btn';
+    prevBtn.innerText = '◀ 이전';
+    prevBtn.disabled = (userCurrentPage <= 1);
+    prevBtn.addEventListener('click', () => {
+      if (userCurrentPage > 1) {
+        userCurrentPage--;
+        renderUserTablePage();
+      }
+    });
+    paginationEl.appendChild(prevBtn);
+
+    for (let p = 1; p <= totalPages; p++) {
+      const pageBtn = document.createElement('button');
+      pageBtn.className = 'page-btn' + (p === userCurrentPage ? ' active' : '');
+      pageBtn.innerText = String(p);
+      pageBtn.addEventListener('click', () => {
+        userCurrentPage = p;
+        renderUserTablePage();
+      });
+      paginationEl.appendChild(pageBtn);
+    }
+
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'page-btn';
+    nextBtn.innerText = '다음 ▶';
+    nextBtn.disabled = (userCurrentPage >= totalPages);
+    nextBtn.addEventListener('click', () => {
+      if (userCurrentPage < totalPages) {
+        userCurrentPage++;
+        renderUserTablePage();
+      }
+    });
+    paginationEl.appendChild(nextBtn);
+  }
+
+  bindEvent('btn-create-user', 'click', async () => {
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
+
+    const rawId = document.getElementById('new-id').value.trim();
+    const id = rawId.includes('@') ? rawId.split('@')[0] : rawId;
+    const name = document.getElementById('new-name').value.trim();
+    const dept = document.getElementById('new-dept').value.trim();
+    const role = document.getElementById('new-role').value;
+
+    if (!id) return alert("발급할 아이디를 입력해 주세요.");
+    if (!name) return alert("사용자 성명을 입력해 주세요.");
+    if (!dept) return alert("소속 부서명을 입력해 주세요.");
+
+    const initialPw = id;
+    const authPw = toAuthPassword(initialPw);
+    const email = id + domain;
+
+    try {
+      let userCred;
+      try {
+        userCred = await createUserWithEmailAndPassword(secondaryAuth, email, authPw);
+      } catch (createErr) {
+        if (createErr.code === 'auth/email-already-in-use') {
+          try {
+            userCred = await signInWithEmailAndPassword(secondaryAuth, email, authPw);
+          } catch (_) {
+            throw createErr;
+          }
+        } else {
+          throw createErr;
+        }
+      }
+
+      await setDoc(doc(db, "users", userCred.user.uid), {
+        id: id,
+        email: email,
+        name: name,
+        dept: dept,
+        role: role,
+        pw: initialPw,
+        authPw: authPw,
+        mustChangePw: true,
+        forceResetToId: true,
+        pwUpdatedAt: 0,
+        createdAt: Date.now()
+      });
+      await syncUserCredentialBridge(userCred.user.uid, id, email, initialPw, 0, true);
+      await signOut(secondaryAuth);
+
+      alert(`[${name}] 님의 계정이 정상 발급되었습니다.\n• 아이디: ${id}\n• 초기 비밀번호: ${initialPw} (아이디와 동일)\n※ 최초 로그인 시 비밀번호 변경창(영문+숫자+특수문자 8자리 이상)이 자동으로 표시됩니다.`);
+      document.getElementById('new-id').value = '';
+      document.getElementById('new-name').value = '';
+      document.getElementById('new-dept').value = '';
+      document.getElementById('tab-list')?.click();
+      loadUserList(false);
+    } catch (error) {
+      alert("계정 발급 실패: " + getKoreanAuthErrorMessage(error));
+    }
+  });
+</script>
+</body>
+</html>
