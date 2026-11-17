@@ -16,6 +16,9 @@
   <!-- 대용량 엑셀 데이터 실시간 압축 라이브러리 (LZ-String) -->
   <script src="https://cdn.jsdelivr.net/npm/lz-string@1.5.0/libs/lz-string.min.js"></script>
 
+  <!-- 엑셀(.xlsx) 파일 다운로드 생성 라이브러리 (SheetJS) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
   <style>
     body, html { margin: 0; padding: 0; width: 100vw; height: 100vh; font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; overflow: hidden; }
     
@@ -80,6 +83,8 @@
     
     .header-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
     .header-actions button { padding: 8px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap; }
+    #btn-export-xlsx { background: #1a73e8; color: white; }
+    #btn-export-xlsx:hover { background: #1557b0; }
     #btn-toggle-mask-preview { background: #f1f3f4; color: #3c4043; border: 1px solid #dadce0; display: none; }
     #btn-toggle-mask-preview.active { background: #feefc3; color: #b06000; border-color: #fbbc04; font-weight: 800; }
     #btn-show-files { background: #673ab7; color: white; display: none; }
@@ -218,6 +223,7 @@
       <div id="concurrent-users"></div>
     </div>
     <div class="header-actions">
+      <button id="btn-export-xlsx" title="현재 엑셀 문서를 .xlsx 파일로 다운로드합니다 (관리자: 원본 / 일반사용자: 마스킹본)">📥 엑셀 다운로드(.xlsx)</button>
       <button id="btn-toggle-mask-preview" title="일반 사용자에게 보이는 개인정보 마스킹 화면을 즉시 전환하여 확인합니다">👁️ 마스킹 미리보기: OFF</button>
       <button id="btn-show-files" style="display: none;">📂 문서함/권한</button>
       <button id="btn-show-admin" style="display: none;">계정 관리(관리자)</button>
@@ -571,7 +577,7 @@
     return false;
   }
 
-  // ==================== ★ 전방위 개인정보 스마트 마스킹 엔진 (항목명 유무 무관 5대 패턴 + 고객명/계좌번호) ====================
+  // ==================== ★ 정밀 개인정보 마스킹 엔진 (고객번호/사번 오작동 원천 차단 & 5대 개인정보 항목 전용) ====================
   let adminMaskPreview = false;
 
   function shouldMaskForCurrentUser() {
@@ -580,16 +586,19 @@
     return true;
   }
 
-  const STAFF_EXCLUDE_REGEX = /(소개자|소개인|영업자|영업사원|영업매니저|매니저|플래너|설계사|담당|컨택|상담원|상담사|작성자|등록자|처리자|실행자|작업자|설치기사|사원|직원|팀장|센터장|실장|지점장|본부장|파트장|권유자|추천인|유치자)/i;
-  const CUST_ID_EXCLUDE_REGEX = /(고객번호|고객계정|고번|개소번호|개소명|개소구분|상호|상호명|업체|업체명|사업장|점포|매장|기관|계약번호|청구번호|청구계정|납부번호|가입번호|접수번호|관리번호|회선번호|서비스번호|단말번호|일련번호|사업자번호|법인번호|차량번호|우편번호|문서번호|전표번호|승인번호|주문번호|아이디|사번|코드|id|code|no)/i;
+  // 1순위 보호(절대 마스킹 금지): 우리 직원(영업자/담당자/사번 등) 및 식별번호(고객번호/고객계정/고번/개소번호/계약번호 등)
+  const STAFF_EXCLUDE_REGEX = /(소개자|소개인|영업자|영업사원|영업매니저|매니저|플래너|설계사|담당|컨택|상담원|상담사|작성자|등록자|처리자|실행자|작업자|설치기사|사원|사번|직원|팀장|센터장|실장|지점장|본부장|파트장|권유자|추천인|유치자)/i;
+  const CUST_ID_EXCLUDE_REGEX = /(고객번호|고객계정|고번|개소번호|개소명|개소구분|상호|상호명|업체|업체명|사업장|점포|매장|기관|계약번호|청구번호|청구계정|납부번호|가입번호|접수번호|관리번호|회선번호|서비스번호|단말번호|일련번호|사업자번호|법인번호|차량번호|우편번호|문서번호|전표번호|승인번호|주문번호|아이디|사번|코드|순번|번호|id|code|no)/i;
 
+  // 마스킹 대상 열 제목 정규식
   const CUSTOMER_NAME_COL_REGEX = /(고객명|고객성명|고객이름|^고객$|가입자명|가입자|명의자|명의인|수취인|수령인|예금주|예금주명|입금자|입금자명|신청인|신청자|소비자|의뢰인|차주명|회원명|방문자|민원인|소유자|계약자|계약자명|납부자|대표자명|대표자|^성명$|^이름$)/i;
-  const PHONE_COL_REGEX = /(전화|연락처|휴대폰|핸드폰|연락번호|모바일|유선번호|무선번호|팩스|안심번호|휴대전화|자택전화|직장전화|비상연락|tel|phone|hp|mobile|cell)/i;
-  const ACCOUNT_COL_REGEX = /(계좌|은행계좌|환불계좌|입금계좌|출금계좌|자동이체계좌|가상계좌|통장번호)/i;
+  const PHONE_COL_REGEX = /(전화|전화번호|연락처|휴대폰|핸드폰|연락번호|모바일|유선번호|무선번호|팩스|안심번호|휴대전화|자택전화|직장전화|비상연락|tel|phone|hp|mobile|cell)/i;
+  const ACCOUNT_COL_REGEX = /(계좌|계좌번호|은행계좌|환불계좌|입금계좌|출금계좌|자동이체계좌|가상계좌|통장번호)/i;
   const ADDRESS_COL_REGEX = /(주소|소재지|거주지|배송지|설치장소|설치주소|방문지|도로명|지번)/i;
   const PASSPORT_COL_REGEX = /(여권|여권번호|passport)/i;
-  const RRN_COL_REGEX = /(주민번호|주민등록번호|신분증번호)/i;
-  const EMAIL_COL_REGEX = /(이메일|메일|email|e-mail)/i;
+  const RRN_COL_REGEX = /(주민번호|주민등록번호|신분증번호|생년월일)/i;
+  const EMAIL_COL_REGEX = /(이메일|메일|전자우편|email|e-mail)/i;
+  const MEMO_COL_REGEX = /(비고|메모|내용|특이사항|방문내용|상담내용)/i;
 
   const BUSINESS_NAME_KEYWORDS = /(호텔|모텔|여관|여인숙|무인텔|펜션|리조트|게스트하우스|민박|숙박|빌라|아파트|오피스텔|빌딩|타워|상가|마트|백화점|슈퍼|편의점|병원|의원|약국|한의원|요양원|어린이집|유치원|학원|학교|대학교|교회|성당|사찰|식당|음식점|갈비|회관|카페|커피|베이커리|주유소|충전소|주차장|세차장|공장|산업|상사|물산|건설|전기|통신|네트웍스|시스템|솔루션|테크|코퍼레이션|주식회사|\(주\)|\(유\)|\(사\)|\(재\)|센터|지점|지사|본부|대리점|판매점|영업소|사무소|조합|협회|골프|스크린|당구|노래방|PC방|피씨방|사우나|찜질방|스파|헬스|피트니스|실버타운)/i;
 
@@ -616,16 +625,21 @@
     const clean = String(rawHeaderText).replace(/[\s\r\n()\[\]·•_-]+/g, '');
     if (!clean || clean.length > 25) return null;
 
-    if (STAFF_EXCLUDE_REGEX.test(clean)) return 'EXEMPT_STAFF';
-    if (CUST_ID_EXCLUDE_REGEX.test(clean)) return 'EXEMPT_ID';
-
+    // 1. 개인정보 열 제목을 최우선 판별 (예: '전화번호', '계좌번호', '주민등록번호', '여권번호'가 일반 '번호'로 빠지지 않도록 먼저 체크)
     if (RRN_COL_REGEX.test(clean)) return 'RRN';
     if (PASSPORT_COL_REGEX.test(clean)) return 'PASSPORT';
     if (EMAIL_COL_REGEX.test(clean)) return 'EMAIL';
     if (ADDRESS_COL_REGEX.test(clean)) return 'ADDRESS';
     if (ACCOUNT_COL_REGEX.test(clean)) return 'ACCOUNT';
     if (PHONE_COL_REGEX.test(clean)) return 'PHONE';
+
+    // 2. 우리 직원(사번/영업자/담당자 등) 및 고객식별번호(고객번호/고객계정/고번/개소번호 등)는 무조건 마스킹 제외
+    if (STAFF_EXCLUDE_REGEX.test(clean)) return 'EXEMPT_STAFF';
+    if (CUST_ID_EXCLUDE_REGEX.test(clean)) return 'EXEMPT_ID';
+
+    // 3. 고객명 및 비고란
     if (CUSTOMER_NAME_COL_REGEX.test(clean)) return 'CUSTOMER_NAME';
+    if (MEMO_COL_REGEX.test(clean)) return 'MEMO';
     return null;
   }
 
@@ -666,7 +680,9 @@
     return colRules;
   }
 
-  // [규칙 1] 전화번호: 가운데 국번 자리를 모두 '****'로 마스킹 (예: 010-****-1234)
+  // ① 전화번호 (가운데 4자리 ****): 예 010-****-1234, 02-****-5678
+  const STRICT_PHONE_REGEX = /(01[016789]-\d{3,4}-\d{4}|01[016789]\d{7,8}|(?:02|0[3-6][1-5]|070|080)-\d{3,4}-\d{4})/g;
+
   function maskPhoneFormat(phoneStr) {
     const str = String(phoneStr ?? '').trim();
     const hyphenMatch = str.match(/^(01[016789]|02|0[3-6][1-5]|070|080|050\d?)-(\d{3,4})-(\d{4})$/);
@@ -680,14 +696,12 @@
     return str;
   }
 
-  // [규칙 2] 주소 (신주소/도로명, 구주소/지번): 동 이름 또는 도로 이름 이후는 모두 마스킹
+  // ② 주소 (신주소·구주소 동이름/도로명 이후 전체 *): 예 인천광역시 부평구 십정동 ******, 강원 강릉시 경강로 ****
   function maskAddressString(rawStr, isAddressColumn = false) {
     const str = String(rawStr ?? '');
     if (!str.trim()) return str;
 
-    // 신주소(도로명: ~로, ~길, ~대로) 또는 구주소(지번: ~동, ~읍, ~면, ~리, ~가) 매칭
-    // 앞에 시/도/군/구/읍/면 등 행정구역 단어가 있거나 주소 열인 경우 동/도로명 토큰 이후 상세주소를 모두 '*'로 마스킹
-    const hasRegionPrefix = /(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|[가-힣]{1,5}[시군구읍면])/i.test(str);
+    const hasRegionPrefix = /^(서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주|[가-힣]{2,5}[시도군구])\s+[가-힣0-9]+(시|군|구|읍|면|동|리|로|길|대로)/i.test(str.trim());
     if (!isAddressColumn && !hasRegionPrefix) return str;
 
     const tokens = str.split(/(\s+)/);
@@ -696,7 +710,6 @@
     for (let i = 0; i < tokens.length; i++) {
       const tk = tokens[i].trim();
       if (!tk || /^\s+$/.test(tk)) continue;
-      // 도로명(~로, ~길, ~대로, ~번길) 또는 행정동/리(~동, ~읍, ~면, ~리, ~가) 토큰 감지
       if (/^[가-힣0-9]+(대로|번길|로|길)$/.test(tk) || /^[가-힣0-9]+(동|읍|면|리|가)$/.test(tk)) {
         anchorTokenIndex = i;
       }
@@ -719,7 +732,7 @@
     return str;
   }
 
-  // [규칙 3] 이메일 주소: 아이디 4번째 글자부터 @ 표시 전까지 모두 '*'로 마스킹
+  // ③ 이메일 주소 (아이디 4번째부터 @ 전까지 모두 *): 예 sub***@helloconnectn.com
   function maskEmailPatternsInText(str) {
     return str.replace(/([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, (full, localPart, domainPart) => {
       const chars = Array.from(localPart);
@@ -732,27 +745,26 @@
     });
   }
 
-  // [규칙 4] 주민등록번호: 뒤에서부터 6번째부터 끝까지 모두 '******'로 마스킹
+  // ④ 주민등록번호 (뒤에서 6번째부터 끝까지 모두 ******): 유효한 월(01~12)/일(01~31) 생년월일 형식일 때만 작동하여 일반 고객번호 오작동 방지
   function maskRrnPatternsInText(str) {
-    return str.replace(/\b(\d{6})(-?)([1-8])(\d{6})\b/g, (full, front, sep, genderDigit) => {
+    return str.replace(/\b(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))(-?)([1-8])(\d{6})\b/g, (full, front, sep, genderDigit) => {
       return `${front}${sep || '-'}${genderDigit}******`;
     });
   }
 
-  // [규칙 5] 여권번호: 뒤에서 4번째부터 끝까지 '****'로 마스킹
+  // ⑤ 여권번호 (뒤에서 4번째부터 끝까지 ****): 여권번호 열이거나 한국 여권번호 표준 형식(M/S/R/G 등 + 8자리)일 때 뒤 4자리 마스킹
   function maskPassportPatternsInText(str, isPassportCol = false) {
     if (isPassportCol) {
       const trimmed = str.trim();
-      if (trimmed.length >= 5) {
+      if (/^[A-Za-z0-9-]{5,15}$/.test(trimmed)) {
         return trimmed.slice(0, trimmed.length - 4) + '****';
       }
     }
-    return str.replace(/\b([A-Z]{1,2}[0-9A-Z]\d{2})(\d{4})\b/g, (full, prefix) => {
+    return str.replace(/\b([MSRGmsrg]\d{3}[A-Za-z0-9]?)(\d{4})\b/g, (full, prefix) => {
       return `${prefix}****`;
     });
   }
 
-  // 고객명 가운데 1글자 마스킹
   function maskCustomerNameValue(valStr) {
     const str = String(valStr ?? '').trim();
     if (!str) return str;
@@ -785,7 +797,6 @@
     return namePart.join('') + suffix;
   }
 
-  // 계좌번호 가운데 2자리 마스킹
   function maskAccountDigits(tokenStr) {
     const str = String(tokenStr ?? '');
     const digitPositions = [];
@@ -801,55 +812,74 @@
     return chars.join('');
   }
 
-  const INLINE_PHONE_REGEX = /(01[016789]-\d{3,4}-\d{4}|01[016789]\d{7,8}|(?:02|0[3-6][1-5]|070|080)-\d{3,4}-\d{4})/g;
-
+  // 열 제목(colRuleType)과 5대 개인정보 패턴을 결합하여 고객번호·사번 등은 100% 보호하고 개인정보만 마스킹
   function computeMaskedTextForCell(rawStr, colRuleType) {
     if (rawStr === null || rawStr === undefined || rawStr === '') return rawStr;
     let str = String(rawStr);
+
+    // 1. 우리 직원 열(사번/영업자/담당자/소개자 등) 및 고객식별번호 열(고객번호/고객계정/고번/개소번호 등)은 절대 마스킹하지 않고 원본 그대로 반환!
+    if (colRuleType === 'EXEMPT_STAFF' || colRuleType === 'EXEMPT_ID') {
+      return str;
+    }
 
     // 날짜 형식(예: 2025-07-30)은 보호
     if (/^\d{4}[-./]\d{1,2}[-./]\d{1,2}$/.test(str.trim())) {
       return str;
     }
 
-    // 1. 항목명과 무관하게 언제나 적용되는 글로벌 패턴 마스킹 (주민등록번호, 이메일, 전화번호, 여권번호)
-    str = maskRrnPatternsInText(str);
-    str = maskEmailPatternsInText(str);
-    str = str.replace(INLINE_PHONE_REGEX, (m) => maskPhoneFormat(m));
-    str = maskPassportPatternsInText(str, colRuleType === 'PASSPORT');
-
-    // 2. 직원 열 또는 고객번호/고번 열은 이름·계좌·주소 추가 마스킹에서 제외
-    if (colRuleType === 'EXEMPT_STAFF' || colRuleType === 'EXEMPT_ID') {
-      return str;
+    // 2. 열 제목이 지정된 경우 해당 열의 성격에 맞춰 정밀 마스킹
+    if (colRuleType === 'PHONE') {
+      STRICT_PHONE_REGEX.lastIndex = 0;
+      if (STRICT_PHONE_REGEX.test(str)) {
+        STRICT_PHONE_REGEX.lastIndex = 0;
+        return str.replace(STRICT_PHONE_REGEX, (m) => maskPhoneFormat(m));
+      }
+      return maskPhoneFormat(str);
     }
 
-    // 3. 주소 열이거나 신주소/구주소 패턴인 경우 동이름/도로명 이후 모두 마스킹
     if (colRuleType === 'ADDRESS') {
       return maskAddressString(str, true);
-    } else {
-      const addrMasked = maskAddressString(str, false);
-      if (addrMasked !== str) return addrMasked;
     }
 
-    // 4. 고객명 열
+    if (colRuleType === 'EMAIL') {
+      return maskEmailPatternsInText(str);
+    }
+
+    if (colRuleType === 'RRN') {
+      return maskRrnPatternsInText(str);
+    }
+
+    if (colRuleType === 'PASSPORT') {
+      return maskPassportPatternsInText(str, true);
+    }
+
     if (colRuleType === 'CUSTOMER_NAME') {
       return maskCustomerNameValue(str);
     }
 
-    // 5. 전화번호 열
-    if (colRuleType === 'PHONE') {
-      return maskPhoneFormat(str);
-    }
-
-    // 6. 계좌번호 열
     if (colRuleType === 'ACCOUNT') {
       return maskAccountDigits(str);
+    }
+
+    // 3. 비고란(MEMO) 또는 일반 열에서는 확실한 5대 개인정보 형식(전화번호, 이메일, 신/구주소, 주민번호, 여권번호)과 정확히 일치할 때만 마스킹
+    if (str.includes('@')) {
+      str = maskEmailPatternsInText(str);
+    }
+    STRICT_PHONE_REGEX.lastIndex = 0;
+    if (STRICT_PHONE_REGEX.test(str)) {
+      STRICT_PHONE_REGEX.lastIndex = 0;
+      str = str.replace(STRICT_PHONE_REGEX, (m) => maskPhoneFormat(m));
+    }
+    str = maskRrnPatternsInText(str);
+    str = maskPassportPatternsInText(str, false);
+    const addrMasked = maskAddressString(str, false);
+    if (addrMasked !== str) {
+      str = addrMasked;
     }
 
     return str;
   }
 
-  // ★ Del 키 삭제 및 마우스 연속 데이터 드래그(1,2,3,4,5,6) 시 옛날 rawV가 되살아나지 않도록 완벽히 개선된 셀 마스킹 처리기
   function processSingleCellMasking(cell, r, c, colRules, maskActive) {
     if (!cell || typeof cell !== 'object' || cell.f) return;
 
@@ -858,7 +888,6 @@
 
     const currentDisplayStr = extractCurrentDisplayString(cell);
 
-    // [핵심 해결 1] Del 키나 내용 지우기로 셀 내용이 비워진 경우: 기존 백업(rawV, rawM, rawCtS)도 즉시 삭제하여 되살아남 원천 차단!
     if (currentDisplayStr === '') {
       delete cell.rawV;
       delete cell.rawM;
@@ -867,9 +896,6 @@
       return;
     }
 
-    // [핵심 해결 2] 마우스 자동채우기(1,2,3,4,5,6) 등으로 셀 값이 변경된 경우:
-    // 현재 셀의 표시 문자열이 직전에 마스킹해 둔 문자열(cell.__maskedStr)과 다르고 '*'를 포함하지 않는 새 값이라면,
-    // 옛날 rawV를 버리고 새 값을 최신 원본(rawV)으로 즉시 갱신!
     if (cell.rawV !== undefined) {
       if (cell.__maskedStr !== undefined && currentDisplayStr !== cell.__maskedStr && !currentDisplayStr.includes('*')) {
         cell.rawV = cell.v !== undefined && cell.v !== null ? cell.v : currentDisplayStr;
@@ -882,7 +908,6 @@
         cell.rawM = cell.m !== undefined && cell.m !== null ? cell.m : String(cell.rawV);
       }
     } else {
-      // 최초 원본 백업
       if (!currentDisplayStr.includes('*')) {
         cell.rawV = cell.v !== undefined && cell.v !== null ? cell.v : currentDisplayStr;
         cell.rawM = cell.m !== undefined && cell.m !== null ? cell.m : currentDisplayStr;
@@ -956,6 +981,111 @@
       window.luckysheet.jfrefreshgrid();
       setTimeout(() => { isApplyingRemoteUpdate = false; }, 50);
     }
+  }
+
+  // ==================== ★ 권한별 엑셀(.xlsx) 다운로드 기능 (관리자: 원본 / 일반사용자: 마스킹본) ====================
+  function exportWorkbookToXlsx() {
+    if (!window.XLSX) {
+      return alert("엑셀 내보내기 모듈을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.");
+    }
+    if (!window.luckysheet || typeof window.luckysheet.getluckysheetfile !== 'function') return;
+    const liveSheets = window.luckysheet.getluckysheetfile();
+    if (!liveSheets || liveSheets.length === 0) return;
+
+    const isAdminUser = currentUserInfo && currentUserInfo.role === 'admin';
+    // 일반 사용자는 무조건 마스킹본 다운로드 / 관리자는 기본 원본 다운로드(미리보기 ON일 때만 마스킹본)
+    const exportMasked = !isAdminUser || adminMaskPreview;
+
+    const wb = window.XLSX.utils.book_new();
+    const usedSheetNames = new Set();
+
+    liveSheets.forEach((sheet, idx) => {
+      // 일반 사용자에게는 숨겨진 시트(hide: 1)는 내보내지 않음
+      if (!isAdminUser && sheet.hide) return;
+
+      const colRules = analyzeSheetColumnRules(sheet);
+      let maxR = -1;
+      let maxC = -1;
+
+      if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
+        for (let r = 0; r < sheet.data.length; r++) {
+          const rowArr = sheet.data[r];
+          if (!rowArr) continue;
+          for (let c = 0; c < rowArr.length; c++) {
+            const cell = rowArr[c];
+            if (cell && extractCurrentDisplayString(cell) !== '') {
+              if (r > maxR) maxR = r;
+              if (c > maxC) maxC = c;
+            }
+          }
+        }
+      }
+
+      const aoa = [];
+      for (let r = 0; r <= Math.max(0, maxR); r++) {
+        const rowValues = [];
+        const rowArr = (sheet.data && sheet.data[r]) ? sheet.data[r] : [];
+        for (let c = 0; c <= Math.max(0, maxC); c++) {
+          const cell = rowArr[c];
+          if (!cell) {
+            rowValues.push('');
+            continue;
+          }
+          const ruleInfo = colRules[c];
+          const isHeaderCell = ruleInfo && r <= ruleInfo.headerRow;
+
+          const origVal = cell.rawV !== undefined ? cell.rawV : (cell.v !== undefined ? cell.v : extractCurrentDisplayString(cell));
+          const origStr = cell.rawM !== undefined ? String(cell.rawM) : String(origVal ?? '');
+
+          if (!exportMasked || isHeaderCell) {
+            // 관리자 원본 출력: 숫자는 숫자 타입 유지
+            if (typeof origVal === 'number') {
+              rowValues.push(origVal);
+            } else {
+              rowValues.push(origStr);
+            }
+          } else {
+            // 일반 사용자 마스킹본 출력
+            const colType = ruleInfo ? ruleInfo.type : null;
+            const maskedStr = computeMaskedTextForCell(origStr, colType);
+            rowValues.push(maskedStr);
+          }
+        }
+        aoa.push(rowValues);
+      }
+
+      const ws = window.XLSX.utils.aoa_to_sheet(aoa);
+
+      // 병합된 셀(config.merge) 정보 반영
+      if (sheet.config && sheet.config.merge) {
+        const merges = [];
+        Object.values(sheet.config.merge).forEach(m => {
+          if (m && m.r !== undefined && m.c !== undefined) {
+            merges.push({
+              s: { r: m.r, c: m.c },
+              e: { r: m.r + (m.rs || 1) - 1, c: m.c + (m.cs || 1) - 1 }
+            });
+          }
+        });
+        if (merges.length > 0) ws['!merges'] = merges;
+      }
+
+      let safeSheetName = String(sheet.name || `Sheet${idx + 1}`).replace(/[\\/?*[\]:]/g, '_').slice(0, 28) || `Sheet${idx + 1}`;
+      let counter = 2;
+      while (usedSheetNames.has(safeSheetName)) {
+        safeSheetName = `${safeSheetName.slice(0, 25)}_${counter++}`;
+      }
+      usedSheetNames.add(safeSheetName);
+
+      window.XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+    });
+
+    const currentFileTitle = fileCatalogList.find(f => f.id === currentFileId)?.title || '헬로CN닥스';
+    const dateStr = new Date().toISOString().slice(0, 10);
+    const suffix = exportMasked ? '마스킹본' : '원본';
+    const fileName = `${currentFileTitle}_${suffix}_${dateStr}.xlsx`;
+
+    window.XLSX.writeFile(wb, fileName);
   }
 
   function getKoreanAuthErrorMessage(err) {
@@ -1678,7 +1808,6 @@
     let hasProp = false;
 
     const currentDisp = extractCurrentDisplayString(cell);
-    // 셀 내용이 지워진 상태라면 rawV 대신 빈 값으로 처리
     const isCleared = (currentDisp === '');
     const trueV = isCleared ? null : (cell.rawV !== undefined ? cell.rawV : cell.v);
     const trueM = isCleared ? null : (cell.rawM !== undefined ? cell.rawM : cell.m);
@@ -1734,9 +1863,7 @@
     return exp;
   }
 
-  // ★ 시트 숨기기(hide), 데이터 유효성 검사(dataVerification), 조건부서식, 필터, 하이퍼링크를 모두 포함하여 직렬화
   function serializeSingleSheet(sheet, fallbackIdx = 0) {
-    // 직렬화 직전 현재 시트의 최신 셀 변경 상태(Del키 삭제, 드래그 자동채우기 등)를 먼저 동기화
     applyPrivacyMaskToSheetInPlace(sheet);
 
     let celldata = [];
@@ -2101,6 +2228,11 @@
       ]);
     }
     window.location.reload();
+  });
+
+  // 엑셀(.xlsx) 다운로드 버튼 이벤트 연결
+  bindEvent('btn-export-xlsx', 'click', () => {
+    exportWorkbookToXlsx();
   });
 
   bindEvent('btn-toggle-mask-preview', 'click', () => {
@@ -2931,7 +3063,6 @@
         );
         const validSheets = loadedSheets.filter(Boolean);
         if (validSheets.length > 0) {
-          // 숨김(hide: 1) 상태가 아닌 첫 번째 시트를 기본 활성 시트(status: 1)로 설정
           const firstVisible = validSheets.find(s => !s.hide) || validSheets[0];
           if (firstVisible) firstVisible.status = 1;
           sheetData = validSheets;
@@ -3027,7 +3158,6 @@
         if (e.button === 2) {
           triggerMenuTranslate();
         } else if (!isInitializing && !isApplyingRemoteUpdate) {
-          // 마우스 드래그(연속 데이터 자동채우기 등) 완료 시 최신 셀 값을 rawV에 즉시 반영하고 마스킹 갱신
           setTimeout(() => {
             const active = getActiveSheetObj();
             if (active) applyPrivacyMaskToSheetInPlace(active);
@@ -3051,7 +3181,6 @@
           captureCurrentSelectionAsCopied();
         }
 
-        // 시트 하단 탭 메뉴(시트 숨기기/숨기기 취소/삭제/복제/이동) 클릭 시 전체 시트 상태(hide 포함) 즉시 저장
         if (target.closest('#luckysheet-sheets-m, .luckysheet-sheets-item-menu, #luckysheet-sheet-area')) {
           setTimeout(() => {
             markAllSheetsDirty();
@@ -3059,7 +3188,6 @@
           }, 80);
         }
 
-        // 우클릭 메뉴(내용 지우기 등) 또는 모달(데이터 유효성 검사 확인 버튼 등) 클릭 시 즉시 반영 및 저장
         if (target.closest('.luckysheet-cols-menu, .luckysheet-modal-dialog, .luckysheet-modal-dialog-slider, #luckysheet-border-style-menu')) {
           setTimeout(() => {
             const active = getActiveSheetObj();
@@ -3104,7 +3232,6 @@
       structureDirty = true;
     }
 
-    // 시트 숨김 상태(hide)나 이름이 캐시와 달라진 시트가 있으면 자동으로 저장 대상에 추가
     for (let i = 0; i < liveFiles.length; i++) {
       const s = liveFiles[i];
       const sKey = toSafeDocKey(s.index !== undefined ? s.index : i);
