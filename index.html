@@ -118,7 +118,7 @@
 
     /* 모달 공통 및 관리자 패널 */
     .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.45); z-index: 9999; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-    .modal-content { background: white; padding: 22px 26px; border-radius: 16px; width: 880px; max-width: 96vw; max-height: 92vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.15); box-sizing: border-box; }
+    .modal-content { background: white; padding: 22px 26px; border-radius: 16px; width: 960px; max-width: 96vw; max-height: 92vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.15); box-sizing: border-box; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
     .modal-header h3 { margin: 0; font-size: 18px; color: #202124; }
     .close-btn { background: none; border: none; font-size: 24px; cursor: pointer; color: #5f6368; padding: 0; }
@@ -152,6 +152,8 @@
     .inline-dept-input { width: 100%; padding: 5px 7px; border: 1px solid #dadce0; border-radius: 5px; font-size: 13px; box-sizing: border-box; }
     .inline-role-select { width: 100%; padding: 5px 6px; border: 1px solid #dadce0; border-radius: 5px; font-size: 13px; background: #fff; box-sizing: border-box; }
     .role-dot-admin { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #0f9d58; margin-right: 5px; vertical-align: middle; }
+    .last-login-badge { display: inline-block; font-size: 12px; color: #3c4043; font-variant-numeric: tabular-nums; }
+    .last-login-never { display: inline-block; font-size: 11px; color: #80868b; background: #f1f3f4; padding: 2px 7px; border-radius: 10px; font-weight: 600; }
 
     /* 파일 권한 선택기 */
     .perm-picker-wrapper { border: 1px solid #dadce0; border-radius: 10px; background: #fff; margin-bottom: 14px; overflow: hidden; }
@@ -370,11 +372,12 @@
       <div class="user-table-container">
         <table class="user-table">
           <colgroup>
-            <col style="width: 22%;">
+            <col style="width: 19%;">
+            <col style="width: 13%;">
+            <col style="width: 14%;">
+            <col style="width: 14%;">
             <col style="width: 15%;">
-            <col style="width: 18%;">
-            <col style="width: 16%;">
-            <col style="width: 29%;">
+            <col style="width: 25%;">
           </colgroup>
           <thead>
             <tr>
@@ -382,11 +385,12 @@
               <th id="th-sort-name" class="sortable-th" title="클릭하여 사용자명 순으로 정렬">사용자명 <span id="sort-icon-name" class="sort-arrow">↕</span></th>
               <th id="th-sort-id" class="sortable-th" title="클릭하여 아이디명 순으로 정렬">아이디명 <span id="sort-icon-id" class="sort-arrow">↕</span></th>
               <th>권한조정</th>
+              <th id="th-sort-lastLogin" class="sortable-th" title="클릭하여 최근 로그인 시간 순으로 정렬">최근 로그인 <span id="sort-icon-lastLogin" class="sort-arrow">↕</span></th>
               <th>관리 (저장 / 초기화 / 삭제)</th>
             </tr>
           </thead>
           <tbody id="user-list-body">
-            <tr><td colspan="5" style="text-align:center; padding: 20px;">데이터를 불러오는 중...</td></tr>
+            <tr><td colspan="6" style="text-align:center; padding: 20px;">데이터를 불러오는 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -548,6 +552,19 @@
     return String(rawStr || '').trim().replace(/[^a-zA-Z0-9가-힣_-]/g, '_');
   }
 
+  // 최근 로그인 타임스탬프 포맷터 (YYYY-MM-DD HH:MM)
+  function formatLastLoginTime(ts) {
+    const num = Number(ts);
+    if (!num || isNaN(num) || num <= 0) return null;
+    const d = new Date(num);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+  }
+
   const urlParams = new URLSearchParams(window.location.search);
   let currentFileId = toSafeFileId(urlParams.get('file') || urlParams.get('doc') || 'main') || 'main';
   let fileCatalogList = [
@@ -577,7 +594,7 @@
     return false;
   }
 
-  // ==================== ★ 정밀 개인정보 마스킹 엔진 (고객번호/사번 오작동 원천 차단 & 5대 개인정보 항목 전용) ====================
+  // ==================== 정밀 개인정보 마스킹 엔진 ====================
   let adminMaskPreview = false;
 
   function shouldMaskForCurrentUser() {
@@ -586,11 +603,9 @@
     return true;
   }
 
-  // 1순위 보호(절대 마스킹 금지): 우리 직원(영업자/담당자/사번 등) 및 식별번호(고객번호/고객계정/고번/개소번호/계약번호 등)
   const STAFF_EXCLUDE_REGEX = /(소개자|소개인|영업자|영업사원|영업매니저|매니저|플래너|설계사|담당|컨택|상담원|상담사|작성자|등록자|처리자|실행자|작업자|설치기사|사원|사번|직원|팀장|센터장|실장|지점장|본부장|파트장|권유자|추천인|유치자)/i;
   const CUST_ID_EXCLUDE_REGEX = /(고객번호|고객계정|고번|개소번호|개소명|개소구분|상호|상호명|업체|업체명|사업장|점포|매장|기관|계약번호|청구번호|청구계정|납부번호|가입번호|접수번호|관리번호|회선번호|서비스번호|단말번호|일련번호|사업자번호|법인번호|차량번호|우편번호|문서번호|전표번호|승인번호|주문번호|아이디|사번|코드|순번|번호|id|code|no)/i;
 
-  // 마스킹 대상 열 제목 정규식
   const CUSTOMER_NAME_COL_REGEX = /(고객명|고객성명|고객이름|^고객$|가입자명|가입자|명의자|명의인|수취인|수령인|예금주|예금주명|입금자|입금자명|신청인|신청자|소비자|의뢰인|차주명|회원명|방문자|민원인|소유자|계약자|계약자명|납부자|대표자명|대표자|^성명$|^이름$)/i;
   const PHONE_COL_REGEX = /(전화|전화번호|연락처|휴대폰|핸드폰|연락번호|모바일|유선번호|무선번호|팩스|안심번호|휴대전화|자택전화|직장전화|비상연락|tel|phone|hp|mobile|cell)/i;
   const ACCOUNT_COL_REGEX = /(계좌|계좌번호|은행계좌|환불계좌|입금계좌|출금계좌|자동이체계좌|가상계좌|통장번호)/i;
@@ -625,7 +640,6 @@
     const clean = String(rawHeaderText).replace(/[\s\r\n()\[\]·•_-]+/g, '');
     if (!clean || clean.length > 25) return null;
 
-    // 1. 개인정보 열 제목을 최우선 판별 (예: '전화번호', '계좌번호', '주민등록번호', '여권번호'가 일반 '번호'로 빠지지 않도록 먼저 체크)
     if (RRN_COL_REGEX.test(clean)) return 'RRN';
     if (PASSPORT_COL_REGEX.test(clean)) return 'PASSPORT';
     if (EMAIL_COL_REGEX.test(clean)) return 'EMAIL';
@@ -633,11 +647,9 @@
     if (ACCOUNT_COL_REGEX.test(clean)) return 'ACCOUNT';
     if (PHONE_COL_REGEX.test(clean)) return 'PHONE';
 
-    // 2. 우리 직원(사번/영업자/담당자 등) 및 고객식별번호(고객번호/고객계정/고번/개소번호 등)는 무조건 마스킹 제외
     if (STAFF_EXCLUDE_REGEX.test(clean)) return 'EXEMPT_STAFF';
     if (CUST_ID_EXCLUDE_REGEX.test(clean)) return 'EXEMPT_ID';
 
-    // 3. 고객명 및 비고란
     if (CUSTOMER_NAME_COL_REGEX.test(clean)) return 'CUSTOMER_NAME';
     if (MEMO_COL_REGEX.test(clean)) return 'MEMO';
     return null;
@@ -680,7 +692,6 @@
     return colRules;
   }
 
-  // ① 전화번호 (가운데 4자리 ****): 예 010-****-1234, 02-****-5678
   const STRICT_PHONE_REGEX = /(01[016789]-\d{3,4}-\d{4}|01[016789]\d{7,8}|(?:02|0[3-6][1-5]|070|080)-\d{3,4}-\d{4})/g;
 
   function maskPhoneFormat(phoneStr) {
@@ -696,7 +707,6 @@
     return str;
   }
 
-  // ② 주소 (신주소·구주소 동이름/도로명 이후 전체 *): 예 인천광역시 부평구 십정동 ******, 강원 강릉시 경강로 ****
   function maskAddressString(rawStr, isAddressColumn = false) {
     const str = String(rawStr ?? '');
     if (!str.trim()) return str;
@@ -732,7 +742,6 @@
     return str;
   }
 
-  // ③ 이메일 주소 (아이디 4번째부터 @ 전까지 모두 *): 예 sub***@helloconnectn.com
   function maskEmailPatternsInText(str) {
     return str.replace(/([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g, (full, localPart, domainPart) => {
       const chars = Array.from(localPart);
@@ -745,14 +754,12 @@
     });
   }
 
-  // ④ 주민등록번호 (뒤에서 6번째부터 끝까지 모두 ******): 유효한 월(01~12)/일(01~31) 생년월일 형식일 때만 작동하여 일반 고객번호 오작동 방지
   function maskRrnPatternsInText(str) {
     return str.replace(/\b(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01]))(-?)([1-8])(\d{6})\b/g, (full, front, sep, genderDigit) => {
       return `${front}${sep || '-'}${genderDigit}******`;
     });
   }
 
-  // ⑤ 여권번호 (뒤에서 4번째부터 끝까지 ****): 여권번호 열이거나 한국 여권번호 표준 형식(M/S/R/G 등 + 8자리)일 때 뒤 4자리 마스킹
   function maskPassportPatternsInText(str, isPassportCol = false) {
     if (isPassportCol) {
       const trimmed = str.trim();
@@ -812,22 +819,18 @@
     return chars.join('');
   }
 
-  // 열 제목(colRuleType)과 5대 개인정보 패턴을 결합하여 고객번호·사번 등은 100% 보호하고 개인정보만 마스킹
   function computeMaskedTextForCell(rawStr, colRuleType) {
     if (rawStr === null || rawStr === undefined || rawStr === '') return rawStr;
     let str = String(rawStr);
 
-    // 1. 우리 직원 열(사번/영업자/담당자/소개자 등) 및 고객식별번호 열(고객번호/고객계정/고번/개소번호 등)은 절대 마스킹하지 않고 원본 그대로 반환!
     if (colRuleType === 'EXEMPT_STAFF' || colRuleType === 'EXEMPT_ID') {
       return str;
     }
 
-    // 날짜 형식(예: 2025-07-30)은 보호
     if (/^\d{4}[-./]\d{1,2}[-./]\d{1,2}$/.test(str.trim())) {
       return str;
     }
 
-    // 2. 열 제목이 지정된 경우 해당 열의 성격에 맞춰 정밀 마스킹
     if (colRuleType === 'PHONE') {
       STRICT_PHONE_REGEX.lastIndex = 0;
       if (STRICT_PHONE_REGEX.test(str)) {
@@ -861,7 +864,6 @@
       return maskAccountDigits(str);
     }
 
-    // 3. 비고란(MEMO) 또는 일반 열에서는 확실한 5대 개인정보 형식(전화번호, 이메일, 신/구주소, 주민번호, 여권번호)과 정확히 일치할 때만 마스킹
     if (str.includes('@')) {
       str = maskEmailPatternsInText(str);
     }
@@ -983,7 +985,7 @@
     }
   }
 
-  // ==================== ★ 권한별 엑셀(.xlsx) 다운로드 기능 (관리자: 원본 / 일반사용자: 마스킹본) ====================
+  // ==================== 권한별 엑셀(.xlsx) 다운로드 기능 ====================
   function exportWorkbookToXlsx() {
     if (!window.XLSX) {
       return alert("엑셀 내보내기 모듈을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.");
@@ -993,14 +995,12 @@
     if (!liveSheets || liveSheets.length === 0) return;
 
     const isAdminUser = currentUserInfo && currentUserInfo.role === 'admin';
-    // 일반 사용자는 무조건 마스킹본 다운로드 / 관리자는 기본 원본 다운로드(미리보기 ON일 때만 마스킹본)
     const exportMasked = !isAdminUser || adminMaskPreview;
 
     const wb = window.XLSX.utils.book_new();
     const usedSheetNames = new Set();
 
     liveSheets.forEach((sheet, idx) => {
-      // 일반 사용자에게는 숨겨진 시트(hide: 1)는 내보내지 않음
       if (!isAdminUser && sheet.hide) return;
 
       const colRules = analyzeSheetColumnRules(sheet);
@@ -1038,14 +1038,12 @@
           const origStr = cell.rawM !== undefined ? String(cell.rawM) : String(origVal ?? '');
 
           if (!exportMasked || isHeaderCell) {
-            // 관리자 원본 출력: 숫자는 숫자 타입 유지
             if (typeof origVal === 'number') {
               rowValues.push(origVal);
             } else {
               rowValues.push(origStr);
             }
           } else {
-            // 일반 사용자 마스킹본 출력
             const colType = ruleInfo ? ruleInfo.type : null;
             const maskedStr = computeMaskedTextForCell(origStr, colType);
             rowValues.push(maskedStr);
@@ -1056,7 +1054,6 @@
 
       const ws = window.XLSX.utils.aoa_to_sheet(aoa);
 
-      // 병합된 셀(config.merge) 정보 반영
       if (sheet.config && sheet.config.merge) {
         const merges = [];
         Object.values(sheet.config.merge).forEach(m => {
@@ -2089,6 +2086,7 @@
     } catch (_) {}
   }
 
+  // 로그인 실행 시 최근 로그인 시간(lastLoginAt) 함께 기록
   async function executeLogin() {
     if (!isCompanyIpVerified) {
       alert("사내망에서만 접속 가능합니다.");
@@ -2147,6 +2145,7 @@
         }
       }
 
+      const loginNow = Date.now();
       const [uSnap, bSnap] = await Promise.all([
         getDoc(doc(db, "users", cred.user.uid)).catch(() => null),
         getDoc(doc(db, "sheets", "user_cred_sync")).catch(() => null)
@@ -2170,11 +2169,18 @@
         localStorage.removeItem(`pw_changed_done_${cred.user.uid}`);
         sessionStorage.setItem(`login_pw_${cred.user.uid}`, id);
         await syncUserCredentialBridge(cred.user.uid, id, email, id, 0, false);
+        try {
+          await setDoc(doc(db, "users", cred.user.uid), { lastLoginAt: loginNow }, { merge: true });
+          await setDoc(doc(db, "sheets", "user_cred_sync"), { [cred.user.uid]: { lastLoginAt: loginNow } }, { merge: true });
+        } catch (_) {}
       } else {
         sessionStorage.setItem(`login_pw_${cred.user.uid}`, pw);
         if (pw === id || loggedInViaFallbackReset) {
           localStorage.removeItem(`pw_changed_done_${cred.user.uid}`);
         }
+        try {
+          await setDoc(doc(db, "users", cred.user.uid), { lastLoginAt: loginNow }, { merge: true });
+        } catch (_) {}
         try {
           await setDoc(doc(db, "sheets", "user_cred_sync"), {
             [cred.user.uid]: {
@@ -2185,7 +2191,8 @@
               mustChangePw: (pw === id) || Boolean(uData.mustChangePw),
               forceResetToId: false,
               pwUpdatedAt: bData.pwUpdatedAt || uData.pwUpdatedAt || 0,
-              updatedAt: Date.now()
+              lastLoginAt: loginNow,
+              updatedAt: loginNow
             }
           }, { merge: true });
         } catch (_) {}
@@ -2230,7 +2237,6 @@
     window.location.reload();
   });
 
-  // 엑셀(.xlsx) 다운로드 버튼 이벤트 연결
   bindEvent('btn-export-xlsx', 'click', () => {
     exportWorkbookToXlsx();
   });
@@ -3640,7 +3646,7 @@
     });
   }
 
-  // ==================== 관리자 계정 관리 ====================
+  // ==================== 관리자 계정 관리 (최근 로그인 시간 표시 및 정렬 포함) ====================
   bindEvent('btn-show-admin', 'click', () => {
     if (!currentUserInfo || currentUserInfo.role !== 'admin') {
       return alert("관리자 권한이 있는 계정만 접근할 수 있습니다.");
@@ -3687,7 +3693,7 @@
       userSortOrder = (userSortOrder === 'asc') ? 'desc' : 'asc';
     } else {
       userSortField = field;
-      userSortOrder = 'asc';
+      userSortOrder = field === 'lastLogin' ? 'desc' : 'asc';
     }
     userCurrentPage = 1;
     updateSortHeaderIcons();
@@ -3695,7 +3701,7 @@
   }
 
   function updateSortHeaderIcons() {
-    const fields = ['dept', 'name', 'id'];
+    const fields = ['dept', 'name', 'id', 'lastLogin'];
     fields.forEach(f => {
       const iconEl = document.getElementById(`sort-icon-${f}`);
       if (!iconEl) return;
@@ -3710,6 +3716,7 @@
   bindEvent('th-sort-dept', 'click', () => toggleColumnSort('dept'));
   bindEvent('th-sort-name', 'click', () => toggleColumnSort('name'));
   bindEvent('th-sort-id', 'click', () => toggleColumnSort('id'));
+  bindEvent('th-sort-lastLogin', 'click', () => toggleColumnSort('lastLogin'));
 
   function compareDefaultSort(a, b) {
     const roleA = a.role === 'admin' ? 0 : 1;
@@ -3759,7 +3766,7 @@
     }
 
     const tbody = document.getElementById('user-list-body');
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 20px;">사용자 목록을 불러오는 중...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 20px;">사용자 목록을 불러오는 중...</td></tr>';
 
     try {
       const [querySnapshot, bridgeSnap] = await Promise.all([
@@ -3775,6 +3782,7 @@
         const bInfo = bridgeData[uid] || {};
         const emailStr = data.email || bInfo.email || (data.id ? data.id + domain : '');
         const idOnly = data.id || bInfo.id || (emailStr.includes('@') ? emailStr.split('@')[0] : emailStr);
+        const lastLoginAt = Math.max(Number(data.lastLoginAt) || 0, Number(bInfo.lastLoginAt) || 0);
 
         allUsersCache.push({
           uid: uid,
@@ -3783,6 +3791,7 @@
           name: data.name || '',
           dept: data.dept || '',
           role: data.role || 'user',
+          lastLoginAt: lastLoginAt,
           pw: data.pw || '',
           authPw: data.authPw || '',
           bridgePw: bInfo.pw || '',
@@ -3792,7 +3801,7 @@
 
       renderUserTablePage();
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red; padding: 20px;">목록 로드 실패: ${getKoreanAuthErrorMessage(err)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:red; padding: 20px;">목록 로드 실패: ${getKoreanAuthErrorMessage(err)}</td></tr>`;
     }
   }
 
@@ -3811,6 +3820,14 @@
 
     filtered.sort((a, b) => {
       if (userSortField === 'default') {
+        return compareDefaultSort(a, b);
+      }
+      if (userSortField === 'lastLogin') {
+        const tA = Number(a.lastLoginAt) || 0;
+        const tB = Number(b.lastLoginAt) || 0;
+        if (tA !== tB) {
+          return userSortOrder === 'asc' ? tA - tB : tB - tA;
+        }
         return compareDefaultSort(a, b);
       }
       const valA = String(a[userSortField] || '');
@@ -3834,7 +3851,7 @@
     tbody.innerHTML = '';
 
     if (pageItems.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 24px; color:#888;">검색 조건에 일치하는 사용자가 없습니다.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 24px; color:#888;">검색 조건에 일치하는 사용자가 없습니다.</td></tr>';
       paginationEl.innerHTML = '';
       return;
     }
@@ -3843,6 +3860,10 @@
       const uid = userItem.uid;
       const idOnly = userItem.id;
       const emailStr = userItem.email || (idOnly ? idOnly + domain : '');
+      const formattedLogin = formatLastLoginTime(userItem.lastLoginAt);
+      const loginHtml = formattedLogin
+        ? `<span class="last-login-badge" title="${formattedLogin}">${formattedLogin}</span>`
+        : `<span class="last-login-never">미접속</span>`;
 
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -3860,6 +3881,9 @@
             <option value="user" ${userItem.role !== 'admin' ? 'selected' : ''}>일반 사용자</option>
             <option value="admin" ${userItem.role === 'admin' ? 'selected' : ''}>관리자</option>
           </select>
+        </td>
+        <td>
+          ${loginHtml}
         </td>
         <td>
           <div class="action-buttons">
@@ -4079,6 +4103,7 @@
         mustChangePw: true,
         forceResetToId: true,
         pwUpdatedAt: 0,
+        lastLoginAt: 0,
         createdAt: Date.now()
       });
       await syncUserCredentialBridge(userCred.user.uid, id, email, initialPw, 0, true);
