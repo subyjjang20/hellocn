@@ -1616,6 +1616,7 @@
   let isInitializing = true;
   let isApplyingRemoteUpdate = false;
   let isSavingInProgress = false;
+  let savingStartedAt = 0;
   let pendingSaveAfterCurrent = false;
   let isLoggingIn = false;
 
@@ -2157,11 +2158,32 @@
     return result;
   }
 
+  function replaceArrayInPlace(targetArr, nextItems) {
+    if (!Array.isArray(targetArr)) return;
+    targetArr.length = 0;
+    if (!Array.isArray(nextItems)) return;
+    for (let i = 0; i < nextItems.length; i++) {
+      targetArr.push(nextItems[i]);
+    }
+  }
+
+  function withTimeout(promise, ms = 15000, label = '요청') {
+    let timerId;
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timerId = setTimeout(() => {
+          reject(new Error(`${label} 시간 초과 (${Math.round(ms / 1000)}초)`));
+        }, ms);
+      })
+    ]).finally(() => clearTimeout(timerId));
+  }
+
   function normalizeAndRefreshActiveBorders(sheet) {
     if (!sheet || !sheet.config || !Array.isArray(sheet.config.borderInfo)) return;
     const compacted = compactBorderInfo(sheet.config.borderInfo);
-    // Luckysheet 내부 Store.config 참조가 끊어지지 않도록 배열을 제자리(in-place) 갱신
-    sheet.config.borderInfo.splice(0, sheet.config.borderInfo.length, ...compacted);
+    // Luckysheet 내부 Store.config 참조가 끊어지지 않도록 배열을 제자리(in-place) 갱신 (스택 오버플로우 방지)
+    replaceArrayInPlace(sheet.config.borderInfo, compacted);
     safeRefreshGrid();
   }
 
@@ -3745,6 +3767,11 @@
 
   bindEvent('db-status-indicator', 'click', () => {
     if (isInitializing) return;
+    if (isSavingInProgress && savingStartedAt > 0 && Date.now() - savingStartedAt > 10000) {
+      isSavingInProgress = false;
+      savingStartedAt = 0;
+    }
+    markActiveSheetDirty();
     flushPendingDeltaNow();
     saveDirtySheetsToCloud(false);
   });
@@ -4378,7 +4405,7 @@
             if (active) {
               if (active.config && Array.isArray(active.config.borderInfo)) {
                 const compacted = compactBorderInfo(active.config.borderInfo);
-                active.config.borderInfo.splice(0, active.config.borderInfo.length, ...compacted);
+                replaceArrayInPlace(active.config.borderInfo, compacted);
               }
               recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile());
             }
@@ -4672,6 +4699,18 @@
   function triggerAutoSave(delayMs = 450) {
     clearTimeout(saveTimeout);
     clearTimeout(saveRetryTimer);
+    // 혹시라도 25초 이상 잠금이 풀리지 않은 비정상 상태라면 안전 해제
+    if (isSavingInProgress && savingStartedAt > 0 && Date.now() - savingStartedAt > 25000) {
+      isSavingInProgress = false;
+      savingStartedAt = 0;
+    }
+    if (isSavingInProgress) {
+      pendingSaveAfterCurrent = true;
+      dbStatusIndicator.classList.remove('error', 'syncing');
+      dbStatusIndicator.classList.add('saving');
+      dbStatusText.innerText = "실시간 저장 중 (추가 변경 반영 예정)...";
+      return;
+    }
     dbStatusIndicator.classList.remove('error', 'syncing');
     dbStatusIndicator.classList.add('saving');
     dbStatusText.innerText = "자동 저장 대기 중...";
@@ -4740,8 +4779,20 @@
     if (!lSheet || !mergedSerialized) return;
     const expandedSheet = deserializeSingleSheet(mergedSerialized);
     if (!lSheet.config) lSheet.config = {};
-    Object.keys(lSheet.config).forEach(k => delete lSheet.config[k]);
-    Object.assign(lSheet.config, expandedSheet.config || {});
+    const existingBorders = Array.isArray(lSheet.config.borderInfo) ? lSheet.config.borderInfo : null;
+    Object.keys(lSheet.config).forEach(k => {
+      if (k !== 'borderInfo') delete lSheet.config[k];
+    });
+    const nextCfg = expandedSheet.config || {};
+    Object.keys(nextCfg).forEach(k => {
+      if (k !== 'borderInfo') lSheet.config[k] = nextCfg[k];
+    });
+    if (existingBorders && Array.isArray(nextCfg.borderInfo)) {
+      replaceArrayInPlace(existingBorders, nextCfg.borderInfo);
+      lSheet.config.borderInfo = existingBorders;
+    } else {
+      lSheet.config.borderInfo = Array.isArray(nextCfg.borderInfo) ? [...nextCfg.borderInfo] : [];
+    }
     lSheet.celldata = expandedSheet.celldata || [];
 
     if (lSheet.data && Array.isArray(lSheet.data) && lSheet.data.length > 0) {
@@ -4762,70 +4813,104 @@
   }
 
   async function saveDirtySheetsToCloud(forceAll = false) {
-    if (!window.luckysheet || isInitializing) return;
-    if (isSavingInProgress) {
-      pendingSaveAfterCurrent = true;
+    if (!window.luckysheet || isInitializing) {
+      dbStatusIndicator.classList.remove('saving');
       return;
+    }
+    if (isSavingInProgress) {
+      if (savingStartedAt > 0 && Date.now() - savingStartedAt > 25000) {
+        isSavingInProgress = false;
+        savingStartedAt = 0;
+      } else {
+        pendingSaveAfterCurrent = true;
+        return;
+      }
     }
     clearTimeout(saveTimeout);
     clearTimeout(saveRetryTimer);
 
-    const liveFiles = window.luckysheet.getluckysheetfile();
-    if (!liveFiles || liveFiles.length === 0) return;
-
-    if (liveFiles.length !== serializedSheetCache.size) {
-      structureDirty = true;
-    }
-
-    for (let i = 0; i < liveFiles.length; i++) {
-      const s = liveFiles[i];
-      const sKey = toSafeDocKey(s.index !== undefined ? s.index : i);
-      const cached = serializedSheetCache.get(sKey);
-      if (!cached || Boolean(cached.hide) !== Boolean(s.hide) || cached.name !== s.name) {
-        markSheetDirtyByKey(sKey);
-        structureDirty = true;
-      }
-    }
-
-    if (!forceAll && dirtySheetKeys.size === 0 && !structureDirty) {
-      dbStatusIndicator.classList.remove('saving', 'error');
-      const nowStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
-      dbStatusText.innerText = `실시간 동기화됨 (${nowStr})`;
-      return;
-    }
-
     isSavingInProgress = true;
+    savingStartedAt = Date.now();
     dbStatusIndicator.classList.remove('error', 'syncing');
     dbStatusIndicator.classList.add('saving');
     dbStatusText.innerText = "실시간 저장 중...";
 
-    const saveStartTs = Date.now();
-    // 저장 시작 시점의 시트별 세대(gen)와 대상 키 스냅샷 -> 저장 중 추가 수정 시 절대 누락되지 않음
-    const keysToSaveSet = new Set(dirtySheetKeys);
-    const startGenMap = new Map();
-    const hadStructureDirty = structureDirty;
-
-    liveFiles.forEach((s, idx) => {
-      const sKey = toSafeDocKey(s.index !== undefined ? s.index : idx);
-      if (forceAll || !serializedSheetCache.has(sKey)) {
-        keysToSaveSet.add(sKey);
-      }
-      startGenMap.set(sKey, sheetEditGenMap.get(sKey) || 0);
-    });
-
     try {
-      // 동시 편집 충돌 검사: Firestore의 최신 meta 타임스탬프 확인
-      let remoteMetaOrderMap = new Map();
+      const liveFiles = window.luckysheet.getluckysheetfile();
+      if (!liveFiles || liveFiles.length === 0) {
+        dbStatusIndicator.classList.remove('saving');
+        dbStatusText.innerText = "DB 실시간 연결됨";
+        return;
+      }
+
+      const liveKeySet = new Set();
+      for (let i = 0; i < liveFiles.length; i++) {
+        const s = liveFiles[i];
+        const sKey = toSafeDocKey(s.index !== undefined ? s.index : i);
+        liveKeySet.add(sKey);
+        const cached = serializedSheetCache.get(sKey);
+        if (!cached || Boolean(cached.hide) !== Boolean(s.hide) || cached.name !== s.name) {
+          markSheetDirtyByKey(sKey);
+          structureDirty = true;
+        }
+      }
+
+      // 삭제된 시트의 잔여 키가 무한 재저장 루프를 유발하지 않도록 즉시 정리
+      Array.from(dirtySheetKeys).forEach(k => {
+        if (!liveKeySet.has(k)) {
+          dirtySheetKeys.delete(k);
+          localPendingEdits.delete(k);
+          localPendingConfigKeys.delete(k);
+          localStructuralDirtyKeys.delete(k);
+          structureDirty = true;
+        }
+      });
+
+      if (liveFiles.length !== serializedSheetCache.size) {
+        Array.from(serializedSheetCache.keys()).forEach(k => {
+          if (!liveKeySet.has(k)) serializedSheetCache.delete(k);
+        });
+        structureDirty = true;
+      }
+
+      if (!forceAll && dirtySheetKeys.size === 0 && !structureDirty) {
+        dbStatusIndicator.classList.remove('saving', 'error');
+        const nowStr = new Date().toLocaleTimeString('ko-KR', { hour12: false });
+        dbStatusText.innerText = `실시간 동기화됨 (${nowStr})`;
+        return;
+      }
+
+      const saveStartTs = Date.now();
+      const keysToSaveSet = new Set();
+      const startGenMap = new Map();
+      const hadStructureDirty = structureDirty;
+
+      liveFiles.forEach((s, idx) => {
+        const sKey = toSafeDocKey(s.index !== undefined ? s.index : idx);
+        if (forceAll || dirtySheetKeys.has(sKey) || !serializedSheetCache.has(sKey)) {
+          keysToSaveSet.add(sKey);
+        }
+        startGenMap.set(sKey, sheetEditGenMap.get(sKey) || 0);
+      });
+
+      // 동시 편집 충돌 검사 (최대 3.5초 대기 — 네트워크 지연 시 블로킹 없이 즉시 저장 진행)
+      const remoteMetaOrderMap = new Map();
       if (!forceAll && keysToSaveSet.size > 0) {
         try {
-          const latestMetaSnap = await getDoc(doc(db, "sheets", getMetaDocName()));
-          if (latestMetaSnap.exists() && Array.isArray(latestMetaSnap.data().sheetOrder)) {
+          const latestMetaSnap = await withTimeout(
+            getDoc(doc(db, "sheets", getMetaDocName())),
+            3500,
+            '메타 확인'
+          );
+          if (latestMetaSnap && latestMetaSnap.exists() && Array.isArray(latestMetaSnap.data().sheetOrder)) {
             latestMetaSnap.data().sheetOrder.forEach(m => {
               const mk = m.safeKey || toSafeDocKey(m.index);
               remoteMetaOrderMap.set(mk, Number(m.updatedAt) || 0);
             });
           }
-        } catch (_) {}
+        } catch (metaErr) {
+          console.warn("사전 메타 확인 생략(즉시 저장 진행):", metaErr?.message || metaErr);
+        }
       }
 
       const now = Date.now();
@@ -4846,7 +4931,11 @@
 
           let finalSerialized = null;
           if (canSafeMerge) {
-            const remoteSheetDoc = await loadSingleSheetDocFromFirestore(sKey, currentFileId).catch(() => null);
+            const remoteSheetDoc = await withTimeout(
+              loadSingleSheetDocFromFirestore(sKey, currentFileId),
+              6000,
+              '원격 시트 병합 로드'
+            ).catch(() => null);
             if (remoteSheetDoc) {
               finalSerialized = mergeLocalEditsIntoRemoteSheet(remoteSheetDoc, s, sKey);
               applyMergedSerializedToLiveSheet(s, finalSerialized);
@@ -4858,9 +4947,13 @@
             finalSerialized = serializeSingleSheet(s, i);
           }
 
+          await withTimeout(
+            saveSingleSheetDocToFirestore(sKey, finalSerialized, now, currentFileId),
+            15000,
+            `시트(${s.name || sKey}) 저장`
+          );
           serializedSheetCache.set(sKey, finalSerialized);
           sheetVersionMap.set(sKey, now);
-          await saveSingleSheetDocToFirestore(sKey, finalSerialized, now, currentFileId);
           updatedSheetKeys.push(sKey);
         }
 
@@ -4874,18 +4967,22 @@
         });
       }
 
-      await setDoc(doc(db, "sheets", getMetaDocName()), {
-        version: 2,
-        fileId: currentFileId,
-        sheetOrder: sheetOrderMeta,
-        changedSheets: updatedSheetKeys,
-        sessionId: clientSessionId,
-        updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
-        updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
-        timestamp: now
-      });
+      await withTimeout(
+        setDoc(doc(db, "sheets", getMetaDocName()), {
+          version: 2,
+          fileId: currentFileId,
+          sheetOrder: sheetOrderMeta,
+          changedSheets: updatedSheetKeys,
+          sessionId: clientSessionId,
+          updatedBy: currentUserInfo ? currentUserInfo.uid : "unknown",
+          updatedByName: currentUserInfo ? currentUserInfo.name : "사용자",
+          timestamp: now
+        }),
+        12000,
+        '메타 문서 저장'
+      );
 
-      // 저장 도중 추가 수정이 발생하지 않은 시트만 dirty 해제 (추가 수정분은 100% 보존!)
+      // 저장 도중 추가 수정이 없던 시트만 dirty 해제
       let stillHasDirty = false;
       keysToSaveSet.forEach(sKey => {
         const currentGen = sheetEditGenMap.get(sKey) || 0;
@@ -4925,19 +5022,23 @@
     } catch (error) {
       console.error("저장 실패 상세:", error);
       saveRetryCount++;
-      const backoffMs = Math.min(1500 * Math.pow(2, saveRetryCount - 1), 12000);
+      const backoffMs = Math.min(2000 * Math.pow(2, saveRetryCount - 1), 15000);
+      const shortReason = error?.code || (error?.message ? String(error.message).slice(0, 24) : '네트워크 지연');
       dbStatusIndicator.classList.remove('saving', 'syncing');
       dbStatusIndicator.classList.add('error');
-      dbStatusText.innerText = `저장 재시도 중 (${saveRetryCount}회)...`;
+      dbStatusText.innerText = `저장 재시도(${saveRetryCount}): ${shortReason}`;
       clearTimeout(saveRetryTimer);
       saveRetryTimer = setTimeout(() => {
         saveDirtySheetsToCloud(false);
       }, backoffMs);
     } finally {
       isSavingInProgress = false;
+      savingStartedAt = 0;
       if (pendingSaveAfterCurrent) {
         pendingSaveAfterCurrent = false;
-        triggerAutoSave(350);
+        saveTimeout = setTimeout(() => {
+          saveDirtySheetsToCloud(false);
+        }, 350);
       }
     }
   }
@@ -4972,7 +5073,7 @@
           const cleanRemoteCfg = sanitizeSheetConfig(d.config);
           if (Array.isArray(cleanRemoteCfg.borderInfo)) {
             if (!Array.isArray(targetSheet.config.borderInfo)) targetSheet.config.borderInfo = [];
-            targetSheet.config.borderInfo.splice(0, targetSheet.config.borderInfo.length, ...cleanRemoteCfg.borderInfo);
+            replaceArrayInPlace(targetSheet.config.borderInfo, cleanRemoteCfg.borderInfo);
           }
           Object.keys(cleanRemoteCfg).forEach(k => {
             if (k !== 'borderInfo') targetSheet.config[k] = cleanRemoteCfg[k];
@@ -5133,7 +5234,7 @@
                 if (k !== 'borderInfo') lSheet.config[k] = incomingCfg[k];
               });
               if (existingBorderArr && Array.isArray(incomingCfg.borderInfo)) {
-                existingBorderArr.splice(0, existingBorderArr.length, ...incomingCfg.borderInfo);
+                replaceArrayInPlace(existingBorderArr, incomingCfg.borderInfo);
                 lSheet.config.borderInfo = existingBorderArr;
               } else {
                 lSheet.config.borderInfo = Array.isArray(incomingCfg.borderInfo) ? [...incomingCfg.borderInfo] : [];
