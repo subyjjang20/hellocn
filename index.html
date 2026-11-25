@@ -5044,8 +5044,7 @@
 
   async function executeSuperAdminForceReloadAll() {
     if (!isSuperAdminUser()) return alert("최고 관리자 계정에서만 실행할 수 있습니다.");
-    if (!confirm("현재 접속 중인 모든 사용자의 화면을 최신 코드로 즉시 새로고침하시겠습니까?
-(본인 화면은 유지되며, 다른 접속자들의 미저장 덮어쓰기가 즉시 차단됩니다.)")) return;
+    if (!confirm("현재 접속 중인 모든 사용자의 화면을 최신 코드로 즉시 새로고침하시겠습니까?\n(본인 화면은 유지되며, 다른 접속자들의 미저장 덮어쓰기가 즉시 차단됩니다.)")) return;
     try {
       if (dirtySheetKeys.size > 0 || structureDirty) {
         flushPendingDeltaNow();
@@ -5065,8 +5064,7 @@
 
   async function executeSuperAdminForceLogoutAll() {
     if (!isSuperAdminUser()) return alert("최고 관리자 계정에서만 실행할 수 있습니다.");
-    if (!confirm("현재 접속 중인 모든 사용자를 즉시 강제 로그아웃시키겠습니까?
-(본인 계정은 유지되며, 다른 모든 접속자의 세션이 즉시 종료됩니다.)")) return;
+    if (!confirm("현재 접속 중인 모든 사용자를 즉시 강제 로그아웃시키겠습니까?\n(본인 계정은 유지되며, 다른 모든 접속자의 세션이 즉시 종료됩니다.)")) return;
     try {
       if (dirtySheetKeys.size > 0 || structureDirty) {
         flushPendingDeltaNow();
