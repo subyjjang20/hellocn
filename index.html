@@ -80,6 +80,17 @@
     .db-status.error { color: #c5221f; background: #fce8e6; }
     .personal-filter-badge { display: none; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #5e35b1; background: #ede7f6; border: 1px solid #b39ddb; padding: 5px 10px; border-radius: 20px; cursor: pointer; white-space: nowrap; transition: 0.15s; }
     .personal-filter-badge:hover { background: #5e35b1; color: #ffffff; border-color: #5e35b1; }
+    #btn-force-reload-all { background: #f29900; color: #ffffff; display: none; }
+    #btn-force-reload-all:hover { background: #d98200; }
+    #btn-force-logout-all { background: #ea4335; color: #ffffff; display: none; }
+    #btn-force-logout-all:hover { background: #c5221f; }
+    .super-admin-bar { display: none; align-items: center; justify-content: space-between; gap: 10px; background: #fff8e1; border: 1px solid #ffe082; border-radius: 10px; padding: 10px 14px; margin-bottom: 14px; flex-wrap: wrap; }
+    .super-admin-bar-title { font-size: 13px; font-weight: 800; color: #b06000; display: flex; align-items: center; gap: 6px; }
+    .super-admin-bar-actions { display: flex; align-items: center; gap: 6px; }
+    #system-notice-overlay { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(32, 33, 36, 0.72); z-index: 100000; justify-content: center; align-items: center; backdrop-filter: blur(3px); }
+    .system-notice-box { background: #ffffff; padding: 36px 32px; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,0.25); width: 420px; max-width: 90vw; text-align: center; box-sizing: border-box; }
+    .system-notice-box h3 { margin: 0 0 10px 0; font-size: 19px; font-weight: 800; color: #1a73e8; }
+    .system-notice-box p { margin: 0; font-size: 14px; color: #3c4043; line-height: 1.5; font-weight: 500; }
 
     #concurrent-users { display: none; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-height: 48px; overflow-y: auto; padding: 2px 4px; flex: 1; min-width: 100px; }
     .user-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; line-height: 1.2; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
@@ -185,6 +196,15 @@
 </head>
 <body>
 
+<!-- 시스템 업데이트 / 강제 새로고침 / 전체 로그아웃 알림 오버레이 -->
+<div id="system-notice-overlay">
+  <div class="system-notice-box">
+    <div class="spinner" style="margin: 0 auto 16px auto;"></div>
+    <h3 id="system-notice-title">시스템 업데이트 안내</h3>
+    <p id="system-notice-desc">잠시 후 최신 화면으로 자동 전환됩니다...</p>
+  </div>
+</div>
+
 <!-- 사내망 IP 검증 및 외부 접속 차단 게이트 -->
 <div id="ip-gate-overlay">
   <div class="ip-gate-box">
@@ -233,6 +253,8 @@
       <button id="btn-toggle-mask-preview" title="일반 사용자에게 보이는 개인정보 마스킹 화면을 즉시 전환하여 확인합니다">👁️ 마스킹 미리보기: OFF</button>
       <button id="btn-show-files" style="display: none;">📂 문서함/권한</button>
       <button id="btn-show-admin" style="display: none;">계정 관리(관리자)</button>
+      <button id="btn-force-reload-all" style="display: none;" title="접속 중인 모든 사용자의 화면을 최신 버전으로 즉시 새로고침합니다 (최고 관리자 전용)">🔄 전체갱신</button>
+      <button id="btn-force-logout-all" style="display: none;" title="접속 중인 모든 사용자를 즉시 로그아웃시킵니다 (최고 관리자 전용)">🚪 전체로그아웃</button>
       <button id="btn-logout">로그아웃</button>
     </div>
   </div>
@@ -361,6 +383,16 @@
       <h3>계정 관리 패널 (관리자 전용)</h3>
       <button id="btn-close-admin" class="close-btn">&times;</button>
     </div>
+    <div id="super-admin-control-bar" class="super-admin-bar">
+      <div class="super-admin-bar-title">
+        <span>🛡️ 최고 관리자 시스템 제어</span>
+        <span style="font-size:11px; background:#1a73e8; color:#fff; padding:2px 7px; border-radius:10px;">v8</span>
+      </div>
+      <div class="super-admin-bar-actions">
+        <button id="btn-modal-force-reload-all" type="button" class="small-btn warn-btn" title="본인을 제외한 모든 접속자의 화면을 최신 버전으로 새로고침합니다">🔄 전 사용자 강제 새로고침</button>
+        <button id="btn-modal-force-logout-all" type="button" class="small-btn danger-btn" title="본인을 제외한 모든 접속자를 즉시 로그아웃시킵니다">🚪 전 사용자 강제 로그아웃</button>
+      </div>
+    </div>
     <div class="admin-tabs">
       <button id="tab-list" class="tab-btn active">등록된 사용자 목록 (부서/권한 수정)</button>
       <button id="tab-create" class="tab-btn">+ 신규 계정 발급</button>
@@ -429,7 +461,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
   import { getAuth, setPersistence, browserSessionPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, updatePassword, deleteUser, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
-  import { initializeFirestore, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+  import { initializeFirestore, doc, setDoc, getDoc, getDocs, deleteDoc, onSnapshot, collection, runTransaction } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyALzPfEZrPFtS9JTtqWs6blOolUElOWgBI",
@@ -457,9 +489,19 @@
     if (el) el.addEventListener(eventName, handler);
   }
 
+  const APP_VERSION = 8;
+  const SUPER_ADMIN_ID = 'suby20';
+  const clientBootTime = Date.now();
+  let isOutdatedClientLocked = false;
+  let systemControlUnsubscribe = null;
+
   const ALLOWED_COMPANY_IP = "203.132.166.132";
   const PW_EXPIRE_DAYS = 180;
   const PW_EXPIRE_MS = PW_EXPIRE_DAYS * 24 * 60 * 60 * 1000;
+
+  function isSuperAdminUser(u = currentUserInfo) {
+    return Boolean(u && u.role === 'admin' && String(u.id || '').toLowerCase() === SUPER_ADMIN_ID);
+  }
 
   let isCompanyIpVerified = false;
 
@@ -1846,6 +1888,7 @@
   const dirtySheetKeys = new Set();
   const sheetEditGenMap = new Map();          // 시트별 로컬 수정 세대 카운터 (저장 중 추가 수정 유실 방지)
   const localPendingEdits = new Map();        // Map<sheetKey, Map<"r_c", { r, c, v, ts }>>
+  const lastKnownCellSigMap = new Map();      // Map<sheetKey, Map<"r_c", sigStr>> - 음영/글자색/서식/수식 변경 100% 정밀 감지
   const localPendingConfigKeys = new Set();   // 테두리·병합·행높이·열너비 등 로컬 config 수정 시트
   const localBorderDirtyKeys = new Set();     // 현재 사용자가 직접 테두리를 수정한 시트 (테두리 작성자 우선권 부여)
   const sheetBorderVersionMap = new Map();    // Map<sheetKey, number> - 시트별 독립 테두리 버전(borderUpdatedAt)
@@ -1983,8 +2026,58 @@
     markSheetDirtyByKey(sKey);
   }
 
+  function getCompactCellSig(slimObj) {
+    if (!slimObj) return '';
+    try {
+      return JSON.stringify(slimObj);
+    } catch (_) {
+      return '';
+    }
+  }
+
+  function updateKnownCellSig(sheetKey, r, c, slimObj) {
+    if (!sheetKey) return;
+    let kMap = lastKnownCellSigMap.get(sheetKey);
+    if (!kMap) {
+      kMap = new Map();
+      lastKnownCellSigMap.set(sheetKey, kMap);
+    }
+    const key = `${r}_${c}`;
+    const sig = getCompactCellSig(slimObj);
+    if (sig) kMap.set(key, sig);
+    else kMap.delete(key);
+  }
+
+  function rebuildKnownCellSigMapForSheet(sheet) {
+    if (!sheet) return;
+    const sKey = toSafeDocKey(sheet.index);
+    const kMap = new Map();
+    if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
+      for (let r = 0; r < sheet.data.length; r++) {
+        const rowArr = sheet.data[r];
+        if (!rowArr) continue;
+        for (let c = 0; c < rowArr.length; c++) {
+          const cell = rowArr[c];
+          if (cell !== null && cell !== undefined) {
+            const slim = compactCell(cell);
+            if (slim) kMap.set(`${r}_${c}`, getCompactCellSig(slim));
+          }
+        }
+      }
+    } else if (Array.isArray(sheet.celldata)) {
+      for (let i = 0; i < sheet.celldata.length; i++) {
+        const it = sheet.celldata[i];
+        if (!it || !it.v) continue;
+        const slim = compactCell(it.v);
+        if (slim) kMap.set(`${it.r}_${it.c}`, getCompactCellSig(slim));
+      }
+    }
+    lastKnownCellSigMap.set(sKey, kMap);
+  }
+
   function recordLocalCellEdit(sheetKey, r, c, cellObj) {
     if (!sheetKey || r === undefined || c === undefined) return;
+    const slim = compactCell(cellObj);
     let map = localPendingEdits.get(sheetKey);
     if (!map) {
       map = new Map();
@@ -1993,9 +2086,10 @@
     map.set(`${r}_${c}`, {
       r: Number(r),
       c: Number(c),
-      v: compactCell(cellObj),
+      v: slim,
       ts: Date.now()
     });
+    updateKnownCellSig(sheetKey, r, c, slim);
     markSheetDirtyByKey(sheetKey);
   }
 
@@ -2022,6 +2116,71 @@
         }
       }
     });
+  }
+
+  // 음영(배경색)·글자색·굵게·정렬·서식복사·수식 등 선택 영역 내 실제 변경된 셀만 100% 정밀 감지 후
+  // localPendingEdits 기록 + 실시간 델타 전파 (변경 없으면 불필요한 저장 0건!)
+  function captureChangedSelectionCells(sheet, explicitRanges = null, broadcastDelta = true) {
+    if (!sheet || !sheet.data || !Array.isArray(sheet.data) || sheet.data.length === 0) return 0;
+    const ranges = Array.isArray(explicitRanges) && explicitRanges.length > 0
+      ? explicitRanges
+      : (sheet.luckysheet_select_save || []);
+    if (!ranges || ranges.length === 0) return 0;
+
+    const sKey = toSafeDocKey(sheet.index);
+    let knownMap = lastKnownCellSigMap.get(sKey);
+    if (!knownMap) {
+      rebuildKnownCellSigMapForSheet(sheet);
+      knownMap = lastKnownCellSigMap.get(sKey);
+    }
+
+    let changedCount = 0;
+    let deltaQueuedCount = 0;
+
+    for (let ri = 0; ri < ranges.length; ri++) {
+      const rng = ranges[ri];
+      if (!rng || !rng.row || !rng.column) continue;
+      const r1 = Math.max(0, rng.row[0]);
+      const r2 = Math.min(sheet.data.length - 1, rng.row[1]);
+      const c1 = Math.max(0, rng.column[0]);
+      const c2 = rng.column[1];
+      const area = (r2 - r1 + 1) * (c2 - c1 + 1);
+      if (area > 4000) {
+        markSheetStructuralDirty(sKey);
+        return area;
+      }
+      for (let r = r1; r <= r2; r++) {
+        const rowArr = sheet.data[r];
+        if (!rowArr) continue;
+        const maxC = Math.min(rowArr.length - 1, c2);
+        for (let c = c1; c <= maxC; c++) {
+          const cellObj = rowArr[c];
+          const slim = compactCell(cellObj);
+          const curSig = getCompactCellSig(slim);
+          const prevSig = knownMap.get(`${r}_${c}`) || '';
+          if (curSig !== prevSig) {
+            recordLocalCellEdit(sKey, r, c, cellObj);
+            changedCount++;
+            if (broadcastDelta && deltaQueuedCount < 250) {
+              if (pendingDeltaSheetKey && pendingDeltaSheetKey !== sKey && pendingDeltaCells.length > 0) {
+                flushPendingDeltaNow();
+              }
+              pendingDeltaSheetKey = sKey;
+              pendingDeltaCells.push({ r, c, v: slim });
+              deltaQueuedCount++;
+            }
+          }
+        }
+      }
+    }
+
+    if (deltaQueuedCount > 0) {
+      clearTimeout(deltaFlushTimeout);
+      deltaFlushTimeout = setTimeout(() => {
+        flushPendingDeltaNow();
+      }, 80);
+    }
+    return changedCount;
   }
 
   function isCellEditorActive() {
@@ -2255,6 +2414,11 @@
   }
 
   function flushPendingDeltaNow() {
+    if (isOutdatedClientLocked) {
+      pendingDeltaCells = [];
+      pendingDeltaConfigFlag = false;
+      return;
+    }
     if (pendingDeltaCells.length === 0 && !pendingDeltaConfigFlag) return;
     const liveFiles = window.luckysheet?.getluckysheetfile?.() || [];
     const targetKey = pendingDeltaSheetKey;
@@ -2264,7 +2428,7 @@
       pendingDeltaConfigFlag = false;
       return;
     }
-    const batch = pendingDeltaCells.splice(0, 120);
+    const batch = pendingDeltaCells.splice(0, 250);
     const sendConfig = pendingDeltaConfigFlag;
     pendingDeltaConfigFlag = false;
 
@@ -3989,7 +4153,13 @@
           if (changed) {
             passChanged = true;
             anyChanged = true;
-            if (sheetKey) recordLocalCellEdit(sheetKey, r, c, cell);
+            if (sheetKey) {
+              recordLocalCellEdit(sheetKey, r, c, cell);
+              if (pendingDeltaCells.length < 250) {
+                pendingDeltaSheetKey = sheetKey;
+                pendingDeltaCells.push({ r, c, v: compactCell(cell) });
+              }
+            }
           }
         }
         if (!passChanged) break;
@@ -4284,6 +4454,63 @@
         timestamp: now
       });
     }
+  }
+
+  // [원자적 항시 병합 저장 (Firestore Transaction Always-Merge)]
+  // 두 사용자가 동시에 같은 시트의 다른 셀(수식/음영/테두리/값)을 수정해도
+  // Firestore 서버 트랜잭션이 자동으로 최신 원격 시트 위에 내 수정 셀만 병합하고, 경합 시 자동 재시도합니다.
+  async function saveSingleSheetAtomicMergeToFirestore(safeKey, localSheetObj, fallbackIdx, now, canMergeCells, fileId = currentFileId) {
+    const docId = getSheetDocName(safeKey, fileId);
+    const sheetRef = doc(db, "sheets", docId);
+    const isCompressed = Boolean(window.LZString);
+
+    return await runTransaction(db, async (tx) => {
+      const snap = await tx.get(sheetRef);
+      let remoteSheetObj = null;
+      let remoteDocTs = 0;
+
+      if (snap.exists()) {
+        const docData = snap.data();
+        remoteDocTs = Number(docData.timestamp) || 0;
+        if (docData.isChunked && docData.chunkCount > 0) {
+          return { committed: false, fallbackChunked: true, remoteDocTs };
+        }
+        const rawPayload = docData.content || "";
+        if (rawPayload) {
+          if (docData.isCompressed && window.LZString) {
+            const dec = window.LZString.decompressFromBase64(rawPayload);
+            if (dec) remoteSheetObj = JSON.parse(dec);
+          } else {
+            remoteSheetObj = JSON.parse(rawPayload);
+          }
+        }
+      }
+
+      let finalSerialized;
+      let mergedWithRemote = false;
+      if (canMergeCells && remoteSheetObj) {
+        finalSerialized = mergeLocalEditsIntoRemoteSheet(remoteSheetObj, localSheetObj, safeKey);
+        mergedWithRemote = true;
+      } else {
+        finalSerialized = serializeSingleSheet(localSheetObj, fallbackIdx);
+      }
+
+      const jsonStr = JSON.stringify(finalSerialized);
+      const payloadStr = isCompressed ? window.LZString.compressToBase64(jsonStr) : jsonStr;
+      if (payloadStr.length > MAX_CHUNK_SIZE) {
+        return { committed: false, fallbackChunked: true, finalSerialized, mergedWithRemote, remoteDocTs };
+      }
+
+      tx.set(sheetRef, {
+        content: payloadStr,
+        isCompressed: isCompressed,
+        isChunked: false,
+        chunkCount: 0,
+        timestamp: now
+      });
+
+      return { committed: true, finalSerialized, mergedWithRemote, remoteDocTs };
+    });
   }
 
   async function loadSingleSheetDocFromFirestore(safeKey, fileId = currentFileId) {
@@ -4582,6 +4809,10 @@
           const adminBtn = document.getElementById('btn-show-admin');
           const filesBtn = document.getElementById('btn-show-files');
           const maskPreviewBtn = document.getElementById('btn-toggle-mask-preview');
+          const forceReloadBtn = document.getElementById('btn-force-reload-all');
+          const forceLogoutBtn = document.getElementById('btn-force-logout-all');
+          const superAdminBar = document.getElementById('super-admin-control-bar');
+
           if (currentUserInfo.role === 'admin') {
             adminBtn.style.display = 'inline-block';
             filesBtn.style.display = 'inline-block';
@@ -4592,6 +4823,16 @@
             maskPreviewBtn.style.display = 'none';
             document.getElementById('admin-modal').style.display = 'none';
             document.getElementById('file-modal').style.display = 'none';
+          }
+
+          if (isSuperAdminUser(currentUserInfo)) {
+            if (forceReloadBtn) forceReloadBtn.style.display = 'inline-block';
+            if (forceLogoutBtn) forceLogoutBtn.style.display = 'inline-block';
+            if (superAdminBar) superAdminBar.style.display = 'flex';
+          } else {
+            if (forceReloadBtn) forceReloadBtn.style.display = 'none';
+            if (forceLogoutBtn) forceLogoutBtn.style.display = 'none';
+            if (superAdminBar) superAdminBar.style.display = 'none';
           }
 
           if (prevRole && prevRole !== currentUserInfo.role) {
@@ -4637,12 +4878,19 @@
         });
 
         listenPresence();
+        listenSystemControl();
       } else {
         document.getElementById('login-screen').classList.add('active');
         document.getElementById('main-screen').classList.remove('active');
         document.getElementById('btn-show-admin').style.display = 'none';
         document.getElementById('btn-show-files').style.display = 'none';
         document.getElementById('btn-toggle-mask-preview').style.display = 'none';
+        const frBtn = document.getElementById('btn-force-reload-all');
+        const flBtn = document.getElementById('btn-force-logout-all');
+        const saBar = document.getElementById('super-admin-control-bar');
+        if (frBtn) frBtn.style.display = 'none';
+        if (flBtn) flBtn.style.display = 'none';
+        if (saBar) saBar.style.display = 'none';
         currentUserInfo = null;
       }
     });
@@ -4700,8 +4948,149 @@
     document.getElementById('btn-logout')?.click();
   });
 
+  function lockOutdatedClientAndStopAllTimers() {
+    isOutdatedClientLocked = true;
+    clearTimeout(saveTimeout);
+    clearTimeout(deltaFlushTimeout);
+    clearTimeout(saveRetryTimer);
+    if (autosaveHeartbeatTimer) clearInterval(autosaveHeartbeatTimer);
+    pendingDeltaCells = [];
+    pendingDeltaConfigFlag = false;
+    dirtySheetKeys.clear();
+    structureDirty = false;
+  }
+
+  function showSystemNoticeAndAction(title, desc, shouldSignOut = false, delayMs = 1400) {
+    lockOutdatedClientAndStopAllTimers();
+    const overlay = document.getElementById('system-notice-overlay');
+    const titleEl = document.getElementById('system-notice-title');
+    const descEl = document.getElementById('system-notice-desc');
+    if (titleEl) titleEl.innerText = title;
+    if (descEl) descEl.innerText = desc;
+    if (overlay) overlay.style.display = 'flex';
+
+    setTimeout(async () => {
+      try {
+        if (metaUnsubscribe) metaUnsubscribe();
+        if (deltaUnsubscribe) deltaUnsubscribe();
+        if (presenceUnsubscribe) presenceUnsubscribe();
+        if (myUserUnsubscribe) myUserUnsubscribe();
+        if (catalogUnsubscribe) catalogUnsubscribe();
+        if (systemControlUnsubscribe) systemControlUnsubscribe();
+        if (currentUserInfo?.uid) {
+          await deleteDoc(doc(db, "presence", currentUserInfo.uid)).catch(() => {});
+        }
+        if (shouldSignOut) {
+          await signOut(auth).catch(() => {});
+        }
+      } catch (_) {}
+      window.location.reload();
+    }, delayMs);
+  }
+
+  // [구버전 자동 저장 차단 & 최고 관리자 전체 갱신/로그아웃 실시간 수신]
+  function listenSystemControl() {
+    if (systemControlUnsubscribe) systemControlUnsubscribe();
+    systemControlUnsubscribe = onSnapshot(doc(db, "sheets", "system_control"), (snap) => {
+      if (isOutdatedClientLocked) return;
+      const ctrl = snap.exists() ? (snap.data() || {}) : {};
+      const remoteMinVer = Number(ctrl.minAppVersion) || 0;
+
+      // 현재 클라이언트가 더 최신 버전이면 DB의 최소 요구 버전을 자동 상향 -> 구버전 브라우저 자동 차단·갱신!
+      if (APP_VERSION > remoteMinVer) {
+        setDoc(doc(db, "sheets", "system_control"), {
+          minAppVersion: APP_VERSION,
+          latestDeployedAt: Date.now(),
+          updatedBy: currentUserInfo ? currentUserInfo.id : 'system'
+        }, { merge: true }).catch(() => {});
+        return;
+      }
+
+      // 1) 새 버전 배포 감지: 구버전 브라우저는 즉시 저장 잠금 후 최신 코드로 자동 새로고침
+      if (remoteMinVer > APP_VERSION) {
+        showSystemNoticeAndAction(
+          '🔄 새 버전 업데이트 적용 중',
+          `최신 버전(v${remoteMinVer})이 배포되었습니다. 데이터 보호를 위해 저장을 일시 중지하고 최신 화면으로 자동 전환합니다.`,
+          false,
+          1200
+        );
+        return;
+      }
+
+      // 2) 최고 관리자의 '전체 강제 로그아웃' 명령 수신 (명령을 내린 본인 세션 제외)
+      const forceLogoutAt = Number(ctrl.forceLogoutAt) || 0;
+      if (forceLogoutAt > clientBootTime && ctrl.triggeredSessionId !== clientSessionId) {
+        showSystemNoticeAndAction(
+          '🚪 전체 강제 로그아웃 안내',
+          `최고 관리자(${ctrl.triggeredBy || '관리자'})에 의해 전체 로그아웃 처리되었습니다. 다시 로그인해 주세요.`,
+          true,
+          1500
+        );
+        return;
+      }
+
+      // 3) 최고 관리자의 '전체 강제 새로고침' 명령 수신 (명령을 내린 본인 세션 제외)
+      const forceReloadAt = Number(ctrl.forceReloadAt) || 0;
+      if (forceReloadAt > clientBootTime && ctrl.triggeredSessionId !== clientSessionId) {
+        showSystemNoticeAndAction(
+          '🔄 최신 화면 자동 새로고침',
+          `최고 관리자(${ctrl.triggeredBy || '관리자'})가 업데이트 반영을 위해 전체 화면을 새로고침합니다.`,
+          false,
+          1200
+        );
+      }
+    });
+  }
+
+  async function executeSuperAdminForceReloadAll() {
+    if (!isSuperAdminUser()) return alert("최고 관리자 계정에서만 실행할 수 있습니다.");
+    if (!confirm("현재 접속 중인 모든 사용자의 화면을 최신 코드로 즉시 새로고침하시겠습니까?
+(본인 화면은 유지되며, 다른 접속자들의 미저장 덮어쓰기가 즉시 차단됩니다.)")) return;
+    try {
+      if (dirtySheetKeys.size > 0 || structureDirty) {
+        flushPendingDeltaNow();
+        await Promise.race([saveDirtySheetsToCloud(false), new Promise(r => setTimeout(r, 1500))]);
+      }
+      await setDoc(doc(db, "sheets", "system_control"), {
+        minAppVersion: APP_VERSION,
+        forceReloadAt: Date.now(),
+        triggeredBy: currentUserInfo.name || currentUserInfo.id,
+        triggeredSessionId: clientSessionId
+      }, { merge: true });
+      alert("전체 사용자 화면에 즉시 새로고침 신호를 전송했습니다.");
+    } catch (err) {
+      alert("전체 새로고침 명령 전송 실패: " + getKoreanAuthErrorMessage(err));
+    }
+  }
+
+  async function executeSuperAdminForceLogoutAll() {
+    if (!isSuperAdminUser()) return alert("최고 관리자 계정에서만 실행할 수 있습니다.");
+    if (!confirm("현재 접속 중인 모든 사용자를 즉시 강제 로그아웃시키겠습니까?
+(본인 계정은 유지되며, 다른 모든 접속자의 세션이 즉시 종료됩니다.)")) return;
+    try {
+      if (dirtySheetKeys.size > 0 || structureDirty) {
+        flushPendingDeltaNow();
+        await Promise.race([saveDirtySheetsToCloud(false), new Promise(r => setTimeout(r, 1500))]);
+      }
+      await setDoc(doc(db, "sheets", "system_control"), {
+        minAppVersion: APP_VERSION,
+        forceLogoutAt: Date.now(),
+        triggeredBy: currentUserInfo.name || currentUserInfo.id,
+        triggeredSessionId: clientSessionId
+      }, { merge: true });
+      alert("접속 중인 모든 사용자에게 강제 로그아웃 신호를 전송했습니다.");
+    } catch (err) {
+      alert("전체 로그아웃 명령 전송 실패: " + getKoreanAuthErrorMessage(err));
+    }
+  }
+
+  bindEvent('btn-force-reload-all', 'click', executeSuperAdminForceReloadAll);
+  bindEvent('btn-modal-force-reload-all', 'click', executeSuperAdminForceReloadAll);
+  bindEvent('btn-force-logout-all', 'click', executeSuperAdminForceLogoutAll);
+  bindEvent('btn-modal-force-logout-all', 'click', executeSuperAdminForceLogoutAll);
+
   bindEvent('btn-logout', 'click', async () => {
-    if (dirtySheetKeys.size > 0 || structureDirty) {
+    if (!isOutdatedClientLocked && (dirtySheetKeys.size > 0 || structureDirty)) {
       flushPendingDeltaNow();
       await Promise.race([
         saveDirtySheetsToCloud(false),
@@ -4714,6 +5103,7 @@
     if (presenceUnsubscribe) presenceUnsubscribe();
     if (myUserUnsubscribe) myUserUnsubscribe();
     if (catalogUnsubscribe) catalogUnsubscribe();
+    if (systemControlUnsubscribe) systemControlUnsubscribe();
     if (currentUserInfo?.uid) {
       await deleteDoc(doc(db, "presence", currentUserInfo.uid)).catch(() => {});
     }
@@ -5310,7 +5700,10 @@
             try {
               clearInternalLuckysheetLoading();
               const allFiles = window.luckysheet.getluckysheetfile() || [];
-              allFiles.forEach(sh => syncBorderSnapshotForSheet(sh));
+              allFiles.forEach(sh => {
+                syncBorderSnapshotForSheet(sh);
+                rebuildKnownCellSigMapForSheet(sh);
+              });
               const active = getActiveSheetObj();
               if (active) {
                 sanitizeSheetMergeAndCells(active);
@@ -5419,11 +5812,12 @@
             applyPrivacyMaskToSheetInPlace(active);
 
             if (!['borderChange', 'rangeBorder', 'mergeChange', 'rowlen', 'columnlen', 'hideRow', 'hideColumn', 'showRow', 'showColumn', 'frozen', 'addRowCol', 'delRowCol', 'sort', 'datachangeAll', 'datachangeAll_clear'].includes(opType)) {
-              if (operate && Array.isArray(operate.range)) {
-                recordSelectionLocalEdits(active, operate.range);
-              }
-              if (active.luckysheet_select_save) {
-                recordSelectionLocalEdits(active, active.luckysheet_select_save);
+              const targetRanges = (operate && Array.isArray(operate.range) && operate.range.length > 0)
+                ? operate.range
+                : active.luckysheet_select_save;
+              const diffCnt = captureChangedSelectionCells(active, targetRanges, true);
+              if (diffCnt === 0 && targetRanges) {
+                recordSelectionLocalEdits(active, targetRanges);
               }
             }
 
@@ -5456,6 +5850,7 @@
                 syncBorderSnapshotForSheet(active);
               }
               recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile());
+              rebuildKnownCellSigMapForSheet(active);
             }
             updatePersonalFilterBadge();
             refreshActiveSheetMasking();
@@ -5665,8 +6060,14 @@
             const active = getActiveSheetObj();
             if (active && !isCellEditorActive()) {
               applyPrivacyMaskToSheetInPlace(active);
+              // 서식 복사(Paint Format)나 드래그 채우기 등으로 변경된 셀(음영·수식·서식) 자동 포착
+              const changedCnt = captureChangedSelectionCells(active, active.luckysheet_select_save, true);
+              if (changedCnt > 0) {
+                markActiveSheetDirty();
+                triggerAutoSave(400);
+              }
             }
-          }, 40);
+          }, 70);
         }
       });
 
@@ -5786,13 +6187,30 @@
           return;
         }
 
+        // [음영(셀 채우기 색상) · 글자색 Spectrum 색상 선택기 전용 감지]
+        if (target.closest('.sp-container, .sp-thumb-el, .sp-thumb-inner, .sp-choose, .sp-palette, .luckysheet-color-reset, .luckysheet-color-selected, #luckysheet-icon-cell-color-menu, #luckysheet-icon-text-color-menu')) {
+          setTimeout(() => {
+            const active = getActiveSheetObj();
+            if (active) {
+              const changedCnt = captureChangedSelectionCells(active, active.luckysheet_select_save, true);
+              if (changedCnt > 0) {
+                markActiveSheetDirty();
+                triggerAutoSave(400);
+              }
+            }
+            translateUiElements();
+          }, 80);
+          return;
+        }
+
         if (target.closest('.luckysheet-cols-menu, .luckysheet-modal-dialog, .luckysheet-modal-dialog-slider')) {
           setTimeout(() => {
             const active = getActiveSheetObj();
             if (active) {
               recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile(), true);
               applyPrivacyMaskToSheetInPlace(active);
-              if (active.luckysheet_select_save) {
+              const changedCnt = captureChangedSelectionCells(active, active.luckysheet_select_save, true);
+              if (changedCnt === 0 && active.luckysheet_select_save) {
                 recordSelectionLocalEdits(active, active.luckysheet_select_save);
               }
               markSheetConfigDirty(toSafeDocKey(active.index));
@@ -5802,10 +6220,19 @@
             triggerAutoSave(450);
           }, 80);
         } else if (target.closest('.luckysheet-wa-editor')) {
+          // 상단 툴바 직접 버튼(음영 채우기, 글자색, 굵게, 기울임, 밑줄, 정렬, 서식 지우기 등) 클릭 시 실제 셀 변경분만 정밀 포착
           setTimeout(() => {
             injectCommaButton();
             translateUiElements();
-          }, 40);
+            const active = getActiveSheetObj();
+            if (active && !target.closest('.luckysheet-toolbar-menu-button-dropdown')) {
+              const changedCnt = captureChangedSelectionCells(active, active.luckysheet_select_save, true);
+              if (changedCnt > 0) {
+                markActiveSheetDirty();
+                triggerAutoSave(400);
+              }
+            }
+          }, 80);
         }
       });
 
@@ -5825,6 +6252,7 @@
   }
 
   function triggerAutoSave(delayMs = 450) {
+    if (isOutdatedClientLocked) return;
     clearTimeout(saveTimeout);
     clearTimeout(saveRetryTimer);
     // 혹시라도 25초 이상 잠금이 풀리지 않은 비정상 상태라면 안전 해제
@@ -5969,10 +6397,12 @@
     }
     lSheet.frozen = expandedSheet.frozen || null;
     syncBorderSnapshotForSheet(lSheet);
+    rebuildKnownCellSigMapForSheet(lSheet);
     restoreLocalFilterToSheet(lSheet);
   }
 
   async function saveDirtySheetsToCloud(forceAll = false) {
+    if (isOutdatedClientLocked) return;
     if (!window.luckysheet || isInitializing) {
       dbStatusIndicator.classList.remove('saving');
       return;
@@ -6098,26 +6528,55 @@
 
           const isBorderAuthor = localBorderDirtyKeys.has(sKey);
           const hasPendingCellDelta = (localPendingEdits.get(sKey)?.size || 0) > 0 || localPendingConfigKeys.has(sKey) || isBorderAuthor;
-          const remoteHasNewerData = remoteTs > localKnownTs;
-          const remoteHasNewerBorder = remoteBorderTs > localKnownBorderTs;
-          const canSafeMerge = !forceAll && (remoteHasNewerData || remoteHasNewerBorder) && !localStructuralDirtyKeys.has(sKey) && hasPendingCellDelta;
+          // [항시 셀 단위 병합 (Always-Merge)]
+          // 구조 변경(행/열 삽입·삭제·정렬)이 아닌 모든 셀·수식·음영·테두리 편집은
+          // Firestore 트랜잭션으로 서버 최신 시트 위에 내가 바꾼 셀만 원자적으로 병합 저장!
+          const canAlwaysAtomicMerge = !forceAll && !localStructuralDirtyKeys.has(sKey) && hasPendingCellDelta;
 
           let finalSerialized = null;
-          if (canSafeMerge) {
-            const remoteSheetDoc = await withTimeout(
-              loadSingleSheetDocFromFirestore(sKey, currentFileId),
-              6000,
-              '원격 시트 병합 로드'
-            ).catch(() => null);
-            if (remoteSheetDoc) {
-              finalSerialized = mergeLocalEditsIntoRemoteSheet(remoteSheetDoc, s, sKey);
-              applyMergedSerializedToLiveSheet(s, finalSerialized);
-              mergedAnyRemoteIntoLocal = true;
+          let savedViaTx = false;
+
+          try {
+            const txRes = await withTimeout(
+              saveSingleSheetAtomicMergeToFirestore(sKey, s, i, now, canAlwaysAtomicMerge, currentFileId),
+              15000,
+              `시트(${s.name || sKey}) 원자적 병합 저장`
+            );
+            if (txRes && txRes.committed) {
+              finalSerialized = txRes.finalSerialized;
+              savedViaTx = true;
+              if (txRes.mergedWithRemote && (txRes.remoteDocTs > localKnownTs || remoteTs > localKnownTs || remoteBorderTs > localKnownBorderTs)) {
+                applyMergedSerializedToLiveSheet(s, finalSerialized);
+                mergedAnyRemoteIntoLocal = true;
+              }
+            } else if (txRes && txRes.finalSerialized) {
+              finalSerialized = txRes.finalSerialized;
             }
+          } catch (txErr) {
+            console.warn("트랜잭션 저장 폴백(일반 병합 저장 진행):", txErr?.message || txErr);
           }
 
-          if (!finalSerialized) {
-            finalSerialized = serializeSingleSheet(s, i);
+          if (!savedViaTx) {
+            if (!finalSerialized && canAlwaysAtomicMerge) {
+              const remoteSheetDoc = await withTimeout(
+                loadSingleSheetDocFromFirestore(sKey, currentFileId),
+                6000,
+                '원격 시트 병합 로드'
+              ).catch(() => null);
+              if (remoteSheetDoc) {
+                finalSerialized = mergeLocalEditsIntoRemoteSheet(remoteSheetDoc, s, sKey);
+                applyMergedSerializedToLiveSheet(s, finalSerialized);
+                mergedAnyRemoteIntoLocal = true;
+              }
+            }
+            if (!finalSerialized) {
+              finalSerialized = serializeSingleSheet(s, i);
+            }
+            await withTimeout(
+              saveSingleSheetDocToFirestore(sKey, finalSerialized, now, currentFileId),
+              15000,
+              `시트(${s.name || sKey}) 저장`
+            );
           }
 
           // [테두리 작성자 우선 버전 관리]
@@ -6126,15 +6585,11 @@
             nextBorderVer = Math.max(remoteBorderTs, localKnownBorderTs, now) + 1;
           }
 
-          await withTimeout(
-            saveSingleSheetDocToFirestore(sKey, finalSerialized, now, currentFileId),
-            15000,
-            `시트(${s.name || sKey}) 저장`
-          );
           serializedSheetCache.set(sKey, finalSerialized);
           sheetVersionMap.set(sKey, now);
           sheetBorderVersionMap.set(sKey, nextBorderVer);
           syncBorderSnapshotForSheet(s);
+          rebuildKnownCellSigMapForSheet(s);
           updatedSheetKeys.push(sKey);
         }
 
@@ -6305,6 +6760,7 @@
               }
             });
             recalculateSheetFormulas(targetSheet, liveFiles);
+            rebuildKnownCellSigMapForSheet(targetSheet);
           } else {
             // 아직 열지 않은 비활성 시트도 celldata를 최신 상태로 유지 (시트 이동 시 누락 방지)
             if (!Array.isArray(targetSheet.celldata)) targetSheet.celldata = [];
@@ -6516,6 +6972,7 @@
               lSheet.column = targetCols;
               recalculateSheetFormulas(lSheet, liveSheets);
               applyPrivacyMaskToSheetInPlace(lSheet);
+              rebuildKnownCellSigMapForSheet(lSheet);
             }
           });
 
