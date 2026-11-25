@@ -78,6 +78,8 @@
     .db-status.syncing { color: #1967d2; background: #e8f0fe; }
     .db-status.error .status-dot { background-color: #ea4335; animation: none; }
     .db-status.error { color: #c5221f; background: #fce8e6; }
+    .personal-filter-badge { display: none; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #5e35b1; background: #ede7f6; border: 1px solid #b39ddb; padding: 5px 10px; border-radius: 20px; cursor: pointer; white-space: nowrap; transition: 0.15s; }
+    .personal-filter-badge:hover { background: #5e35b1; color: #ffffff; border-color: #5e35b1; }
 
     #concurrent-users { display: none; flex-wrap: wrap; align-items: center; gap: 4px 6px; max-height: 48px; overflow-y: auto; padding: 2px 4px; flex: 1; min-width: 100px; }
     .user-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 8px; border-radius: 12px; font-size: 12px; font-weight: 700; color: #fff; white-space: nowrap; line-height: 1.2; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
@@ -223,6 +225,7 @@
         <span class="status-dot"></span>
         <span id="db-status-text">DB 연결 중...</span>
       </div>
+      <button id="personal-filter-badge" type="button" class="personal-filter-badge" title="현재 필터는 본인 화면에만 적용됩니다. 클릭하면 내 화면의 필터를 해제합니다">🔍 개인 필터 적용 중 · 해제 ✕</button>
       <div id="concurrent-users"></div>
     </div>
     <div class="header-actions">
@@ -629,10 +632,17 @@
     return '';
   }
 
+  function isCellActivelyMasked(cell) {
+    if (!cell || typeof cell !== 'object' || cell.f) return false;
+    if (cell.__isMasked !== true || cell.rawV === undefined) return false;
+    const disp = extractCurrentDisplayString(cell);
+    return cell.__maskedStr !== undefined && disp === cell.__maskedStr;
+  }
+
   function extractRawTextFromCell(cell) {
     if (!cell) return '';
     if (typeof cell !== 'object') return String(cell);
-    if (cell.rawV !== undefined && cell.rawV !== null && cell.rawV !== '') return String(cell.rawV);
+    if (isCellActivelyMasked(cell)) return String(cell.rawV);
     return extractCurrentDisplayString(cell);
   }
 
@@ -883,72 +893,93 @@
     return str;
   }
 
+  function clearMaskMetadataFromCell(cell) {
+    if (!cell || typeof cell !== 'object') return;
+    delete cell.rawV;
+    delete cell.rawM;
+    delete cell.rawCtS;
+    delete cell.__maskedStr;
+    delete cell.__isMasked;
+  }
+
   function processSingleCellMasking(cell, r, c, colRules, maskActive) {
-    if (!cell || typeof cell !== 'object' || cell.f) return;
-
-    const ruleInfo = colRules[c];
-    if (ruleInfo && r <= ruleInfo.headerRow) return;
-
-    const currentDisplayStr = extractCurrentDisplayString(cell);
-
-    if (currentDisplayStr === '') {
-      delete cell.rawV;
-      delete cell.rawM;
-      delete cell.rawCtS;
-      delete cell.__maskedStr;
+    if (!cell || typeof cell !== 'object') return;
+    // 수식 셀은 절대 rawV/rawM 그림자 속성을 유지하지 않음 (연속채우기·ROW() 수식 변질 원천 차단)
+    if (cell.f) {
+      clearMaskMetadataFromCell(cell);
       return;
     }
 
-    if (cell.rawV !== undefined) {
-      if (cell.__maskedStr !== undefined && currentDisplayStr !== cell.__maskedStr && !currentDisplayStr.includes('*')) {
-        cell.rawV = cell.v !== undefined && cell.v !== null ? cell.v : currentDisplayStr;
-        cell.rawM = cell.m !== undefined && cell.m !== null ? cell.m : String(cell.rawV);
-        if (cell.ct && Array.isArray(cell.ct.s)) {
-          cell.rawCtS = JSON.parse(JSON.stringify(cell.ct.s));
-        }
-      } else if (cell.__maskedStr === undefined && String(cell.rawV) !== currentDisplayStr && !currentDisplayStr.includes('*')) {
-        cell.rawV = cell.v !== undefined && cell.v !== null ? cell.v : currentDisplayStr;
-        cell.rawM = cell.m !== undefined && cell.m !== null ? cell.m : String(cell.rawV);
-      }
+    const ruleInfo = colRules[c];
+    if (ruleInfo && r <= ruleInfo.headerRow) {
+      clearMaskMetadataFromCell(cell);
+      return;
+    }
+
+    const currentDisplayStr = extractCurrentDisplayString(cell);
+    if (currentDisplayStr === '') {
+      clearMaskMetadataFromCell(cell);
+      return;
+    }
+
+    // 실제로 마스킹되어 화면에 * 표기 중인 셀인지 엄격히 판정 (연속채우기/복사/치환 시 stale rawV 오적용 완벽 차단)
+    const activelyMasked = isCellActivelyMasked(cell);
+    let origV;
+    let origM;
+    let origCtS = null;
+
+    if (activelyMasked) {
+      origV = cell.rawV;
+      origM = cell.rawM !== undefined ? cell.rawM : String(origV);
+      if (Array.isArray(cell.rawCtS)) origCtS = cell.rawCtS;
     } else {
-      if (!currentDisplayStr.includes('*')) {
-        cell.rawV = cell.v !== undefined && cell.v !== null ? cell.v : currentDisplayStr;
-        cell.rawM = cell.m !== undefined && cell.m !== null ? cell.m : currentDisplayStr;
-        if (cell.ct && Array.isArray(cell.ct.s) && cell.ct.s.length > 0) {
-          cell.rawCtS = JSON.parse(JSON.stringify(cell.ct.s));
-        }
+      origV = (cell.v !== undefined && cell.v !== null && cell.v !== '') ? cell.v : currentDisplayStr;
+      origM = (cell.m !== undefined && cell.m !== null && cell.m !== '') ? cell.m : String(origV);
+      if (cell.ct && Array.isArray(cell.ct.s) && cell.ct.s.length > 0) {
+        origCtS = JSON.parse(JSON.stringify(cell.ct.s));
       }
     }
 
-    const origV = cell.rawV !== undefined ? cell.rawV : cell.v;
-    const origM = cell.rawM !== undefined ? cell.rawM : (cell.m !== undefined ? cell.m : origV);
-    if (origV === null || origV === undefined || origV === '') return;
+    if (origV === null || origV === undefined || origV === '') {
+      clearMaskMetadataFromCell(cell);
+      return;
+    }
 
     if (!maskActive) {
-      cell.v = origV;
-      cell.m = origM !== undefined && origM !== null ? String(origM) : String(origV);
-      if (cell.rawCtS && cell.ct) {
-        cell.ct.s = JSON.parse(JSON.stringify(cell.rawCtS));
+      if (activelyMasked) {
+        cell.v = origV;
+        cell.m = origM !== undefined && origM !== null ? String(origM) : String(origV);
+        if (origCtS && cell.ct) {
+          cell.ct.s = JSON.parse(JSON.stringify(origCtS));
+        }
       }
-      cell.__maskedStr = String(cell.m);
+      // 관리자(비마스킹) 상태에서는 그림자 속성을 남기지 않아 연속데이터 채우기/편집 시 복제 오염이 발생하지 않음
+      clearMaskMetadataFromCell(cell);
     } else {
       const colType = ruleInfo ? ruleInfo.type : null;
       const targetStr = String(origM ?? origV);
       const maskedStr = computeMaskedTextForCell(targetStr, colType);
       if (maskedStr !== targetStr) {
+        cell.rawV = origV;
+        cell.rawM = origM !== undefined && origM !== null ? String(origM) : String(origV);
+        if (origCtS) cell.rawCtS = JSON.parse(JSON.stringify(origCtS));
+        cell.__isMasked = true;
+        cell.__maskedStr = maskedStr;
         cell.v = maskedStr;
         cell.m = maskedStr;
-        cell.__maskedStr = maskedStr;
         if (cell.ct && Array.isArray(cell.ct.s) && cell.ct.s.length > 0) {
           cell.ct.s = [{ ...cell.ct.s[0], v: maskedStr }];
         }
       } else {
-        cell.v = origV;
-        cell.m = origM !== undefined && origM !== null ? String(origM) : String(origV);
-        cell.__maskedStr = String(cell.m);
-        if (cell.rawCtS && cell.ct) {
-          cell.ct.s = JSON.parse(JSON.stringify(cell.rawCtS));
+        if (activelyMasked) {
+          cell.v = origV;
+          cell.m = origM !== undefined && origM !== null ? String(origM) : String(origV);
+          if (origCtS && cell.ct) {
+            cell.ct.s = JSON.parse(JSON.stringify(origCtS));
+          }
         }
+        // 마스킹 대상이 아닌 일반 숫자/순번/날짜/직원명 셀은 그림자 속성을 두지 않음
+        clearMaskMetadataFromCell(cell);
       }
     }
   }
@@ -979,11 +1010,7 @@
     const active = getActiveSheetObj();
     if (!active) return;
     applyPrivacyMaskToSheetInPlace(active);
-    if (typeof window.luckysheet.jfrefreshgrid === 'function') {
-      isApplyingRemoteUpdate = true;
-      window.luckysheet.jfrefreshgrid();
-      setTimeout(() => { isApplyingRemoteUpdate = false; }, 50);
-    }
+    safeRefreshGrid();
   }
 
   // ==================== 권한별 엑셀(.xlsx) 다운로드 기능 ====================
@@ -1049,8 +1076,9 @@
           const ruleInfo = colRules[c];
           const isHeaderCell = ruleInfo && r <= ruleInfo.headerRow;
 
-          const origVal = cell.rawV !== undefined ? cell.rawV : (cell.v !== undefined ? cell.v : extractCurrentDisplayString(cell));
-          const origStr = cell.rawM !== undefined ? String(cell.rawM) : String(origVal ?? '');
+          const useMaskedRaw = isCellActivelyMasked(cell);
+          const origVal = useMaskedRaw ? cell.rawV : (cell.v !== undefined ? cell.v : extractCurrentDisplayString(cell));
+          const origStr = (useMaskedRaw && cell.rawM !== undefined) ? String(cell.rawM) : (cell.m !== undefined && cell.m !== null ? String(cell.m) : String(origVal ?? ''));
 
           if (!exportMasked || isHeaderCell) {
             if (typeof origVal === 'number') {
@@ -1631,7 +1659,10 @@
   const sheetEditGenMap = new Map();          // 시트별 로컬 수정 세대 카운터 (저장 중 추가 수정 유실 방지)
   const localPendingEdits = new Map();        // Map<sheetKey, Map<"r_c", { r, c, v, ts }>>
   const localPendingConfigKeys = new Set();   // 테두리·병합·행높이·열너비 등 로컬 config 수정 시트
+  const localPendingBorderOps = new Map();    // Map<sheetKey, Array<borderOp>> - 동시 편집 시 로컬 신규 테두리만 정확히 병합
   const localStructuralDirtyKeys = new Set(); // 행/열 삽입·삭제 등 인덱스 이동 작업 발생 시트
+  const localFilterStateMap = new Map();      // Map<sheetKey, { filter_select, filter, filterHiddenRows: Set<string> }> - 구글 시트형 개인 전용 필터
+  let autosaveHeartbeatTimer = null;
   let structureDirty = false;
   let pendingDeltaCells = [];
   let pendingDeltaSheetKey = null;
@@ -1817,7 +1848,16 @@
     return false;
   }
 
-  function safeRefreshGrid() {
+  // Luckysheet 내부 Store.flowdata 참조가 절대 끊어지지 않도록 2차원 data 배열을 제자리(in-place) 갱신
+  function replaceGridDataInPlace(targetGrid, nextGrid) {
+    if (!Array.isArray(targetGrid) || !Array.isArray(nextGrid)) return;
+    targetGrid.length = nextGrid.length;
+    for (let r = 0; r < nextGrid.length; r++) {
+      targetGrid[r] = nextGrid[r];
+    }
+  }
+
+  function safeRefreshGrid(explicitData = null) {
     if (typeof window.luckysheet?.jfrefreshgrid !== 'function') return;
     if (isComposingKorean || isCellEditorActive()) {
       deferredRemoteRefresh = true;
@@ -1826,7 +1866,11 @@
     deferredRemoteRefresh = false;
     isApplyingRemoteUpdate = true;
     try {
-      window.luckysheet.jfrefreshgrid();
+      if (Array.isArray(explicitData) && explicitData.length > 0) {
+        window.luckysheet.jfrefreshgrid(explicitData);
+      } else {
+        window.luckysheet.jfrefreshgrid();
+      }
     } catch (e) {
       console.warn("그리드 갱신 경고:", e);
     } finally {
@@ -1879,6 +1923,146 @@
     }, 80);
   }
 
+  // ==================== 구글 시트형 개인 전용 필터 뷰 (Personal Local Filter Engine) ====================
+  // 필터 설정(filter_select, filter)과 필터로 숨겨진 행(rowhidden)은 절대 Firestore에 저장·전파하지 않고
+  // 필터를 건 사용자 본인 브라우저 화면에만 적용·유지합니다.
+  function extractFilterHiddenRowSet(filterObj) {
+    const hiddenSet = new Set();
+    if (!filterObj || typeof filterObj !== 'object') return hiddenSet;
+    for (const colFilter of Object.values(filterObj)) {
+      if (colFilter && colFilter.rowhidden && typeof colFilter.rowhidden === 'object') {
+        for (const rKey of Object.keys(colFilter.rowhidden)) {
+          hiddenSet.add(String(rKey));
+        }
+      }
+    }
+    return hiddenSet;
+  }
+
+  function hasPersonalFilterActive(sheet) {
+    if (!sheet) return false;
+    const hasSelect = Boolean(sheet.filter_select && sheet.filter_select.row && sheet.filter_select.column);
+    const hasFilterObj = Boolean(sheet.filter && typeof sheet.filter === 'object' && Object.keys(sheet.filter).length > 0);
+    return hasSelect || hasFilterObj;
+  }
+
+  function stripFilterFromConfigForCloud(rawCfg, filterHiddenRowSet) {
+    const cfg = rawCfg && typeof rawCfg === 'object' ? { ...rawCfg } : {};
+    if (cfg.rowhidden && typeof cfg.rowhidden === 'object') {
+      if (filterHiddenRowSet && filterHiddenRowSet.size > 0) {
+        const cleanRowHidden = {};
+        for (const [rk, rv] of Object.entries(cfg.rowhidden)) {
+          if (!filterHiddenRowSet.has(String(rk))) {
+            cleanRowHidden[rk] = rv;
+          }
+        }
+        cfg.rowhidden = cleanRowHidden;
+      } else {
+        cfg.rowhidden = { ...cfg.rowhidden };
+      }
+    }
+    return cfg;
+  }
+
+  function getCombinedLocalFilterHiddenRows(sheet) {
+    const combined = new Set();
+    if (!sheet) return combined;
+    const sKey = toSafeDocKey(sheet.index);
+    const fromLive = extractFilterHiddenRowSet(sheet.filter);
+    fromLive.forEach(k => combined.add(k));
+    const saved = localFilterStateMap.get(sKey);
+    if (saved && saved.filterHiddenRows) {
+      saved.filterHiddenRows.forEach(k => combined.add(k));
+    }
+    return combined;
+  }
+
+  function captureLocalFilterState(sheet) {
+    if (!sheet) return;
+    const sKey = toSafeDocKey(sheet.index);
+    if (hasPersonalFilterActive(sheet)) {
+      const hiddenRows = extractFilterHiddenRowSet(sheet.filter);
+      localFilterStateMap.set(sKey, {
+        filter_select: sheet.filter_select ? JSON.parse(JSON.stringify(sheet.filter_select)) : null,
+        filter: sheet.filter ? JSON.parse(JSON.stringify(sheet.filter)) : null,
+        filterHiddenRows: hiddenRows
+      });
+    } else {
+      localFilterStateMap.delete(sKey);
+    }
+    updatePersonalFilterBadge();
+  }
+
+  function restoreLocalFilterToSheet(sheet) {
+    if (!sheet) return;
+    const sKey = toSafeDocKey(sheet.index);
+    const saved = localFilterStateMap.get(sKey);
+    if (!saved) {
+      sheet.filter_select = null;
+      sheet.filter = null;
+      return;
+    }
+    sheet.filter_select = saved.filter_select ? JSON.parse(JSON.stringify(saved.filter_select)) : null;
+    sheet.filter = saved.filter ? JSON.parse(JSON.stringify(saved.filter)) : null;
+    if (saved.filterHiddenRows && saved.filterHiddenRows.size > 0) {
+      if (!sheet.config) sheet.config = {};
+      if (!sheet.config.rowhidden || typeof sheet.config.rowhidden !== 'object') {
+        sheet.config.rowhidden = {};
+      }
+      saved.filterHiddenRows.forEach(rKey => {
+        sheet.config.rowhidden[rKey] = 0;
+      });
+    }
+  }
+
+  function updatePersonalFilterBadge() {
+    const badge = document.getElementById('personal-filter-badge');
+    if (!badge) return;
+    const active = getActiveSheetObj();
+    if (!active) {
+      badge.style.display = 'none';
+      return;
+    }
+    const sKey = toSafeDocKey(active.index);
+    const saved = localFilterStateMap.get(sKey);
+    const isActive = hasPersonalFilterActive(active) || Boolean(saved);
+    if (isActive) {
+      const hiddenCnt = getCombinedLocalFilterHiddenRows(active).size;
+      badge.innerText = hiddenCnt > 0
+        ? `🔍 개인 필터 (${hiddenCnt}행 숨김 · 내 화면만) 해제 ✕`
+        : '🔍 개인 필터 켜짐 (내 화면만) · 해제 ✕';
+      badge.style.display = 'inline-flex';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  function clearPersonalFilterOnActiveSheet() {
+    const active = getActiveSheetObj();
+    if (!active) return;
+    const sKey = toSafeDocKey(active.index);
+    const hiddenSet = getCombinedLocalFilterHiddenRows(active);
+
+    if (active.config && active.config.rowhidden && typeof active.config.rowhidden === 'object') {
+      hiddenSet.forEach(rKey => {
+        delete active.config.rowhidden[rKey];
+      });
+    }
+    active.filter_select = null;
+    active.filter = null;
+    localFilterStateMap.delete(sKey);
+
+    // Luckysheet 필터 UI 오버레이 요소 제거
+    document.querySelectorAll('[id^="luckysheet-filter-selected-sheet"], [id^="luckysheet-filter-options-sheet"]').forEach(el => {
+      el.remove();
+    });
+    const filterMenu = document.getElementById('luckysheet-filter-menu');
+    if (filterMenu) filterMenu.style.display = 'none';
+
+    updatePersonalFilterBadge();
+    safeRefreshGrid(active.data && active.data.length > 0 ? active.data : null);
+  }
+
   function flushPendingDeltaNow() {
     if (pendingDeltaCells.length === 0 && !pendingDeltaConfigFlag) return;
     const liveFiles = window.luckysheet?.getluckysheetfile?.() || [];
@@ -1904,7 +2088,9 @@
     };
 
     if (sendConfig) {
-      const sanitizedCfg = sanitizeSheetConfig(targetSheet.config || {});
+      const localFilterHidden = getCombinedLocalFilterHiddenRows(targetSheet);
+      const strippedCfg = stripFilterFromConfigForCloud(targetSheet.config || {}, localFilterHidden);
+      const sanitizedCfg = sanitizeSheetConfig(strippedCfg);
       // Firestore 단일 문서 1MB 제한 보호: 델타 config가 너무 크면 전체 시트 저장(meta)에 위임
       try {
         const cfgStr = JSON.stringify(sanitizedCfg);
@@ -1918,23 +2104,23 @@
     setDoc(doc(db, "sheets", getDeltaDocName()), payload).catch(() => {});
   }
 
-  // ==================== 테두리(Border) 정규화·압축 & 병합셀(mc/merge) 무결성 복구 엔진 ====================
-  // [핵심 수정]
-  // 1) Luckysheet border.js:184 (TypeError: Cannot read properties of undefined (reading 'r')) 원천 차단:
-  //    - cell.mc와 config.merge 불일치(고아 병합 셀) 자동 복구/제거
-  //    - rangeType: "cell" 객체를 절대 생성하지 않고, 100% Luckysheet 네이티브 rangeType: "range" 형식으로만 출력
-  //    - Firestore에 이미 저장된 rangeType: "cell" 및 비정상 범위도 자동 변환·정규화
-  // 2) 인접 셀 공유 변 충돌 해결 및 사각형/구간 병합 압축으로 셀별 테두리 즉시 적용 + 용량 최소화
+  // ==================== 테두리(Border) 비파괴 정규화·공유선 동기화 & 병합셀 무결성 복구 엔진 ====================
+  // [근본 수정 원칙]
+  // 1) 인접 열/셀에 합성 border-none을 절대 생성하지 않음 -> 열 1개 테두리 그려도 옆 열 테두리 100% 보존!
+  // 2) Luckysheet 네이티브 rangeType: "range" 명령 이력을 순서 그대로 유지하고,
+  //    완전히 덮어쓰기된 이전 중복 항목만 비파괴 정리하여 용량 최적화.
+  // 3) 기존 Firestore에 저장된 레거시 rangeType: "cell" 항목도 이웃 셀 건드림 없이 순수 range로 안전 변환.
+  // 4) 셀/열 테두리를 새로 그릴 때만 우측/하단 공유 외곽선 1줄을 비병합 인접 셀의 좌측/상단과 동기화하여
+  //    색상·굵기 변경이 기존 인접 테두리에 가려지지 않고 즉시 반영되도록 보강.
   function sanitizeSheetMergeAndCells(sheetObj) {
     if (!sheetObj || typeof sheetObj !== 'object') return;
     if (!sheetObj.config || typeof sheetObj.config !== 'object') sheetObj.config = {};
 
-    const maxR = Math.max(Number(sheetObj.row) || 50, 50);
-    const maxC = Math.max(Number(sheetObj.column) || 20, 20);
+    const maxR = Math.max(Number(sheetObj.row) || 50, Array.isArray(sheetObj.data) ? sheetObj.data.length : 0, 50);
+    const maxC = Math.max(Number(sheetObj.column) || 20, (Array.isArray(sheetObj.data) && sheetObj.data[0]) ? sheetObj.data[0].length : 0, 20);
     const rawMerge = (sheetObj.config.merge && typeof sheetObj.config.merge === 'object') ? sheetObj.config.merge : {};
     const cleanMerge = {};
 
-    // 1단계: config.merge 내부의 유효한 병합 정의만 추려냄
     for (const [k, m] of Object.entries(rawMerge)) {
       if (!m || typeof m !== 'object') continue;
       const r = Number(m.r), c = Number(m.c), rs = Number(m.rs), cs = Number(m.cs);
@@ -1962,7 +2148,6 @@
       }
       const key = `${mr}_${mcol}`;
       let def = cleanMerge[key];
-      // 마스터 셀에 rs/cs가 있는데 config.merge에서 누락된 경우 자동 복구
       if (!def && mr === r && mcol === c && Number(mc.rs) >= 1 && Number(mc.cs) >= 1) {
         const rs = Math.min(Number(mc.rs), maxR - mr);
         const cs = Math.min(Number(mc.cs), maxC - mcol);
@@ -1972,7 +2157,6 @@
         }
       }
       if (!def) {
-        // config.merge에 없는 고아 병합 셀(mc) 제거 -> border.js:184 크래시 원천 차단!
         delete cell.mc;
         return;
       }
@@ -2047,17 +2231,18 @@
     return cfg;
   }
 
+  const VALID_BORDER_TYPES = new Set([
+    'border-all', 'border-outside', 'border-inside', 'border-horizontal', 'border-vertical',
+    'border-top', 'border-bottom', 'border-left', 'border-right', 'border-none', 'border-slash'
+  ]);
+
   function filterValidRangeBordersOnly(rawBorderInfo, maxRowLimit = null, maxColLimit = null) {
     if (!Array.isArray(rawBorderInfo)) return [];
-    const validTypes = new Set([
-      'border-all', 'border-outside', 'border-inside', 'border-horizontal', 'border-vertical',
-      'border-top', 'border-bottom', 'border-left', 'border-right', 'border-none', 'border-slash'
-    ]);
     const out = [];
     for (let i = 0; i < rawBorderInfo.length; i++) {
       const item = rawBorderInfo[i];
       if (!item || typeof item !== 'object' || item.rangeType !== 'range' || !Array.isArray(item.range)) continue;
-      const bType = validTypes.has(item.borderType) ? item.borderType : 'border-all';
+      const bType = VALID_BORDER_TYPES.has(item.borderType) ? item.borderType : 'border-all';
       const cleanRanges = [];
       for (const rng of item.range) {
         if (!rng || !Array.isArray(rng.row) || !Array.isArray(rng.column)) continue;
@@ -2078,12 +2263,12 @@
       out.push({
         rangeType: 'range',
         borderType: bType,
-        style: String(Number(item.style) || 1),
-        color: typeof item.color === 'string' && item.color ? item.color : '#000000',
+        style: String(Math.floor(Number(item.style) || 1)),
+        color: (typeof item.color === 'string' && item.color.trim()) ? item.color.trim() : '#000000',
         range: cleanRanges
       });
     }
-    return out.length > 6000 ? out.slice(-6000) : out;
+    return out.length > 8000 ? out.slice(-8000) : out;
   }
 
   function normalizeBorderSide(sideObj) {
@@ -2096,7 +2281,6 @@
     };
   }
 
-  // 좌표 집합을 최소 개수의 직사각형({ row: [r1, r2], column: [c1, c2] })으로 병합
   function mergeCellsIntoRectangles(coords) {
     if (!coords || coords.length === 0) return [];
     const byRow = new Map();
@@ -2107,7 +2291,7 @@
       cols.push(c);
     }
     const sortedRows = Array.from(byRow.keys()).sort((a, b) => a - b);
-    const activeRects = new Map(); // "c1_c2" -> { r1, r2, c1, c2 }
+    const activeRects = new Map();
     const finishedRects = [];
 
     for (let ri = 0; ri < sortedRows.length; ri++) {
@@ -2117,12 +2301,8 @@
       let start = cols[0], prev = cols[0];
       for (let ci = 1; ci < cols.length; ci++) {
         if (cols[ci] === prev) continue;
-        if (cols[ci] === prev + 1) {
-          prev = cols[ci];
-        } else {
-          rowSegments.push([start, prev]);
-          start = prev = cols[ci];
-        }
+        if (cols[ci] === prev + 1) prev = cols[ci];
+        else { rowSegments.push([start, prev]); start = prev = cols[ci]; }
       }
       rowSegments.push([start, prev]);
 
@@ -2144,7 +2324,6 @@
       nextActive.forEach((rect, k) => activeRects.set(k, rect));
     }
     activeRects.forEach(rect => finishedRects.push(rect));
-
     return finishedRects.map(rc => ({ row: [rc.r1, rc.r2], column: [rc.c1, rc.c2] }));
   }
 
@@ -2194,75 +2373,90 @@
     return ranges;
   }
 
+  function convertLegacyCellBorderBatchToRanges(cellEntries) {
+    if (!cellEntries || cellEntries.length === 0) return [];
+    const allGroups = new Map();
+    const topGroups = new Map();
+    const bottomGroups = new Map();
+    const leftGroups = new Map();
+    const rightGroups = new Map();
+
+    const pushG = (map, sideObj, r, c) => {
+      const k = `${sideObj.style}|${sideObj.color}`;
+      let arr = map.get(k);
+      if (!arr) { arr = []; map.set(k, arr); }
+      arr.push([r, c]);
+    };
+    const sideEq = (a, b) => Boolean(a && b && a.style === b.style && a.color === b.color);
+
+    for (let i = 0; i < cellEntries.length; i++) {
+      const { r, c, t, b, l, right } = cellEntries[i];
+      if (!t && !b && !l && !right) continue;
+      if (t && sideEq(t, b) && sideEq(t, l) && sideEq(t, right)) {
+        pushG(allGroups, t, r, c);
+      } else {
+        if (t) pushG(topGroups, t, r, c);
+        if (b) pushG(bottomGroups, b, r, c);
+        if (l) pushG(leftGroups, l, r, c);
+        if (right) pushG(rightGroups, right, r, c);
+      }
+    }
+
+    const out = [];
+    const emit = (map, borderType, mergeFn) => {
+      map.forEach((coords, key) => {
+        const sep = key.indexOf('|');
+        const style = key.slice(0, sep);
+        const color = key.slice(sep + 1);
+        const ranges = mergeFn(coords);
+        if (ranges.length > 0) {
+          out.push({ rangeType: 'range', borderType, style, color, range: ranges });
+        }
+      });
+    };
+    emit(allGroups, 'border-all', mergeCellsIntoRectangles);
+    emit(topGroups, 'border-top', mergeHorizontalRuns);
+    emit(bottomGroups, 'border-bottom', mergeHorizontalRuns);
+    emit(leftGroups, 'border-left', mergeVerticalRuns);
+    emit(rightGroups, 'border-right', mergeVerticalRuns);
+    return out;
+  }
+
+  function isRectContained(outer, inner) {
+    return outer.row[0] <= inner.row[0] &&
+           outer.row[1] >= inner.row[1] &&
+           outer.column[0] <= inner.column[0] &&
+           outer.column[1] >= inner.column[1];
+  }
+
+  function isRangeListCoveredBy(earlierRanges, laterRanges) {
+    for (let i = 0; i < earlierRanges.length; i++) {
+      const er = earlierRanges[i];
+      let covered = false;
+      for (let j = 0; j < laterRanges.length; j++) {
+        if (isRectContained(laterRanges[j], er)) {
+          covered = true;
+          break;
+        }
+      }
+      if (!covered) return false;
+    }
+    return true;
+  }
+
+  // 비파괴 테두리 정규화 및 중복 제거 (합성 border-none 절대 미생성!)
   function compactBorderInfo(rawBorderInfo, maxRowLimit = null, maxColLimit = null) {
     if (!Array.isArray(rawBorderInfo) || rawBorderInfo.length === 0) return [];
 
-    const preservedLargeEntries = [];
-    const slashEntries = [];
-    const cellMap = new Map();
+    const normalized = [];
+    let legacyCellBatch = [];
 
-    const clampR = (val) => {
-      const n = Math.max(0, Math.floor(Number(val)));
-      return maxRowLimit ? Math.min(n, maxRowLimit - 1) : n;
+    const flushLegacyCells = () => {
+      if (legacyCellBatch.length === 0) return;
+      const converted = convertLegacyCellBorderBatchToRanges(legacyCellBatch);
+      for (let i = 0; i < converted.length; i++) normalized.push(converted[i]);
+      legacyCellBatch = [];
     };
-    const clampC = (val) => {
-      const n = Math.max(0, Math.floor(Number(val)));
-      return maxColLimit ? Math.min(n, maxColLimit - 1) : n;
-    };
-
-    const getOrCreateCell = (r, c) => {
-      const key = `${r}_${c}`;
-      let entry = cellMap.get(key);
-      if (!entry) {
-        entry = { row_index: r, col_index: c, t: null, b: null, l: null, r: null };
-        cellMap.set(key, entry);
-      }
-      return entry;
-    };
-
-    const clearNeighborEdge = (r, c, side) => {
-      if (r < 0 || c < 0) return;
-      const existing = cellMap.get(`${r}_${c}`);
-      if (existing) existing[side] = null;
-    };
-
-    const setEdgeWithNeighborSync = (r, c, side, styleObj, forceClearNeighbor = false) => {
-      if (r < 0 || c < 0) return;
-      if (maxRowLimit && r >= maxRowLimit) return;
-      if (maxColLimit && c >= maxColLimit) return;
-      const cell = getOrCreateCell(r, c);
-      cell[side] = styleObj ? { style: styleObj.style, color: styleObj.color } : null;
-
-      if (styleObj || forceClearNeighbor) {
-        if (side === 't' && r > 0) {
-          if (forceClearNeighbor || cellMap.has(`${r - 1}_${c}`)) {
-            const nb = forceClearNeighbor ? getOrCreateCell(r - 1, c) : cellMap.get(`${r - 1}_${c}`);
-            if (nb) nb.b = null;
-          }
-        } else if (side === 'b') {
-          if (!maxRowLimit || r + 1 < maxRowLimit) {
-            if (forceClearNeighbor || cellMap.has(`${r + 1}_${c}`)) {
-              const nb = forceClearNeighbor ? getOrCreateCell(r + 1, c) : cellMap.get(`${r + 1}_${c}`);
-              if (nb) nb.t = null;
-            }
-          }
-        } else if (side === 'l' && c > 0) {
-          if (forceClearNeighbor || cellMap.has(`${r}_${c - 1}`)) {
-            const nb = forceClearNeighbor ? getOrCreateCell(r, c - 1) : cellMap.get(`${r}_${c - 1}`);
-            if (nb) nb.r = null;
-          }
-        } else if (side === 'r') {
-          if (!maxColLimit || c + 1 < maxColLimit) {
-            if (forceClearNeighbor || cellMap.has(`${r}_${c + 1}`)) {
-              const nb = forceClearNeighbor ? getOrCreateCell(r, c + 1) : cellMap.get(`${r}_${c + 1}`);
-              if (nb) nb.l = null;
-            }
-          }
-        }
-      }
-    };
-
-    const hasLargeBaseRange = () => preservedLargeEntries.length > 0;
 
     for (let i = 0; i < rawBorderInfo.length; i++) {
       const item = rawBorderInfo[i];
@@ -2275,28 +2469,20 @@
         if (isNaN(r) || isNaN(c) || r < 0 || c < 0) continue;
         if (maxRowLimit && r >= maxRowLimit) continue;
         if (maxColLimit && c >= maxColLimit) continue;
-
-        const cell = getOrCreateCell(r, c);
         const t = normalizeBorderSide(val.t);
         const b = normalizeBorderSide(val.b);
         const l = normalizeBorderSide(val.l);
         const right = normalizeBorderSide(val.r);
-
-        cell.t = t;
-        cell.b = b;
-        cell.l = l;
-        cell.r = right;
-
-        if (t) clearNeighborEdge(r - 1, c, 'b');
-        if (b) clearNeighborEdge(r + 1, c, 't');
-        if (l) clearNeighborEdge(r, c - 1, 'r');
-        if (right) clearNeighborEdge(r, c + 1, 'l');
+        if (t || b || l || right) {
+          legacyCellBatch.push({ r, c, t, b, l, right });
+        }
       } else if (item.rangeType === 'range' && Array.isArray(item.range)) {
-        const bType = item.borderType || 'border-all';
+        flushLegacyCells();
+        const bType = VALID_BORDER_TYPES.has(item.borderType) ? item.borderType : 'border-all';
         const validRanges = [];
-        let totalArea = 0;
 
-        for (const rng of item.range) {
+        for (let j = 0; j < item.range.length; j++) {
+          const rng = item.range[j];
           if (!rng || !Array.isArray(rng.row) || !Array.isArray(rng.column)) continue;
           const rr1 = Math.floor(Number(rng.row[0])), rr2 = Math.floor(Number(rng.row[1]));
           const cc1 = Math.floor(Number(rng.column[0])), cc2 = Math.floor(Number(rng.column[1]));
@@ -2307,192 +2493,171 @@
           let c2 = Math.max(c1, Math.max(cc1, cc2));
           if (maxRowLimit && r1 >= maxRowLimit) continue;
           if (maxColLimit && c1 >= maxColLimit) continue;
-          r2 = clampR(r2);
-          c2 = clampC(c2);
+          if (maxRowLimit) r2 = Math.min(r2, maxRowLimit - 1);
+          if (maxColLimit) c2 = Math.min(c2, maxColLimit - 1);
           validRanges.push({ row: [r1, r2], column: [c1, c2] });
-          totalArea += (r2 - r1 + 1) * (c2 - c1 + 1);
         }
 
         if (validRanges.length === 0) continue;
 
-        const cleanStyleStr = String(Math.floor(Number(item.style) || 1));
-        const cleanColorStr = (typeof item.color === 'string' && item.color.trim()) ? item.color.trim() : '#000000';
+        normalized.push({
+          rangeType: 'range',
+          borderType: bType,
+          style: String(Math.floor(Number(item.style) || 1)),
+          color: (typeof item.color === 'string' && item.color.trim()) ? item.color.trim() : '#000000',
+          range: validRanges
+        });
+      }
+    }
+    flushLegacyCells();
 
-        if (bType === 'border-slash') {
-          slashEntries.push({
-            rangeType: 'range',
-            borderType: 'border-slash',
-            style: cleanStyleStr,
-            color: cleanColorStr,
-            range: validRanges
-          });
-          continue;
+    // 역방향 안전 가지치기: 이후의 동일 명령 또는 완전 덮어쓰기(border-all / border-none)로 100% 무효화된 과거 항목만 제거
+    const keptRev = [];
+    const laterFullOverrides = [];
+    const seenExact = new Set();
+
+    for (let i = normalized.length - 1; i >= 0; i--) {
+      const item = normalized[i];
+      const bType = item.borderType;
+      const ranges = item.range;
+      const sig = bType + '|' + ranges.map(r => `${r.row[0]}_${r.row[1]}_${r.column[0]}_${r.column[1]}`).join(';');
+
+      if (seenExact.has(sig)) continue;
+
+      if (bType !== 'border-slash') {
+        let superseded = false;
+        for (let k = 0; k < laterFullOverrides.length; k++) {
+          if (isRangeListCoveredBy(ranges, laterFullOverrides[k])) {
+            superseded = true;
+            break;
+          }
         }
+        if (superseded) continue;
+      }
 
-        if (totalArea > 3000) {
-          preservedLargeEntries.push({
-            rangeType: 'range',
-            borderType: bType,
-            style: cleanStyleStr,
-            color: cleanColorStr,
-            range: validRanges
-          });
-          continue;
+      keptRev.push(item);
+      seenExact.add(sig);
+      if (bType === 'border-all' || bType === 'border-none') {
+        laterFullOverrides.push(ranges);
+      }
+    }
+
+    keptRev.reverse();
+    if (keptRev.length > 8000) {
+      return keptRev.slice(-8000);
+    }
+    return keptRev;
+  }
+
+  function isCoordInsideAnyMerge(sheet, r, c) {
+    const mergeObj = sheet?.config?.merge;
+    if (!mergeObj || typeof mergeObj !== 'object') return false;
+    for (const m of Object.values(mergeObj)) {
+      if (!m) continue;
+      if (r >= m.r && r < m.r + (m.rs || 1) && c >= m.c && c < m.c + (m.cs || 1)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Luckysheet 캔버스 렌더링 특성 보정:
+  // 셀(또는 열)에 테두리를 새로 그릴 때 우측/하단 인접 셀의 공유 변(1줄)이 기존 테두리로 덮어쓰이지 않도록
+  // 비병합 인접 셀의 맞닿은 1개 변(border-left / border-top)만 동일 스타일·색상으로 동기화 (옆 열의 나머지 변은 절대 건드리지 않음)
+  function syncSharedPerimeterOnLatestBorder(sheet) {
+    if (!sheet || !sheet.config || !Array.isArray(sheet.config.borderInfo) || sheet.config.borderInfo.length === 0) {
+      return [];
+    }
+    const list = sheet.config.borderInfo;
+    const latest = list[list.length - 1];
+    if (!latest || latest.rangeType !== 'range' || !Array.isArray(latest.range)) return [];
+
+    const bType = latest.borderType;
+    const addedOps = [JSON.parse(JSON.stringify(latest))];
+    if (!['border-all', 'border-outside', 'border-right', 'border-bottom'].includes(bType)) {
+      return addedOps;
+    }
+
+    const maxR = sheet.data?.length || sheet.row || 50;
+    const maxC = sheet.data?.[0]?.length || sheet.column || 20;
+    const style = String(Math.floor(Number(latest.style) || 1));
+    const color = (typeof latest.color === 'string' && latest.color.trim()) ? latest.color.trim() : '#000000';
+
+    const syncRight = ['border-all', 'border-outside', 'border-right'].includes(bType);
+    const syncBottom = ['border-all', 'border-outside', 'border-bottom'].includes(bType);
+
+    const rightMirrorCoords = [];
+    const bottomMirrorCoords = [];
+
+    for (const rng of latest.range) {
+      if (!rng || !Array.isArray(rng.row) || !Array.isArray(rng.column)) continue;
+      const r1 = Math.max(0, Math.floor(Number(rng.row[0])));
+      const r2 = Math.min(maxR - 1, Math.floor(Number(rng.row[1])));
+      const c1 = Math.max(0, Math.floor(Number(rng.column[0])));
+      const c2 = Math.min(maxC - 1, Math.floor(Number(rng.column[1])));
+      if (isNaN(r1) || isNaN(r2) || isNaN(c1) || isNaN(c2)) continue;
+
+      // 초대형 범위(전체 시트 등)는 미러링 불필요
+      if ((r2 - r1 + 1) * (c2 - c1 + 1) > 4000) continue;
+
+      if (syncRight && c2 + 1 < maxC) {
+        const nbC = c2 + 1;
+        for (let r = r1; r <= r2; r++) {
+          if (!isCoordInsideAnyMerge(sheet, r, nbC)) {
+            rightMirrorCoords.push([r, nbC]);
+          }
         }
-
-        const styleObj = { style: cleanStyleStr, color: cleanColorStr };
-
-        for (const rng of validRanges) {
-          const r1 = rng.row[0], r2 = rng.row[1];
-          const c1 = rng.column[0], c2 = rng.column[1];
-
-          if (bType === 'border-none') {
-            for (let r = r1; r <= r2; r++) {
-              for (let c = c1; c <= c2; c++) {
-                const cell = getOrCreateCell(r, c);
-                cell.t = null; cell.b = null; cell.l = null; cell.r = null;
-                if (r === r1 && r1 > 0) clearNeighborEdge(r1 - 1, c, 'b');
-                if (r === r2) clearNeighborEdge(r2 + 1, c, 't');
-                if (c === c1 && c1 > 0) clearNeighborEdge(r, c1 - 1, 'r');
-                if (c === c2) clearNeighborEdge(r, c2 + 1, 'l');
-              }
-            }
-          } else if (bType === 'border-all') {
-            for (let r = r1; r <= r2; r++) {
-              for (let c = c1; c <= c2; c++) {
-                setEdgeWithNeighborSync(r, c, 't', styleObj, r === r1 && hasLargeBaseRange());
-                setEdgeWithNeighborSync(r, c, 'b', styleObj, r === r2 && hasLargeBaseRange());
-                setEdgeWithNeighborSync(r, c, 'l', styleObj, c === c1 && hasLargeBaseRange());
-                setEdgeWithNeighborSync(r, c, 'r', styleObj, c === c2 && hasLargeBaseRange());
-              }
-            }
-          } else if (bType === 'border-outside') {
-            for (let c = c1; c <= c2; c++) {
-              setEdgeWithNeighborSync(r1, c, 't', styleObj, hasLargeBaseRange());
-              setEdgeWithNeighborSync(r2, c, 'b', styleObj, hasLargeBaseRange());
-            }
-            for (let r = r1; r <= r2; r++) {
-              setEdgeWithNeighborSync(r, c1, 'l', styleObj, hasLargeBaseRange());
-              setEdgeWithNeighborSync(r, c2, 'r', styleObj, hasLargeBaseRange());
-            }
-          } else if (bType === 'border-inside') {
-            for (let r = r1; r <= r2; r++) {
-              for (let c = c1; c <= c2; c++) {
-                if (r > r1) setEdgeWithNeighborSync(r, c, 't', styleObj);
-                if (r < r2) setEdgeWithNeighborSync(r, c, 'b', styleObj);
-                if (c > c1) setEdgeWithNeighborSync(r, c, 'l', styleObj);
-                if (c < c2) setEdgeWithNeighborSync(r, c, 'r', styleObj);
-              }
-            }
-          } else if (bType === 'border-horizontal') {
-            for (let r = r1; r < r2; r++) {
-              for (let c = c1; c <= c2; c++) setEdgeWithNeighborSync(r, c, 'b', styleObj);
-            }
-          } else if (bType === 'border-vertical') {
-            for (let r = r1; r <= r2; r++) {
-              for (let c = c1; c < c2; c++) setEdgeWithNeighborSync(r, c, 'r', styleObj);
-            }
-          } else if (bType === 'border-top') {
-            for (let c = c1; c <= c2; c++) setEdgeWithNeighborSync(r1, c, 't', styleObj, hasLargeBaseRange());
-          } else if (bType === 'border-bottom') {
-            for (let c = c1; c <= c2; c++) setEdgeWithNeighborSync(r2, c, 'b', styleObj, hasLargeBaseRange());
-          } else if (bType === 'border-left') {
-            for (let r = r1; r <= r2; r++) setEdgeWithNeighborSync(r, c1, 'l', styleObj, hasLargeBaseRange());
-          } else if (bType === 'border-right') {
-            for (let r = r1; r <= r2; r++) setEdgeWithNeighborSync(r, c2, 'r', styleObj, hasLargeBaseRange());
+      }
+      if (syncBottom && r2 + 1 < maxR) {
+        const nbR = r2 + 1;
+        for (let c = c1; c <= c2; c++) {
+          if (!isCoordInsideAnyMerge(sheet, nbR, c)) {
+            bottomMirrorCoords.push([nbR, c]);
           }
         }
       }
     }
 
-    // 100% Luckysheet 네이티브 rangeType: "range"로 변환 출력 (rangeType: "cell" 미사용으로 border.js 오류 완전 차단)
-    const result = [...preservedLargeEntries];
-
-    const clearedCoords = [];
-    const allSidesGroups = new Map(); // "style|color" -> [[r, c], ...]
-    const topGroups = new Map();
-    const bottomGroups = new Map();
-    const leftGroups = new Map();
-    const rightGroups = new Map();
-
-    const pushToGroup = (map, sideObj, r, c) => {
-      const k = `${sideObj.style}|${sideObj.color}`;
-      let arr = map.get(k);
-      if (!arr) { arr = []; map.set(k, arr); }
-      arr.push([r, c]);
-    };
-
-    const sideEq = (a, b) => Boolean(a && b && a.style === b.style && a.color === b.color);
-
-    cellMap.forEach((val) => {
-      const r = val.row_index, c = val.col_index;
-      const hasAny = Boolean(val.t || val.b || val.l || val.r);
-      if (!hasAny) {
-        if (preservedLargeEntries.length > 0) {
-          clearedCoords.push([r, c]);
-        }
-        return;
-      }
-
-      if (preservedLargeEntries.length > 0) {
-        clearedCoords.push([r, c]);
-      }
-
-      if (val.t && sideEq(val.t, val.b) && sideEq(val.t, val.l) && sideEq(val.t, val.r)) {
-        pushToGroup(allSidesGroups, val.t, r, c);
-      } else {
-        if (val.t) pushToGroup(topGroups, val.t, r, c);
-        if (val.b) pushToGroup(bottomGroups, val.b, r, c);
-        if (val.l) pushToGroup(leftGroups, val.l, r, c);
-        if (val.r) pushToGroup(rightGroups, val.r, r, c);
-      }
-    });
-
-    if (clearedCoords.length > 0) {
-      const noneRanges = mergeCellsIntoRectangles(clearedCoords);
-      if (noneRanges.length > 0) {
-        result.push({
-          rangeType: 'range',
-          borderType: 'border-none',
-          style: '1',
-          color: '#000000',
-          range: noneRanges
-        });
-      }
+    if (rightMirrorCoords.length > 0) {
+      const leftOp = {
+        rangeType: 'range',
+        borderType: 'border-left',
+        style,
+        color,
+        range: mergeVerticalRuns(rightMirrorCoords)
+      };
+      list.push(leftOp);
+      addedOps.push(leftOp);
     }
 
-    const emitGroupedRanges = (groupMap, borderType, mergeFn) => {
-      groupMap.forEach((coords, key) => {
-        const sepIdx = key.indexOf('|');
-        const style = key.slice(0, sepIdx);
-        const color = key.slice(sepIdx + 1);
-        const ranges = mergeFn(coords);
-        if (ranges.length > 0) {
-          result.push({
-            rangeType: 'range',
-            borderType: borderType,
-            style: style,
-            color: color,
-            range: ranges
-          });
-        }
-      });
-    };
-
-    emitGroupedRanges(allSidesGroups, 'border-all', mergeCellsIntoRectangles);
-    emitGroupedRanges(topGroups, 'border-top', mergeHorizontalRuns);
-    emitGroupedRanges(bottomGroups, 'border-bottom', mergeHorizontalRuns);
-    emitGroupedRanges(leftGroups, 'border-left', mergeVerticalRuns);
-    emitGroupedRanges(rightGroups, 'border-right', mergeVerticalRuns);
-
-    if (slashEntries.length > 0) {
-      result.push(...slashEntries);
+    if (bottomMirrorCoords.length > 0) {
+      const topOp = {
+        rangeType: 'range',
+        borderType: 'border-top',
+        style,
+        color,
+        range: mergeHorizontalRuns(bottomMirrorCoords)
+      };
+      list.push(topOp);
+      addedOps.push(topOp);
     }
 
-    if (result.length > 8000) {
-      return result.slice(-8000);
+    return addedOps;
+  }
+
+  function recordLocalBorderOps(sheetKey, ops) {
+    if (!sheetKey || !Array.isArray(ops) || ops.length === 0) return;
+    let arr = localPendingBorderOps.get(sheetKey);
+    if (!arr) {
+      arr = [];
+      localPendingBorderOps.set(sheetKey, arr);
     }
-    return result;
+    for (let i = 0; i < ops.length; i++) {
+      arr.push(JSON.parse(JSON.stringify(ops[i])));
+    }
+    if (arr.length > 200) {
+      arr.splice(0, arr.length - 200);
+    }
   }
 
   function replaceArrayInPlace(targetArr, nextItems) {
@@ -2516,13 +2681,20 @@
     ]).finally(() => clearTimeout(timerId));
   }
 
-  function normalizeAndRefreshActiveBorders(sheet) {
+  function normalizeAndRefreshActiveBorders(sheet, syncLatestPerimeter = false) {
     if (!sheet || !sheet.config || !Array.isArray(sheet.config.borderInfo)) return;
+    const sKey = toSafeDocKey(sheet.index);
+    if (syncLatestPerimeter) {
+      const addedOps = syncSharedPerimeterOnLatestBorder(sheet);
+      if (addedOps.length > 0) {
+        recordLocalBorderOps(sKey, addedOps);
+      }
+    }
     const maxR = sheet.data?.length || sheet.row || null;
     const maxC = sheet.data?.[0]?.length || sheet.column || null;
     const compacted = compactBorderInfo(sheet.config.borderInfo, maxR, maxC);
     replaceArrayInPlace(sheet.config.borderInfo, compacted);
-    safeRefreshGrid();
+    safeRefreshGrid(sheet.data && sheet.data.length > 0 ? sheet.data : null);
   }
 
   // ==================== 정밀 수식 오류 보정 엔진 (FormulaGuardEngine) ====================
@@ -2562,6 +2734,9 @@
     if (sheet.data && Array.isArray(sheet.data) && sheet.data.length > 0) {
       return (sheet.data[r] && sheet.data[r][c]) ? sheet.data[r][c] : null;
     }
+    if (sheet.__celldataFastMap) {
+      return sheet.__celldataFastMap.get(`${r}_${c}`) || null;
+    }
     if (sheet.celldata && Array.isArray(sheet.celldata)) {
       for (let i = 0; i < sheet.celldata.length; i++) {
         const it = sheet.celldata[i];
@@ -2576,7 +2751,7 @@
     if (!cell || typeof cell !== 'object') {
       return { isEmpty: true, raw: '', num: 0, isError: false };
     }
-    const rawVal = cell.rawV !== undefined ? cell.rawV : cell.v;
+    const rawVal = isCellActivelyMasked(cell) ? cell.rawV : cell.v;
     if (rawVal === null || rawVal === undefined || rawVal === '') {
       return { isEmpty: true, raw: '', num: 0, isError: false };
     }
@@ -2651,7 +2826,7 @@
     return String(val);
   }
 
-  function evaluateFormulaSafe(formulaText, activeSheet, allSheets) {
+  function evaluateFormulaSafe(formulaText, activeSheet, allSheets, curR = null, curC = null) {
     if (typeof formulaText !== 'string') return { handled: false };
     const trimmed = formulaText.trim();
     if (!trimmed.startsWith('=')) return { handled: false };
@@ -2790,7 +2965,11 @@
     const SUPPORTED_FUNCS = new Set([
       'SUM', 'AVERAGE', 'AVG', 'MIN', 'MAX', 'COUNT', 'COUNTA',
       'INT', 'ABS', 'ROUND', 'ROUNDUP', 'ROUNDDOWN', 'TRUNC',
-      'IF', 'IFERROR', 'MOD', 'POWER', 'SQRT', 'AND', 'OR', 'NOT', 'N', 'VALUE'
+      'IF', 'IFERROR', 'IFNA', 'MOD', 'POWER', 'SQRT', 'AND', 'OR', 'NOT', 'N', 'VALUE',
+      'ROW', 'COLUMN', 'ROWS', 'COLUMNS',
+      'ISBLANK', 'ISNUMBER', 'ISTEXT', 'ISERROR',
+      'LEN', 'LEFT', 'RIGHT', 'MID', 'TRIM', 'UPPER', 'LOWER', 'CONCAT', 'CONCATENATE',
+      'SUMIF', 'COUNTIF', 'TODAY', 'YEAR', 'MONTH', 'DAY'
     ]);
 
     for (const tk of tokens) {
@@ -2826,7 +3005,7 @@
           out.push(readCellValueForFormula(sh, r, c));
         }
       }
-      return out;
+      return { items: out, bounds: { r1, r2, c1, c2 } };
     };
 
     const toNum = (val) => {
@@ -2980,7 +3159,7 @@
         const coord = parseRefCoord(tk.ref1);
         if (!coord) throw { excelErr: '#REF!' };
         const info = readCellValueForFormula(sh, coord.r, coord.c);
-        return { ...info, __isCellInfo: true };
+        return { ...info, __isCellInfo: true, __coord: coord };
       }
 
       if (tk.type === 'LP') {
@@ -3035,7 +3214,7 @@
           return (chosen && chosen.__isCellInfo && chosen.isEmpty) ? 0 : unwrapPrimitive(chosen);
         }
 
-        if (fnName === 'IFERROR') {
+        if (fnName === 'IFERROR' || fnName === 'IFNA') {
           let primaryVal;
           let hadErr = false;
           try {
@@ -3079,7 +3258,8 @@
         if (peek() && peek().type !== 'RP') {
           while (true) {
             if (peek() && peek().type === 'RANGE') {
-              args.push({ __isRange: true, items: collectRangeValues(consume()) });
+              const collected = collectRangeValues(consume());
+              args.push({ __isRange: true, items: collected.items, __bounds: collected.bounds });
             } else {
               args.push(parseComparison());
             }
@@ -3257,6 +3437,183 @@
         case 'N':
         case 'VALUE':
           return cleanExcelFloat(toNum(args[0]));
+        case 'ROW': {
+          if (args.length === 0) {
+            if (curR === null || curR === undefined) throw { unsupported: true };
+            return curR + 1;
+          }
+          const a0 = args[0];
+          if (a0 && a0.__coord) return a0.__coord.r + 1;
+          if (a0 && a0.__bounds) return a0.__bounds.r1 + 1;
+          throw { excelErr: '#VALUE!' };
+        }
+        case 'COLUMN': {
+          if (args.length === 0) {
+            if (curC === null || curC === undefined) throw { unsupported: true };
+            return curC + 1;
+          }
+          const a0 = args[0];
+          if (a0 && a0.__coord) return a0.__coord.c + 1;
+          if (a0 && a0.__bounds) return a0.__bounds.c1 + 1;
+          throw { excelErr: '#VALUE!' };
+        }
+        case 'ROWS': {
+          const a0 = args[0];
+          if (a0 && a0.__bounds) return a0.__bounds.r2 - a0.__bounds.r1 + 1;
+          if (a0 && a0.__coord) return 1;
+          throw { excelErr: '#VALUE!' };
+        }
+        case 'COLUMNS': {
+          const a0 = args[0];
+          if (a0 && a0.__bounds) return a0.__bounds.c2 - a0.__bounds.c1 + 1;
+          if (a0 && a0.__coord) return 1;
+          throw { excelErr: '#VALUE!' };
+        }
+        case 'ISBLANK': {
+          const a0 = args[0];
+          if (!a0) return true;
+          if (a0.__isCellInfo) return Boolean(a0.isEmpty);
+          return a0 === '';
+        }
+        case 'ISNUMBER': {
+          const a0 = args[0];
+          if (a0 && a0.__isCellInfo) return !a0.isEmpty && !a0.isError && !a0.isText && typeof a0.num === 'number' && !isNaN(a0.num);
+          return typeof a0 === 'number' && !isNaN(a0);
+        }
+        case 'ISTEXT': {
+          const a0 = args[0];
+          if (a0 && a0.__isCellInfo) return !a0.isEmpty && !a0.isError && Boolean(a0.isText);
+          return typeof a0 === 'string';
+        }
+        case 'ISERROR': {
+          const a0 = args[0];
+          if (a0 && a0.__isCellInfo) return Boolean(a0.isError);
+          return typeof a0 === 'string' && /^#[A-Z0-9/!?]+$/.test(a0);
+        }
+        case 'LEN': {
+          const p = (args[0] && args[0].__isCellInfo && args[0].isEmpty) ? '' : String(unwrapPrimitive(args[0]) ?? '');
+          return p.length;
+        }
+        case 'LEFT': {
+          const s = (args[0] && args[0].__isCellInfo && args[0].isEmpty) ? '' : String(unwrapPrimitive(args[0]) ?? '');
+          const n = args.length > 1 ? Math.max(0, Math.floor(toNum(args[1]))) : 1;
+          return s.slice(0, n);
+        }
+        case 'RIGHT': {
+          const s = (args[0] && args[0].__isCellInfo && args[0].isEmpty) ? '' : String(unwrapPrimitive(args[0]) ?? '');
+          const n = args.length > 1 ? Math.max(0, Math.floor(toNum(args[1]))) : 1;
+          return n === 0 ? '' : s.slice(-n);
+        }
+        case 'MID': {
+          const s = (args[0] && args[0].__isCellInfo && args[0].isEmpty) ? '' : String(unwrapPrimitive(args[0]) ?? '');
+          const start = Math.max(1, Math.floor(toNum(args[1]))) - 1;
+          const cnt = Math.max(0, Math.floor(toNum(args[2])));
+          return s.slice(start, start + cnt);
+        }
+        case 'TRIM': {
+          const s = (args[0] && args[0].__isCellInfo && args[0].isEmpty) ? '' : String(unwrapPrimitive(args[0]) ?? '');
+          return s.trim().replace(/\s+/g, ' ');
+        }
+        case 'UPPER': {
+          const s = (args[0] && args[0].__isCellInfo && args[0].isEmpty) ? '' : String(unwrapPrimitive(args[0]) ?? '');
+          return s.toUpperCase();
+        }
+        case 'LOWER': {
+          const s = (args[0] && args[0].__isCellInfo && args[0].isEmpty) ? '' : String(unwrapPrimitive(args[0]) ?? '');
+          return s.toLowerCase();
+        }
+        case 'CONCAT':
+        case 'CONCATENATE': {
+          let out = '';
+          for (const a of args) {
+            if (a && a.__isRange) {
+              for (const it of a.items) {
+                if (it.isError) throw { excelErr: it.errorCode };
+                if (!it.isEmpty) out += String(it.raw ?? '');
+              }
+            } else if (a && a.__isCellInfo) {
+              if (a.isError) throw { excelErr: a.errorCode };
+              if (!a.isEmpty) out += String(a.raw ?? '');
+            } else {
+              out += String(a ?? '');
+            }
+          }
+          return out;
+        }
+        case 'COUNTIF':
+        case 'SUMIF': {
+          if (args.length < 2 || !args[0] || !args[0].__isRange) throw { unsupported: true };
+          const rangeItems = args[0].items;
+          const critRaw = (args[1] && args[1].__isCellInfo && args[1].isEmpty) ? '' : unwrapPrimitive(args[1]);
+          const sumItems = (fnName === 'SUMIF' && args[2] && args[2].__isRange) ? args[2].items : rangeItems;
+          const critStr = String(critRaw ?? '').trim();
+          const opMatch = critStr.match(/^(<>|<=|>=|<|>|=)(.*)$/);
+          const op = opMatch ? opMatch[1] : '=';
+          const rhsStr = opMatch ? opMatch[2].trim() : critStr;
+          const rhsNum = rhsStr !== '' && !isNaN(Number(rhsStr.replace(/,/g, ''))) ? Number(rhsStr.replace(/,/g, '')) : NaN;
+          const hasWildcard = op === '=' && (rhsStr.includes('*') || rhsStr.includes('?'));
+          const wildcardRe = hasWildcard
+            ? new RegExp('^' + rhsStr.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.') + '$', 'i')
+            : null;
+
+          const matchesCrit = (item) => {
+            if (item.isError) return false;
+            if (rhsStr === '' && op === '=') return item.isEmpty;
+            if (rhsStr === '' && op === '<>') return !item.isEmpty;
+            if (item.isEmpty) return false;
+            if (wildcardRe) return wildcardRe.test(String(item.raw ?? ''));
+            if (!isNaN(rhsNum) && !item.isText && !isNaN(item.num)) {
+              if (op === '=') return item.num === rhsNum;
+              if (op === '<>') return item.num !== rhsNum;
+              if (op === '<') return item.num < rhsNum;
+              if (op === '>') return item.num > rhsNum;
+              if (op === '<=') return item.num <= rhsNum;
+              if (op === '>=') return item.num >= rhsNum;
+            }
+            const ls = String(item.raw ?? '').toLowerCase();
+            const rs = rhsStr.toLowerCase();
+            if (op === '=') return ls === rs;
+            if (op === '<>') return ls !== rs;
+            if (op === '<') return ls < rs;
+            if (op === '>') return ls > rs;
+            if (op === '<=') return ls <= rs;
+            if (op === '>=') return ls >= rs;
+            return false;
+          };
+
+          if (fnName === 'COUNTIF') {
+            let cnt = 0;
+            for (let k = 0; k < rangeItems.length; k++) {
+              if (matchesCrit(rangeItems[k])) cnt++;
+            }
+            return cnt;
+          } else {
+            let sum = 0;
+            for (let k = 0; k < rangeItems.length; k++) {
+              if (matchesCrit(rangeItems[k])) {
+                const si = sumItems[k];
+                if (si && !si.isEmpty && !si.isText && !si.isError && !isNaN(si.num)) {
+                  sum += si.num;
+                }
+              }
+            }
+            return cleanExcelFloat(sum);
+          }
+        }
+        case 'TODAY': {
+          const d = new Date();
+          const utc = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+          return Math.round((utc - Date.UTC(1899, 11, 30)) / 86400000);
+        }
+        case 'YEAR':
+        case 'MONTH':
+        case 'DAY': {
+          const serial = Math.floor(toNum(args[0]));
+          const dt = new Date(Date.UTC(1899, 11, 30) + serial * 86400000);
+          if (fnName === 'YEAR') return dt.getUTCFullYear();
+          if (fnName === 'MONTH') return dt.getUTCMonth() + 1;
+          return dt.getUTCDate();
+        }
         default:
           throw { unsupported: true };
       }
@@ -3281,29 +3638,28 @@
     const newVal = res.value;
 
     // 날짜 서식이 순수 사칙연산 결과(예: =M2-N2)에 잘못 상속되어 0이 1이나 1900-01-00으로 보이는 현상 교정
-    if (res.isArithmeticExpr && typeof newVal === 'number' && isDateFormatSpec(cell.ct)) {
+    // (단, 30000 초과의 실제 날짜 덧셈 결과 예: =A1+30 는 날짜 서식 유지)
+    if (res.isArithmeticExpr && typeof newVal === 'number' && Math.abs(newVal) <= 30000 && isDateFormatSpec(cell.ct)) {
       cell.ct = { fa: 'General', t: 'n' };
       changed = true;
     }
 
     if (res.isError) {
+      clearMaskMetadataFromCell(cell);
       if (cell.v !== newVal || cell.m !== newVal) {
         cell.v = newVal;
         cell.m = newVal;
-        cell.rawV = newVal;
-        cell.rawM = newVal;
         cell.ct = { fa: 'General', t: 'e' };
         changed = true;
       }
       return changed;
     }
 
+    clearMaskMetadataFromCell(cell);
     const nextM = formatFormulaDisplayValue(newVal, cell.ct);
     if (cell.v !== newVal || String(cell.m ?? '') !== nextM) {
       cell.v = newVal;
       cell.m = nextM;
-      cell.rawV = newVal;
-      cell.rawM = nextM;
       if (!cell.ct || cell.ct.t === 'e') {
         cell.ct = { fa: 'General', t: typeof newVal === 'number' ? 'n' : 'g' };
       }
@@ -3314,41 +3670,34 @@
 
   function sanitizeNativeFormulaCell(cell) {
     if (!cell || !cell.f) return false;
+    clearMaskMetadataFromCell(cell);
     let changed = false;
     if (typeof cell.v === 'number') {
       if (!isFinite(cell.v) || isNaN(cell.v)) {
         const errCode = isNaN(cell.v) ? '#VALUE!' : '#DIV/0!';
         cell.v = errCode;
         cell.m = errCode;
-        cell.rawV = errCode;
-        cell.rawM = errCode;
         return true;
       }
       const cleaned = cleanExcelFloat(cell.v);
       if (cleaned !== cell.v || cell.m === '-0' || String(cell.m ?? '').includes('e-1')) {
         cell.v = cleaned;
         cell.m = formatFormulaDisplayValue(cleaned, cell.ct);
-        cell.rawV = cleaned;
-        cell.rawM = cell.m;
         changed = true;
       }
     } else if (cell.v === 'NaN' || cell.m === 'NaN') {
       cell.v = '#VALUE!';
       cell.m = '#VALUE!';
-      cell.rawV = '#VALUE!';
-      cell.rawM = '#VALUE!';
       changed = true;
     } else if (cell.v === 'Infinity' || cell.v === '-Infinity' || cell.m === 'Infinity' || cell.m === '-Infinity') {
       cell.v = '#DIV/0!';
       cell.m = '#DIV/0!';
-      cell.rawV = '#DIV/0!';
-      cell.rawM = '#DIV/0!';
       changed = true;
     }
     return changed;
   }
 
-  function recalculateSheetFormulas(sheet, allSheets = null) {
+  function recalculateSheetFormulas(sheet, allSheets = null, recordChangedAsLocal = false) {
     if (!sheet || !sheet.data || !Array.isArray(sheet.data) || sheet.data.length === 0) return false;
     const sheetsCtx = allSheets || window.luckysheet?.getluckysheetfile?.() || [sheet];
 
@@ -3365,26 +3714,48 @@
     }
     if (formulaCoords.length === 0) return false;
 
+    // 비활성 타 시트 참조(Sheet2!A1:A500 등) 고속 조회용 임시 맵 구축
+    const tempMapsAttached = [];
+    for (let sIdx = 0; sIdx < sheetsCtx.length; sIdx++) {
+      const sh = sheetsCtx[sIdx];
+      if (sh && (!sh.data || sh.data.length === 0) && Array.isArray(sh.celldata) && sh.celldata.length > 0) {
+        const fmap = new Map();
+        for (let k = 0; k < sh.celldata.length; k++) {
+          const it = sh.celldata[k];
+          if (it) fmap.set(`${it.r}_${it.c}`, it.v);
+        }
+        sh.__celldataFastMap = fmap;
+        tempMapsAttached.push(sh);
+      }
+    }
+
     let anyChanged = false;
-    // 연쇄 참조 수식(O2 = M2-N2 -> P2 = SUM(O2:O10)) 수렴을 위해 최대 5회 반복 평가
-    for (let pass = 0; pass < 5; pass++) {
-      let passChanged = false;
-      for (let idx = 0; idx < formulaCoords.length; idx++) {
-        const { cell } = formulaCoords[idx];
-        const res = evaluateFormulaSafe(cell.f, sheet, sheetsCtx);
-        if (res.handled) {
-          if (applyFormulaResultToCell(cell, res)) {
-            passChanged = true;
-            anyChanged = true;
+    const sheetKey = recordChangedAsLocal ? toSafeDocKey(sheet.index) : null;
+    try {
+      // 연쇄 참조 수식(O2 = M2-N2 -> P2 = SUM(O2:O10)) 수렴을 위해 최대 5회 반복 평가
+      for (let pass = 0; pass < 5; pass++) {
+        let passChanged = false;
+        for (let idx = 0; idx < formulaCoords.length; idx++) {
+          const { r, c, cell } = formulaCoords[idx];
+          const res = evaluateFormulaSafe(cell.f, sheet, sheetsCtx, r, c);
+          let changed = false;
+          if (res.handled) {
+            changed = applyFormulaResultToCell(cell, res);
+          } else {
+            changed = sanitizeNativeFormulaCell(cell);
           }
-        } else {
-          if (sanitizeNativeFormulaCell(cell)) {
+          if (changed) {
             passChanged = true;
             anyChanged = true;
+            if (sheetKey) recordLocalCellEdit(sheetKey, r, c, cell);
           }
         }
+        if (!passChanged) break;
       }
-      if (!passChanged) break;
+    } finally {
+      for (let t = 0; t < tempMapsAttached.length; t++) {
+        delete tempMapsAttached[t].__celldataFastMap;
+      }
     }
     return anyChanged;
   }
@@ -3422,13 +3793,12 @@
               active.data[r][c] = cell;
             }
             cell.ct = { fa: '#,##0', t: 'n' };
-            const rawVal = cell.rawV !== undefined ? cell.rawV : cell.v;
+            const rawVal = isCellActivelyMasked(cell) ? cell.rawV : cell.v;
             const num = Number(String(rawVal ?? '').replace(/,/g, ''));
             if (rawVal !== null && rawVal !== undefined && rawVal !== '' && !isNaN(num)) {
               cell.v = num;
-              cell.rawV = num;
               cell.m = num.toLocaleString('ko-KR');
-              cell.rawM = cell.m;
+              clearMaskMetadataFromCell(cell);
             }
             queueRealtimeCellDelta(r, c, cell);
           }
@@ -3454,8 +3824,11 @@
 
     const currentDisp = extractCurrentDisplayString(cell);
     const isCleared = (!cell.f && currentDisp === '');
-    const trueV = isCleared ? null : (cell.rawV !== undefined ? cell.rawV : cell.v);
-    const trueM = isCleared ? null : (cell.rawM !== undefined ? cell.rawM : cell.m);
+    // 오직 현재 화면이 실제 마스킹된 상태(__isMasked===true && 표시값===__maskedStr)일 때만 rawV 복원 저장!
+    // 수식 셀·연속채우기·일반 편집 셀은 항상 cell.v/cell.m을 정직하게 저장 (1,2,1,2 변질 완벽 차단)
+    const useRawBackup = !isCleared && isCellActivelyMasked(cell);
+    const trueV = isCleared ? null : (useRawBackup ? cell.rawV : cell.v);
+    const trueM = isCleared ? null : (useRawBackup ? (cell.rawM !== undefined ? cell.rawM : cell.rawV) : cell.m);
 
     if (trueV !== undefined && trueV !== null && trueV !== '') { c.v = trueV; hasProp = true; }
     if (trueM !== undefined && trueM !== null && trueM !== '' && String(trueM) !== String(trueV)) { c.m = trueM; hasProp = true; }
@@ -3466,15 +3839,17 @@
     if (cell.it) { c.it = cell.it; hasProp = true; }
     if (cell.cl) { c.cl = cell.cl; hasProp = true; }
     if (cell.un) { c.un = cell.un; hasProp = true; }
-    if (cell.fs && cell.fs !== 10 && cell.fs !== 11) { c.fs = cell.fs; hasProp = true; }
-    if (cell.ff && cell.ff !== 'Times New Roman' && cell.ff !== 0 && cell.ff !== '0') { c.ff = cell.ff; hasProp = true; }
-    if (cell.ht !== undefined && cell.ht !== 1 && cell.ht !== '1' && cell.ht !== 0 && cell.ht !== '0') { c.ht = cell.ht; hasProp = true; }
-    if (cell.vt !== undefined && cell.vt !== 1 && cell.vt !== '1' && cell.vt !== 0 && cell.vt !== '0') { c.vt = cell.vt; hasProp = true; }
-    if (cell.tb !== undefined && cell.tb !== 0 && cell.tb !== '0') { c.tb = cell.tb; hasProp = true; }
+    if (cell.fs !== undefined && cell.fs !== null && cell.fs !== '' && cell.fs !== 10 && cell.fs !== '10') { c.fs = cell.fs; hasProp = true; }
+    if (cell.ff !== undefined && cell.ff !== null && cell.ff !== '' && cell.ff !== 'Times New Roman' && cell.ff !== 0 && cell.ff !== '0') { c.ff = cell.ff; hasProp = true; }
+    if (cell.ht !== undefined && cell.ht !== null && cell.ht !== '' && cell.ht !== 1 && cell.ht !== '1') { c.ht = cell.ht; hasProp = true; }
+    if (cell.vt !== undefined && cell.vt !== null && cell.vt !== '' && cell.vt !== 1 && cell.vt !== '1') { c.vt = cell.vt; hasProp = true; }
+    if (cell.tb !== undefined && cell.tb !== null && cell.tb !== 0 && cell.tb !== '0') { c.tb = cell.tb; hasProp = true; }
+    if (cell.tr !== undefined && cell.tr !== null && cell.tr !== 0 && cell.tr !== '0') { c.tr = cell.tr; hasProp = true; }
+    if (cell.rt !== undefined && cell.rt !== null && cell.rt !== 0 && cell.rt !== '0') { c.rt = cell.rt; hasProp = true; }
     if (cell.mc) { c.mc = cell.mc; hasProp = true; }
     if (cell.ps) { c.ps = cell.ps; hasProp = true; }
     if (cell.ct) {
-      if (!isCleared && cell.rawCtS && Array.isArray(cell.rawCtS) && cell.rawCtS.length > 0) {
+      if (useRawBackup && cell.rawCtS && Array.isArray(cell.rawCtS) && cell.rawCtS.length > 0) {
         c.ct = { ...cell.ct, s: cell.rawCtS };
         hasProp = true;
       } else if (!isCleared && cell.ct.s && Array.isArray(cell.ct.s) && cell.ct.s.length > 0) {
@@ -3491,17 +3866,15 @@
   function expandCell(cell) {
     if (!cell || typeof cell !== 'object') return null;
     const exp = { ...cell };
+    clearMaskMetadataFromCell(exp);
     if (exp.ct && Array.isArray(exp.ct.s) && exp.ct.s.length > 0) {
       const joined = exp.ct.s.map(seg => seg?.v ?? '').join('');
       if (exp.v === undefined || exp.v === null) exp.v = joined;
       if (exp.m === undefined || exp.m === null) exp.m = joined;
-      exp.rawCtS = JSON.parse(JSON.stringify(exp.ct.s));
     }
     if (exp.v !== undefined && exp.v !== null && exp.m === undefined) {
       exp.m = String(exp.v);
     }
-    if (exp.v !== undefined && exp.v !== null) exp.rawV = exp.v;
-    if (exp.m !== undefined && exp.m !== null) exp.rawM = exp.m;
     if (!exp.ct) {
       exp.ct = { fa: 'General', t: typeof exp.v === 'number' ? 'n' : 'g' };
     }
@@ -3549,7 +3922,10 @@
 
     const computedRow = Math.max(sheet.row || 50, maxR + 20, 50);
     const computedCol = Math.max(sheet.column || 20, maxC + 5, 20);
-    const cleanConfig = sanitizeSheetConfig(sheet.config || {}, computedRow, computedCol);
+    // 개인 필터로 숨겨진 행과 필터 조건은 Firestore에 절대 저장하지 않음 (타 사용자 화면 보호)
+    const localFilterHidden = getCombinedLocalFilterHiddenRows(sheet);
+    const configWithoutFilterHide = stripFilterFromConfigForCloud(sheet.config || {}, localFilterHidden);
+    const cleanConfig = sanitizeSheetConfig(configWithoutFilterHide, computedRow, computedCol);
 
     const serializedOut = {
       name: sheet.name || `Sheet${fallbackIdx + 1}`,
@@ -3565,8 +3941,8 @@
       frozen: sheet.frozen || null,
       dataVerification: sheet.dataVerification || {},
       luckysheet_conditionformat_save: sheet.luckysheet_conditionformat_save || [],
-      filter_select: sheet.filter_select || null,
-      filter: sheet.filter || null,
+      filter_select: null,
+      filter: null,
       hyperlink: sheet.hyperlink || {},
       celldata: celldata
     };
@@ -3595,12 +3971,15 @@
 
     const finalRow = Math.max(sheet.row || 50, maxR + 20, 50);
     const finalCol = Math.max(sheet.column || 20, maxC + 5, 20);
+    // 과거 Firestore에 저장돼 있던 공용 필터 잔재가 있다면 자동 해제해 전체 데이터가 보이도록 복구
+    const legacyFilterHidden = extractFilterHiddenRowSet(sheet.filter);
+    const cleanedRawCfg = stripFilterFromConfigForCloud(sheet.config || {}, legacyFilterHidden);
     let safeConfig = {};
     try {
-      safeConfig = sanitizeSheetConfig(sheet.config || {}, finalRow, finalCol);
+      safeConfig = sanitizeSheetConfig(cleanedRawCfg, finalRow, finalCol);
     } catch (e) {
       console.warn("초기 시트 config 정규화 폴백:", sheet.name, e);
-      safeConfig = { ...(sheet.config || {}), borderInfo: [] };
+      safeConfig = { ...cleanedRawCfg, borderInfo: [] };
     }
 
     const sheetObj = {
@@ -3613,8 +3992,8 @@
       config: safeConfig,
       dataVerification: sheet.dataVerification || {},
       luckysheet_conditionformat_save: sheet.luckysheet_conditionformat_save || [],
-      filter_select: sheet.filter_select || null,
-      filter: sheet.filter || null,
+      filter_select: null,
+      filter: null,
       hyperlink: sheet.hyperlink || {},
       celldata: expandedCelldata
     };
@@ -3624,6 +4003,7 @@
     } catch (e) {
       console.warn("병합 셀 무결성 복구 경고:", sheet.name, e);
     }
+    restoreLocalFilterToSheet(sheetObj);
     applyPrivacyMaskToSheetInPlace(sheetObj);
     return sheetObj;
   }
@@ -4079,6 +4459,14 @@
   });
 
   bindEvent('btn-logout', 'click', async () => {
+    if (dirtySheetKeys.size > 0 || structureDirty) {
+      flushPendingDeltaNow();
+      await Promise.race([
+        saveDirtySheetsToCloud(false),
+        new Promise(r => setTimeout(r, 2000))
+      ]);
+    }
+    if (autosaveHeartbeatTimer) clearInterval(autosaveHeartbeatTimer);
     if (metaUnsubscribe) metaUnsubscribe();
     if (deltaUnsubscribe) deltaUnsubscribe();
     if (presenceUnsubscribe) presenceUnsubscribe();
@@ -4089,6 +4477,18 @@
     }
     await signOut(auth);
     window.location.reload();
+  });
+
+  // Ctrl+S / Cmd+S 즉시 클라우드 저장 단축키
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      if (document.getElementById('main-screen')?.classList.contains('active') && !isInitializing) {
+        e.preventDefault();
+        markActiveSheetDirty();
+        flushPendingDeltaNow();
+        saveDirtySheetsToCloud(false);
+      }
+    }
   });
 
   document.addEventListener('visibilitychange', () => {
@@ -4135,6 +4535,10 @@
     dbStatusIndicator.classList.remove('saving', 'syncing');
     dbStatusIndicator.classList.add('error');
     dbStatusText.innerText = "네트워크 끊김 (복구 시 자동 저장)";
+  });
+
+  bindEvent('personal-filter-badge', 'click', () => {
+    clearPersonalFilterOnActiveSheet();
   });
 
   window.addEventListener('online', () => {
@@ -4667,8 +5071,9 @@
               if (active) {
                 sanitizeSheetMergeAndCells(active);
                 const fixedFormula = recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile());
-                if (fixedFormula) safeRefreshGrid();
+                if (fixedFormula) safeRefreshGrid(active.data);
               }
+              updatePersonalFilterBadge();
               injectCommaButton();
               injectInsertCopiedCellsMenuItems();
               translateUiElements();
@@ -4684,8 +5089,8 @@
             const cell = active.data[r][c];
             if (cell && typeof cell === 'object') {
               if (cell.f) {
-                // 수식 셀이 입력/수정된 경우 즉시 정밀 수식 보정 엔진으로 검증
-                const res = evaluateFormulaSafe(cell.f, active, window.luckysheet.getluckysheetfile());
+                clearMaskMetadataFromCell(cell);
+                const res = evaluateFormulaSafe(cell.f, active, window.luckysheet.getluckysheetfile(), r, c);
                 if (res.handled) {
                   applyFormulaResultToCell(cell, res);
                 } else {
@@ -4693,24 +5098,19 @@
                 }
               } else {
                 const enteredStr = extractCurrentDisplayString(cell);
-                const prevRawV = oldVal && typeof oldVal === 'object' ? oldVal.rawV : undefined;
-                const prevRawM = oldVal && typeof oldVal === 'object' ? oldVal.rawM : undefined;
-                const prevMasked = oldVal && typeof oldVal === 'object' ? String(oldVal.__maskedStr ?? oldVal.m ?? oldVal.v ?? '') : '';
+                const prevWasMasked = Boolean(oldVal && typeof oldVal === 'object' && oldVal.__isMasked === true && oldVal.rawV !== undefined);
+                const prevMaskedStr = prevWasMasked ? String(oldVal.__maskedStr ?? oldVal.m ?? oldVal.v ?? '') : '';
 
                 if (enteredStr === '') {
-                  delete cell.rawV;
-                  delete cell.rawM;
-                  delete cell.rawCtS;
-                  delete cell.__maskedStr;
-                } else if (enteredStr.includes('*') && enteredStr === prevMasked && prevRawV !== undefined) {
-                  cell.rawV = prevRawV;
-                  cell.rawM = prevRawM !== undefined ? prevRawM : String(prevRawV);
+                  clearMaskMetadataFromCell(cell);
+                } else if (prevWasMasked && enteredStr.includes('*') && enteredStr === prevMaskedStr) {
+                  cell.rawV = oldVal.rawV;
+                  cell.rawM = oldVal.rawM !== undefined ? oldVal.rawM : String(oldVal.rawV);
+                  if (Array.isArray(oldVal.rawCtS)) cell.rawCtS = JSON.parse(JSON.stringify(oldVal.rawCtS));
+                  cell.__isMasked = true;
+                  cell.__maskedStr = prevMaskedStr;
                 } else {
-                  cell.rawV = cell.v !== undefined ? cell.v : enteredStr;
-                  cell.rawM = cell.m !== undefined ? cell.m : String(cell.rawV ?? '');
-                  if (cell.ct && Array.isArray(cell.ct.s)) {
-                    cell.rawCtS = JSON.parse(JSON.stringify(cell.ct.s));
-                  }
+                  clearMaskMetadataFromCell(cell);
                 }
 
                 const colRules = (r < 15 || !active.__colRulesCache)
@@ -4724,10 +5124,10 @@
               queueRealtimeCellDelta(r, c, null);
             }
 
-            // 이 셀을 참조하는 다른 수식 셀들(=M2-N2 등)도 즉시 재계산
-            const anyFormulaFixed = recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile());
+            // 이 셀을 참조하는 다른 수식 셀들(=M2-N2, =ROW()-4 등)도 즉시 재계산
+            const anyFormulaFixed = recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile(), true);
             if (anyFormulaFixed) {
-              safeRefreshGrid();
+              safeRefreshGrid(active.data);
             }
           } else {
             queueRealtimeCellDelta(r, c, newVal);
@@ -4745,26 +5145,45 @@
           const opType = operate?.type || '';
           const activeKey = active ? toSafeDocKey(active.index) : null;
 
+          // [개인 전용 필터 보호] 필터 생성·변경·해제는 본인 화면에만 적용하고 클라우드에 절대 저장/전파하지 않음
+          if (['filter', 'createFilter', 'clearFilter', 'filter_options', 'datachangeAll_filter_clear'].includes(opType)) {
+            if (active) captureLocalFilterState(active);
+            return;
+          }
+          if (operate && (operate.filter !== undefined || operate.filter_select !== undefined) &&
+              !operate.curdata && !operate.data && !operate.curConfig?.borderInfo && !operate.curConfig?.merge) {
+            if (active) captureLocalFilterState(active);
+            return;
+          }
+
           if (active) {
-            // 테두리 변경 시 인접 셀 공유 변 충돌 정리 및 즉시 리프레시
+            // 1) 테두리 변경
             if (opType === 'borderChange' || opType === 'rangeBorder' || (operate && operate.curConfig && operate.curConfig.borderInfo)) {
-              normalizeAndRefreshActiveBorders(active);
+              normalizeAndRefreshActiveBorders(active, true);
               queueRealtimeConfigDelta(active);
-            } else if (['mergeChange', 'rowlen', 'columnlen', 'hideRow', 'hideColumn', 'showRow', 'showColumn', 'frozen', 'filter'].includes(opType)) {
+            } else if (['mergeChange', 'rowlen', 'columnlen', 'hideRow', 'hideColumn', 'showRow', 'showColumn', 'frozen'].includes(opType)) {
               if (activeKey) markSheetConfigDirty(activeKey);
               queueRealtimeConfigDelta(active);
-            } else if (['addRowCol', 'delRowCol', 'sort', 'datachangeAll', 'datachangeAll_clear', 'datachangeAll_filter_clear'].includes(opType)) {
+            } else if (['addRowCol', 'delRowCol', 'sort', 'datachangeAll', 'datachangeAll_clear'].includes(opType)) {
               if (activeKey) markSheetStructuralDirty(activeKey);
-            } else if (operate && Array.isArray(operate.range)) {
-              recordSelectionLocalEdits(active, operate.range);
-            } else if (active.luckysheet_select_save) {
-              recordSelectionLocalEdits(active, active.luckysheet_select_save);
             }
 
-            const anyFormulaFixed = recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile());
+            // 2) 반드시 수식 재계산(=ROW()-4, =M2-N2 등) -> 마스킹 갱신 -> 로컬 편집 기록 순서로 실행!
+            //    (연속데이터 채우기 후 stale rawV가 저장되는 문제 원천 차단)
+            const anyFormulaFixed = recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile(), true);
             applyPrivacyMaskToSheetInPlace(active);
+
+            if (!['borderChange', 'rangeBorder', 'mergeChange', 'rowlen', 'columnlen', 'hideRow', 'hideColumn', 'showRow', 'showColumn', 'frozen', 'addRowCol', 'delRowCol', 'sort', 'datachangeAll', 'datachangeAll_clear'].includes(opType)) {
+              if (operate && Array.isArray(operate.range)) {
+                recordSelectionLocalEdits(active, operate.range);
+              }
+              if (active.luckysheet_select_save) {
+                recordSelectionLocalEdits(active, active.luckysheet_select_save);
+              }
+            }
+
             if (anyFormulaFixed) {
-              safeRefreshGrid();
+              safeRefreshGrid(active.data);
             }
           }
 
@@ -4792,6 +5211,7 @@
               }
               recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile());
             }
+            updatePersonalFilterBadge();
             refreshActiveSheetMasking();
             schedulePresenceUpdate(false);
             renderRemoteCellCursors();
@@ -4944,13 +5364,13 @@
         setTimeout(() => {
           const active = getActiveSheetObj();
           if (active) {
+            recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile(), true);
+            refreshActiveSheetMasking();
             if (active.luckysheet_select_save) {
               recordSelectionLocalEdits(active, active.luckysheet_select_save);
             } else {
               markSheetStructuralDirty(toSafeDocKey(active.index));
             }
-            recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile());
-            refreshActiveSheetMasking();
           }
           markActiveSheetDirty();
           triggerAutoSave(450);
@@ -4959,19 +5379,22 @@
 
       container.addEventListener('keyup', (e) => {
         if (isInitializing || isApplyingRemoteUpdate || isComposingKorean) return;
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') {
+        const k = e.key.toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && k === 'c') {
           captureCurrentSelectionAsCopied();
         }
-        if (['Delete', 'Backspace'].includes(e.key) || ((e.ctrlKey || e.metaKey) && ['v', 'x', 'z', 'y'].includes(e.key.toLowerCase()))) {
+        if (['Delete', 'Backspace'].includes(e.key) || ((e.ctrlKey || e.metaKey) && ['v', 'x', 'z', 'y'].includes(k))) {
           if (isCellEditorActive()) return; // 셀 내부 편집 중 Backspace/Delete는 셀 확정 시 cellUpdated에서 처리
           const active = getActiveSheetObj();
           if (active) {
-            if (active.luckysheet_select_save) {
+            const fixed = recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile(), true);
+            applyPrivacyMaskToSheetInPlace(active);
+            if ((e.ctrlKey || e.metaKey) && (k === 'z' || k === 'y')) {
+              markSheetStructuralDirty(toSafeDocKey(active.index));
+            } else if (active.luckysheet_select_save) {
               recordSelectionLocalEdits(active, active.luckysheet_select_save);
             }
-            const fixed = recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile());
-            applyPrivacyMaskToSheetInPlace(active);
-            if (fixed) safeRefreshGrid();
+            if (fixed) safeRefreshGrid(active.data);
           }
           markActiveSheetDirty();
           triggerAutoSave(450);
@@ -5037,18 +5460,76 @@
           }, 100);
         }
 
-        // 테두리 메뉴 클릭 전용 처리: 인접 셀 공유 변 충돌 즉시 정리 및 캔버스 리프레시 + 동기화
-        if (target.closest('#luckysheet-icon-border-menu, #luckysheet-border-style-menu, #luckysheet-border-color-menu, .luckysheet-toolbar-border-line')) {
+        // 테두리 메뉴: 색상/선스타일 선택만 한 경우엔 저장하지 않고, 실제 테두리 유형을 클릭했을 때만 보정·저장
+        if (target.closest('#luckysheet-border-style-menu, #luckysheet-border-color-menu')) {
+          setTimeout(() => translateUiElements(), 40);
+          return;
+        }
+        if (target.closest('#luckysheet-icon-border-menu')) {
+          const borderBtn = target.closest('.luckysheet-cols-menuitem');
+          const itemId = borderBtn?.id || '';
+          // 색상/스타일 서브메뉴 진입 항목이 아닌 실제 테두리 적용 버튼 클릭 시에만 처리
+          if (borderBtn && !itemId.includes('color') && !itemId.includes('style')) {
+            setTimeout(() => {
+              const active = getActiveSheetObj();
+              if (active) {
+                markSheetConfigDirty(toSafeDocKey(active.index));
+                queueRealtimeConfigDelta(active);
+                triggerAutoSave(400);
+              }
+              translateUiElements();
+            }, 90);
+          } else {
+            setTimeout(() => translateUiElements(), 40);
+          }
+          return;
+        }
+
+        // [개인 전용 필터 UI 클릭 처리]
+        // 필터 메뉴 안의 '오름차순/내림차순 정렬'은 데이터 변경이므로 클라우드 저장,
+        // 그 외 모든 필터 생성·항목 체크·확인·해제 클릭은 내 화면 전용으로만 적용 (클라우드 저장/전파 차단)
+        if (target.closest('#luckysheet-filter-orderby-asc, #luckysheet-filter-orderby-desc')) {
           setTimeout(() => {
             const active = getActiveSheetObj();
             if (active) {
-              normalizeAndRefreshActiveBorders(active);
-              queueRealtimeConfigDelta(active);
-              markSheetConfigDirty(toSafeDocKey(active.index));
-              triggerAutoSave(400);
+              recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile(), true);
+              applyPrivacyMaskToSheetInPlace(active);
+              markSheetStructuralDirty(toSafeDocKey(active.index));
+              triggerAutoSave(450);
             }
+          }, 120);
+          return;
+        }
+        if (target.closest('#luckysheet-icon-autofilter, #luckysheet-filter-menu, #luckysheet-filter-byvalue, #luckysheet-filter-bycondition, [id^="luckysheet-filter-options-sheet"], [id^="luckysheet-filter-selected-sheet"], .luckysheet-filter-options, .luckysheet-filter-modal')) {
+          setTimeout(() => {
+            const active = getActiveSheetObj();
+            if (active) captureLocalFilterState(active);
             translateUiElements();
-          }, 60);
+          }, 120);
+          return;
+        }
+
+        // 찾기/바꾸기 모달: '바꾸기/모두 바꾸기'는 저장하고, 단순 '찾기/닫기'는 저장하지 않음
+        if (target.closest('#luckysheet-search-replace')) {
+          if (target.closest('#replace, #replaceAll')) {
+            setTimeout(() => {
+              const active = getActiveSheetObj();
+              if (active) {
+                recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile(), true);
+                applyPrivacyMaskToSheetInPlace(active);
+                markSheetStructuralDirty(toSafeDocKey(active.index));
+                triggerAutoSave(450);
+              }
+            }, 120);
+          } else {
+            setTimeout(() => translateUiElements(), 40);
+          }
+          return;
+        }
+
+        // 읽기 전용 메뉴(복사, 닫기, 취소) 클릭 시 불필요한 dirty 마킹·저장 방지
+        if (target.closest('#luckysheet-icon-copy-menu, .luckysheet-modal-dialog-title-close, .luckysheet-modal-dialog-button-cancel')) {
+          setTimeout(() => translateUiElements(), 40);
           return;
         }
 
@@ -5056,17 +5537,17 @@
           setTimeout(() => {
             const active = getActiveSheetObj();
             if (active) {
+              recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile(), true);
+              applyPrivacyMaskToSheetInPlace(active);
               if (active.luckysheet_select_save) {
                 recordSelectionLocalEdits(active, active.luckysheet_select_save);
               }
               markSheetConfigDirty(toSafeDocKey(active.index));
-              recalculateSheetFormulas(active, window.luckysheet.getluckysheetfile());
-              applyPrivacyMaskToSheetInPlace(active);
             }
             translateUiElements();
             markActiveSheetDirty();
             triggerAutoSave(450);
-          }, 60);
+          }, 80);
         } else if (target.closest('.luckysheet-wa-editor')) {
           setTimeout(() => {
             injectCommaButton();
@@ -5074,6 +5555,17 @@
           }, 40);
         }
       });
+
+      // 5초 백그라운드 안전 저장 감시 (네트워크 일시 복구·누락 방지 최종 안전망)
+      if (autosaveHeartbeatTimer) clearInterval(autosaveHeartbeatTimer);
+      autosaveHeartbeatTimer = setInterval(() => {
+        if (!isInitializing && !isSavingInProgress && navigator.onLine !== false) {
+          if (dirtySheetKeys.size > 0 || structureDirty) {
+            flushPendingDeltaNow();
+            saveDirtySheetsToCloud(false);
+          }
+        }
+      }, 5000);
 
       listenRemoteSheetChanges();
     });
@@ -5133,12 +5625,21 @@
       if (item.c + 5 > maxC) maxC = item.c + 5;
     });
 
-    const mergedConfig = sanitizeSheetConfig(remoteSerialized.config || {});
+    const finalRow = Math.max(maxR, localSheetObj?.row || 50);
+    const finalCol = Math.max(maxC, localSheetObj?.column || 20);
+    const remoteLegacyFilterHidden = extractFilterHiddenRowSet(remoteSerialized.filter);
+    const cleanRemoteCfgRaw = stripFilterFromConfigForCloud(remoteSerialized.config || {}, remoteLegacyFilterHidden);
+    const mergedConfig = sanitizeSheetConfig(cleanRemoteCfgRaw, finalRow, finalCol);
     if (localPendingConfigKeys.has(sKey) && localSheetObj?.config) {
-      const localCfg = sanitizeSheetConfig(localSheetObj.config);
-      if (localCfg.borderInfo && localCfg.borderInfo.length > 0) {
-        const combinedBorders = [...(mergedConfig.borderInfo || []), ...localCfg.borderInfo];
-        mergedConfig.borderInfo = compactBorderInfo(combinedBorders);
+      const localFilterHidden = getCombinedLocalFilterHiddenRows(localSheetObj);
+      const localCfgStripped = stripFilterFromConfigForCloud(localSheetObj.config, localFilterHidden);
+      const localCfg = sanitizeSheetConfig(localCfgStripped, finalRow, finalCol);
+      const newLocalBorders = localPendingBorderOps.get(sKey);
+      if (Array.isArray(newLocalBorders) && newLocalBorders.length > 0) {
+        const combinedBorders = [...(mergedConfig.borderInfo || []), ...newLocalBorders];
+        mergedConfig.borderInfo = compactBorderInfo(combinedBorders, finalRow, finalCol);
+      } else if ((!mergedConfig.borderInfo || mergedConfig.borderInfo.length === 0) && localCfg.borderInfo && localCfg.borderInfo.length > 0) {
+        mergedConfig.borderInfo = localCfg.borderInfo;
       }
       if (localCfg.merge) mergedConfig.merge = { ...(mergedConfig.merge || {}), ...localCfg.merge };
       if (localCfg.rowlen) mergedConfig.rowlen = { ...(mergedConfig.rowlen || {}), ...localCfg.rowlen };
@@ -5147,15 +5648,19 @@
       if (localCfg.colhidden) mergedConfig.colhidden = localCfg.colhidden;
     }
 
-    return {
+    const mergedOut = {
       ...remoteSerialized,
       name: localSheetObj?.name || remoteSerialized.name,
       hide: localSheetObj ? (localSheetObj.hide ? 1 : 0) : remoteSerialized.hide,
-      row: Math.max(maxR, localSheetObj?.row || 50),
-      column: Math.max(maxC, localSheetObj?.column || 20),
+      row: finalRow,
+      column: finalCol,
       config: mergedConfig,
+      filter_select: null,
+      filter: null,
       celldata: mergedCelldata
     };
+    sanitizeSheetMergeAndCells(mergedOut);
+    return mergedOut;
   }
 
   function applyMergedSerializedToLiveSheet(lSheet, mergedSerialized) {
@@ -5187,12 +5692,14 @@
         const it = expandedSheet.celldata[i];
         if (it && freshGrid[it.r]) freshGrid[it.r][it.c] = it.v;
       }
-      lSheet.data = freshGrid;
+      // Store.flowdata 참조 유지 (제자리 갱신)
+      replaceGridDataInPlace(lSheet.data, freshGrid);
       lSheet.row = targetRows;
       lSheet.column = targetCols;
       recalculateSheetFormulas(lSheet, window.luckysheet?.getluckysheetfile?.());
       applyPrivacyMaskToSheetInPlace(lSheet);
     }
+    restoreLocalFilterToSheet(lSheet);
   }
 
   async function saveDirtySheetsToCloud(forceAll = false) {
@@ -5244,6 +5751,7 @@
           dirtySheetKeys.delete(k);
           localPendingEdits.delete(k);
           localPendingConfigKeys.delete(k);
+          localPendingBorderOps.delete(k);
           localStructuralDirtyKeys.delete(k);
           structureDirty = true;
         }
@@ -5373,6 +5881,7 @@
         if (currentGen === startGen) {
           dirtySheetKeys.delete(sKey);
           localPendingConfigKeys.delete(sKey);
+          localPendingBorderOps.delete(sKey);
           localStructuralDirtyKeys.delete(sKey);
           const cellMap = localPendingEdits.get(sKey);
           if (cellMap) {
@@ -5391,7 +5900,8 @@
       }
 
       if (mergedAnyRemoteIntoLocal) {
-        safeRefreshGrid();
+        const actSheet = getActiveSheetObj();
+        safeRefreshGrid(actSheet?.data && actSheet.data.length > 0 ? actSheet.data : null);
       }
 
       saveRetryCount = 0;
@@ -5461,6 +5971,8 @@
           Object.keys(cleanRemoteCfg).forEach(k => {
             if (k !== 'borderInfo') targetSheet.config[k] = cleanRemoteCfg[k];
           });
+          // 본인 화면에 적용 중인 개인 필터(rowhidden 포함)는 원격 config 수신 후에도 그대로 유지!
+          restoreLocalFilterToSheet(targetSheet);
         }
         if (d.dataVerification) {
           targetSheet.dataVerification = d.dataVerification;
@@ -5626,8 +6138,8 @@
 
             lSheet.dataVerification = rSheet.dataVerification || {};
             lSheet.luckysheet_conditionformat_save = rSheet.luckysheet_conditionformat_save || [];
-            lSheet.filter_select = rSheet.filter_select || null;
-            lSheet.filter = rSheet.filter || null;
+            // 본인 화면의 개인 필터(filter_select, filter, filterHiddenRows)를 원격 갱신으로부터 보호
+            restoreLocalFilterToSheet(lSheet);
             lSheet.hyperlink = rSheet.hyperlink || {};
             lSheet.calcChain = rSheet.calcChain || [];
 
@@ -5667,7 +6179,8 @@
                   freshGrid[item.r][item.c] = item.v;
                 }
               }
-              lSheet.data = freshGrid;
+              // Store.flowdata 참조가 끊어지지 않도록 제자리(in-place) 갱신
+              replaceGridDataInPlace(lSheet.data, freshGrid);
               lSheet.row = targetRows;
               lSheet.column = targetCols;
               recalculateSheetFormulas(lSheet, liveSheets);
@@ -5675,7 +6188,8 @@
             }
           });
 
-          safeRefreshGrid();
+          const actSheetAfterMeta = getActiveSheetObj();
+          safeRefreshGrid(actSheetAfterMeta?.data && actSheetAfterMeta.data.length > 0 ? actSheetAfterMeta.data : null);
           renderRemoteCellCursors();
         }
 
