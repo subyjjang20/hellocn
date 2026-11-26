@@ -57,7 +57,8 @@
     button.purple-btn { background: #673ab7; }
 
     /* 상단 헤더바 */
-    .header-bar { min-height: 60px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 6px 18px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; box-sizing: border-box; gap: 10px; }
+    .header-bar { position: relative; min-height: 60px; background: #ffffff; display: flex; justify-content: space-between; align-items: center; padding: 6px 18px; z-index: 10; box-shadow: 0 1px 4px rgba(0,0,0,0.08); flex-shrink: 0; box-sizing: border-box; gap: 10px; }
+    #hidden-mask-toggle { position: absolute; top: 0; left: 18px; width: 112px; height: 14px; background: transparent; z-index: 20; cursor: default; display: none; }
     .header-left { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; flex: 1; min-width: 0; }
     .header-title { font-size: 18px; font-weight: 800; color: #1a73e8; white-space: nowrap; cursor: pointer; user-select: none; padding: 4px 6px; border-radius: 6px; transition: background 0.15s; }
     .header-title:hover { background: #e8f0fe; }
@@ -99,8 +100,7 @@
     .header-actions button { padding: 8px 12px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: 0.2s; white-space: nowrap; }
     #btn-export-xlsx { background: #1a73e8; color: white; }
     #btn-export-xlsx:hover { background: #1557b0; }
-    #btn-toggle-mask-preview { background: #f1f3f4; color: #3c4043; border: 1px solid #dadce0; display: none; }
-    #btn-toggle-mask-preview.active { background: #feefc3; color: #b06000; border-color: #fbbc04; font-weight: 800; }
+
     #btn-show-files { background: #673ab7; color: white; display: none; }
     #btn-show-files:hover { background: #512da8; }
     #btn-show-admin { background: #34a853; color: white; display: none; }
@@ -232,6 +232,7 @@
 <!-- 메인 엑셀 화면 -->
 <div id="main-screen" class="screen">
   <div class="header-bar">
+    <div id="hidden-mask-toggle" aria-hidden="true"></div>
     <div class="header-left">
       <div id="header-logo-title" class="header-title" title="클릭하면 화면을 새로고침합니다">헬로CN닥스</div>
       <!-- 다중 엑셀 파일 선택 드롭다운 및 현재 파일 전용 접속 링크 복사 -->
@@ -250,7 +251,6 @@
     </div>
     <div class="header-actions">
       <button id="btn-export-xlsx" title="현재 엑셀 문서를 .xlsx 파일로 다운로드합니다 (관리자: 원본 / 일반사용자: 마스킹본)">📥 엑셀 다운로드(.xlsx)</button>
-      <button id="btn-toggle-mask-preview" title="일반 사용자에게 보이는 개인정보 마스킹 화면을 즉시 전환하여 확인합니다">👁️ 마스킹 미리보기: OFF</button>
       <button id="btn-show-files" style="display: none;">📂 문서함/권한</button>
       <button id="btn-show-admin" style="display: none;">계정 관리(관리자)</button>
       <button id="btn-force-reload-all" style="display: none;" title="접속 중인 모든 사용자의 화면을 최신 버전으로 즉시 새로고침합니다 (최고 관리자 전용)">🔄 전체갱신</button>
@@ -641,7 +641,7 @@
   }
 
   // ==================== 정밀 개인정보 마스킹 엔진 ====================
-  let adminMaskPreview = false;
+  let adminMaskPreview = true;
 
   function shouldMaskForCurrentUser() {
     if (!currentUserInfo) return true;
@@ -4750,13 +4750,10 @@
     exportWorkbookToXlsx();
   });
 
-  bindEvent('btn-toggle-mask-preview', 'click', () => {
+  bindEvent('hidden-mask-toggle', 'click', (e) => {
+    e.stopPropagation();
+    if (!currentUserInfo || currentUserInfo.role !== 'admin') return;
     adminMaskPreview = !adminMaskPreview;
-    const btn = document.getElementById('btn-toggle-mask-preview');
-    if (btn) {
-      btn.classList.toggle('active', adminMaskPreview);
-      btn.innerText = adminMaskPreview ? '👁️ 마스킹 미리보기: ON' : '👁️ 마스킹 미리보기: OFF';
-    }
     refreshActiveSheetMasking();
   });
 
@@ -4808,7 +4805,7 @@
           
           const adminBtn = document.getElementById('btn-show-admin');
           const filesBtn = document.getElementById('btn-show-files');
-          const maskPreviewBtn = document.getElementById('btn-toggle-mask-preview');
+          const hiddenMaskToggle = document.getElementById('hidden-mask-toggle');
           const forceReloadBtn = document.getElementById('btn-force-reload-all');
           const forceLogoutBtn = document.getElementById('btn-force-logout-all');
           const superAdminBar = document.getElementById('super-admin-control-bar');
@@ -4816,11 +4813,11 @@
           if (currentUserInfo.role === 'admin') {
             adminBtn.style.display = 'inline-block';
             filesBtn.style.display = 'inline-block';
-            maskPreviewBtn.style.display = 'inline-block';
+            if (hiddenMaskToggle) hiddenMaskToggle.style.display = 'block';
           } else {
             adminBtn.style.display = 'none';
             filesBtn.style.display = 'none';
-            maskPreviewBtn.style.display = 'none';
+            if (hiddenMaskToggle) hiddenMaskToggle.style.display = 'none';
             document.getElementById('admin-modal').style.display = 'none';
             document.getElementById('file-modal').style.display = 'none';
           }
@@ -4884,7 +4881,8 @@
         document.getElementById('main-screen').classList.remove('active');
         document.getElementById('btn-show-admin').style.display = 'none';
         document.getElementById('btn-show-files').style.display = 'none';
-        document.getElementById('btn-toggle-mask-preview').style.display = 'none';
+        const hmToggle = document.getElementById('hidden-mask-toggle');
+        if (hmToggle) hmToggle.style.display = 'none';
         const frBtn = document.getElementById('btn-force-reload-all');
         const flBtn = document.getElementById('btn-force-logout-all');
         const saBar = document.getElementById('super-admin-control-bar');
